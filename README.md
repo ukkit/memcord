@@ -1,11 +1,12 @@
-# memcord - MCP Server
+# MemCord MCP Server
 
 A Model Context Protocol (MCP) server for managing chat memory with automatic summarization, intelligent search, and file sharing capabilities. Save, organize, and retrieve conversation history with powerful AI-enhanced search across all your memories.
 
 [![MCP Server](https://img.shields.io/badge/MCP-Server-blue)](https://github.com/modelcontextprotocol)
   [![Claude Desktop](https://img.shields.io/badge/Claude-Desktop-orange)](https://claude.ai/desktop)
-  [![Python](https://img.shields.io/badge/Python-3.8+-green)](https://python.org)
+  [![Python](https://img.shields.io/badge/Python-3.10+-green)](https://python.org)
   [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
+
 
 ## Key Features
 
@@ -37,12 +38,12 @@ uv pip install -e .
       "command": "uv",
       "args": [
         "--directory",
-        "/path/to/chat-memory-mcp",
+        "/path/to/memcord",
         "run",
         "memcord"
       ],
       "env": {
-        "PYTHONPATH": "/path/to/chat-memory-mcp/src"
+        "PYTHONPATH": "/path/to/memcord/src"
       }
     }
   }
@@ -57,12 +58,12 @@ uv pip install -e .
       "command": "uv",
       "args": [
         "--directory",
-        "/path/to/chat-memory-mcp",
+        "/path/to/memcord",
         "run",
         "memcord"
       ],
       "env": {
-        "PYTHONPATH": "/path/to/chat-memory-mcp/src",
+        "PYTHONPATH": "/path/to/memcord/src",
         "MEMCORD_ENABLE_ADVANCED": "true"
       }
     }
@@ -157,7 +158,6 @@ Set `MEMCORD_ENABLE_ADVANCED=true` to unlock additional features:
 - **📥 [Import & Merge Guide](docs/import-and-merge.md)** - Comprehensive guide for Phase 3 features 🆕
 - **🔍 [Search & Query Guide](docs/search-and-query.md)** - Advanced search features and natural language queries
 - **🗂️ [Usage Examples](docs/examples.md)** - Real-world workflows and practical use cases
-- **🚀 [Release Workflow](docs/release-workflow.md)** - Automated release syncing between repositories 🆕
 - **⚙️ [Data Format Specification](docs/data-format.md)** - Technical details and file formats
 - **🛠️ [Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
 
@@ -181,42 +181,8 @@ Set `MEMCORD_ENABLE_ADVANCED=true` to unlock additional features:
 - **MCP Resources**: Auto-generated file resources accessible to other MCP apps
 - **Export Options**: Share memories in multiple formats simultaneously
 
-## Development & Testing
-
-```bash
-# Install dev dependencies
-uv pip install -e ".[dev]"
-
-# Run tests
-pytest
-
-# Format code
-black src/ && ruff check src/
-```
-
-### Release Management
-
-For repository maintainers, an automated release workflow is available to sync changes from development to production:
-
-```bash
-# Quick release (via GitHub UI)
-1. Go to Actions → "Release Sync to Production"
-2. Click "Run workflow"
-3. Enter version (e.g., v1.2.3) and options
-4. Review and merge the created pull request
-
-# Command line release
-gh workflow run release-sync.yml -f release_version=v1.2.3
-
-# Local testing with script
-./scripts/sync-release.sh -r v1.2.3 --dry-run
-```
-
-**📚 See [Release Workflow Guide](docs/release-workflow.md)** for complete setup and usage instructions.
-
 ## License & Support
 
 **MIT License** - see LICENSE file for details.
 
 **Issues & Feature Requests**: Use the GitHub issue tracker
-**Contributing**: Contributions welcome! Please read CONTRIBUTING.md for guidelines

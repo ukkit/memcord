@@ -5,7 +5,7 @@ Technical documentation for data structures, file formats, and storage specifica
 ## File Structure
 
 ```
-chat-memory-mcp/
+memcord/
 ├── memory_slots/          # Internal JSON storage with enhanced metadata
 │   ├── project_alpha.json      # With tags, groups, descriptions
 │   ├── meeting_notes.json      # Organized and searchable

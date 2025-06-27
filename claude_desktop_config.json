@@ -4,12 +4,13 @@
       "command": "uv",
       "args": [
         "--directory",
-        "/home/neeraj/git/chat-memory-mcp",
+        "/path/to/memcord",
         "run",
         "memcord"
       ],
       "env": {
-        "PYTHONPATH": "/home/neeraj/git/chat-memory-mcp/src"
+        "PYTHONPATH": "/path/to/memcord/src",
+        "MEMCORD_ENABLE_ADVANCED": "true"
       }
     }
   }
