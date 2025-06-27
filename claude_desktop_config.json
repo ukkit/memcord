@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "memcord": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/home/neeraj/git/chat-memory-mcp",
+        "run",
+        "memcord"
+      ],
+      "env": {
+        "PYTHONPATH": "/home/neeraj/git/chat-memory-mcp/src"
+      }
+    }
+  }
+}

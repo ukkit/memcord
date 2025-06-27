@@ -1,0 +1,147 @@
+# Release Exclusion Configuration
+# Files and directories listed here will be excluded from release syncs
+# Lines starting with # are comments and will be ignored
+# Use glob patterns for matching multiple files
+
+# Development and testing files
+tests/
+*_test.py
+*_spec.py
+test_*.py
+spec_*.py
+.pytest_cache/
+.coverage
+coverage/
+htmlcov/
+.tox/
+.nox/
+scripts/
+
+# Development tools and configs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Python specific
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.staging
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Documentation source files (if you want to exclude them)
+# docs/source/
+# *.md (uncomment if you don't want markdown files in releases)
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+.temp/
+
+# Backup files
+*.bak
+*.backup
+*.orig
+
+# OS generated files
+.DS_Store?
+ehthumbs.db
+Icon?
+
+# Development configuration
+.editorconfig
+.gitignore
+.gitattributes
+
+# CI/CD files (these are handled separately by the workflow)
+.github/
+.travis.yml
+.circleci/
+.gitlab-ci.yml
+azure-pipelines.yml
+
+# Package manager files (uncomment if needed)
+# package-lock.json
+# yarn.lock
+# poetry.lock
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Cache directories
+.cache/
+.parcel-cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Project specific exclusions (add your custom exclusions below)
+# memory_slots/ (uncomment if you don't want to sync memory slots)
+# shared_memories/ (uncomment if you don't want to sync shared memories)
+
+# Development server files
+server_backup.py
+#claude_desktop_config.json
+
+# Implementation documentation (uncomment if you don't want these in production)
+IMPLEMENTATION_SUMMARY.md
+PHASE3_IMPLEMENTATION.md
+NAMING_CONVENTION.md
+CONTRIBUTING.md
+docs/PRD.md
+docs/release-workflow.md
