@@ -1,22 +1,24 @@
 # Tools Reference
 
-Complete reference for all 14 tools available in the Chat Memory MCP Server.
+Complete reference for all 15 tools available in the Chat Memory MCP Server.
 
 ## Tool Availability
 
 MemCord offers **two modes** with different tool sets:
 
-### 🔧 Basic Mode (Default - 7 Tools)
+### 🔧 Basic Mode (Default - 8 Tools)
 Available without configuration:
 - Core: `memcord_name`, `memcord_save`, `memcord_read`, `memcord_save_progress`, `memcord_list`
 - Search: `memcord_search`, `memcord_query`
+- Storage: `memcord_compress`
 
-### ⚡ Advanced Mode (All 14 Tools)
+### ⚡ Advanced Mode (All 15 Tools)
 Requires `MEMCORD_ENABLE_ADVANCED=true`:
 - **All Basic tools** plus:
 - Organization: `memcord_tag`, `memcord_list_tags`, `memcord_group`
 - Import & Integration: `memcord_import`, `memcord_merge`
 - Export & Sharing: `memcord_export`, `memcord_share`
+- Archival: `memcord_archive`
 
 ---
 
@@ -98,6 +100,34 @@ Ask natural language questions about your stored memories.
 **Examples:**
 - "What decisions were made about the API design?"
 - "What issues were discussed in the last meeting?"
+
+### Storage Optimization
+
+### 8. `memcord_compress`
+Compress memory slot content to save storage space with intelligent gzip compression.
+
+**Parameters:**
+- `action`: Action to perform (`analyze`, `compress`, `decompress`, `stats`)
+- `slot_name` (optional): Memory slot name to compress. Processes all slots if not specified
+- `force` (optional): Force compression even for already compressed content (default: false)
+
+**Actions:**
+- **`analyze`**: Preview compression potential without making changes
+- **`compress`**: Apply compression to memory slot content 
+- **`decompress`**: Restore compressed content to original form
+- **`stats`**: View detailed compression statistics
+
+**Examples:**
+- `memcord_compress action="analyze"` - Preview compression for all slots
+- `memcord_compress action="compress" slot_name="project_alpha"` - Compress specific slot
+- `memcord_compress action="stats"` - View overall compression statistics
+- `memcord_compress action="decompress" slot_name="project_alpha"` - Restore original content
+
+**Features:**
+- Automatic compression threshold (1KB minimum)
+- 30-70% typical storage reduction
+- Maintains search functionality on compressed content
+- Transparent decompression when reading content
 
 ---
 
@@ -182,6 +212,38 @@ Merge multiple memory slots into one with intelligent duplicate detection.
 - **Preview Mode**: See merge results before execution
 - **Source Cleanup**: Optional deletion of source slots after successful merge
 - **Merge Statistics**: Detailed information about content and duplicates removed
+
+### Archival & Long-term Storage
+
+### `memcord_archive`
+Archive or restore memory slots for long-term storage with automatic compression.
+
+**Parameters:**
+- `action`: Action to perform (`archive`, `restore`, `list`, `stats`, `candidates`)
+- `slot_name` (optional): Memory slot name to archive/restore (required for `archive` and `restore`)
+- `reason` (optional): Reason for archiving (default: "manual")
+- `days_inactive` (optional): Days of inactivity for finding candidates (default: 30)
+
+**Actions:**
+- **`archive`**: Move a memory slot to compressed archive storage
+- **`restore`**: Restore an archived slot back to active memory
+- **`list`**: Browse all archived memory slots with metadata
+- **`stats`**: View archive storage statistics and space savings
+- **`candidates`**: Find slots suitable for archiving based on inactivity
+
+**Examples:**
+- `memcord_archive action="candidates" days_inactive=30` - Find slots inactive for 30+ days
+- `memcord_archive action="archive" slot_name="old_project" reason="project_completed"` - Archive specific slot
+- `memcord_archive action="list"` - View all archived slots
+- `memcord_archive action="restore" slot_name="old_project"` - Restore from archive
+- `memcord_archive action="stats"` - View archive statistics
+
+**Features:**
+- **Automatic Compression**: Archives are compressed for maximum space savings
+- **Preserved Metadata**: All tags, groups, and timestamps maintained
+- **Search Integration**: Archived content remains searchable (future enhancement)
+- **Safe Operations**: Archives preserve original data with restoration capability
+- **Usage Analytics**: Identifies inactive slots for archival recommendations
 
 ## Search & Query Tools
 

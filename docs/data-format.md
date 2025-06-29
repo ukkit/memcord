@@ -5,10 +5,14 @@ Technical documentation for data structures, file formats, and storage specifica
 ## File Structure
 
 ```
-memcord/
+chat-memory-mcp/
 ├── memory_slots/          # Internal JSON storage with enhanced metadata
-│   ├── project_alpha.json      # With tags, groups, descriptions
-│   ├── meeting_notes.json      # Organized and searchable
+│   ├── project_alpha.json      # With tags, groups, descriptions, compression
+│   ├── meeting_notes.json      # Organized, searchable, optimized storage
+│   └── ...
+├── archives/              # Archived memory slots (compressed)
+│   ├── index.json              # Archive index with metadata
+│   ├── old_project_archived.json
 │   └── ...
 ├── shared_memories/       # Exported files
 │   ├── project_alpha.md
@@ -22,10 +26,12 @@ memcord/
 │   ├── data-format.md    # This file
 │   ├── troubleshooting.md # Support documentation
 │   └── examples.md       # Usage examples
-└── src/chat_memory/       # Source code
-    ├── server.py         # Main MCP server with 12 tools
-    ├── storage.py        # Enhanced storage with search integration
-    ├── models.py         # Enhanced data models
+└── src/memcord/           # Source code
+    ├── server.py         # Main MCP server with 15 tools
+    ├── storage.py        # Enhanced storage with compression/archive support
+    ├── models.py         # Enhanced data models with compression metadata
+    ├── compression.py    # Content compression utilities
+    ├── archival.py       # Archival system for long-term storage
     ├── search.py         # Search engine with TF-IDF scoring
     ├── query.py          # Natural language query processing
     └── summarizer.py     # Text summarization
@@ -44,6 +50,9 @@ memcord/
   "group_path": "projects/alpha/development",
   "description": "Development discussions for Project Alpha",
   "priority": 1,
+  "is_archived": false,
+  "archived_at": null,
+  "archive_reason": null,
   "metadata": {
     "total_entries": 5,
     "total_characters": 12500,
@@ -63,6 +72,14 @@ memcord/
         "participant_count": 3,
         "topics": ["api_design", "authentication"],
         "decisions": ["use_jwt_tokens", "implement_rate_limiting"]
+      },
+      "compression_info": {
+        "is_compressed": false,
+        "algorithm": "none",
+        "original_size": null,
+        "compressed_size": null,
+        "compression_ratio": null,
+        "compressed_at": null
       }
     },
     {
@@ -78,6 +95,14 @@ memcord/
         "key_points": 5,
         "decisions_count": 2,
         "action_items": 3
+      },
+      "compression_info": {
+        "is_compressed": true,
+        "algorithm": "gzip",
+        "original_size": 5000,
+        "compressed_size": 750,
+        "compression_ratio": 0.15,
+        "compressed_at": "2024-01-01T12:30:00Z"
       }
     }
   ]
@@ -234,6 +259,64 @@ Complete memory slot data structure as shown above, with all metadata preserved.
 }
 ```
 
+## Archive Storage Structure
+
+### Archive Index Format
+```json
+{
+  "created_at": "2024-01-01T12:00:00Z",
+  "updated_at": "2024-01-01T15:30:00Z",
+  "total_archives": 3,
+  "total_original_size": 45000,
+  "total_archived_size": 12000,
+  "entries": {
+    "old_project": {
+      "slot_name": "old_project",
+      "original_path": "memory_slots/old_project.json",
+      "archive_path": "archives/old_project_archived.json",
+      "archived_at": "2024-01-01T15:30:00Z",
+      "archive_reason": "project_completed",
+      "original_size": 15000,
+      "archived_size": 4000,
+      "compression_ratio": 0.27,
+      "last_accessed": "2023-12-01T10:00:00Z",
+      "entry_count": 12,
+      "tags": ["project", "completed"],
+      "group_path": "projects/legacy"
+    }
+  }
+}
+```
+
+### Archived Memory Slot Format
+```json
+{
+  "slot_name": "old_project",
+  "created_at": "2023-01-01T12:00:00Z",
+  "updated_at": "2023-12-01T10:00:00Z",
+  "is_archived": true,
+  "archived_at": "2024-01-01T15:30:00Z",
+  "archive_reason": "project_completed",
+  "tags": ["project", "completed"],
+  "group_path": "projects/legacy",
+  "entries": [
+    {
+      "type": "manual_save",
+      "content": "H4sIAAAAAAACA+y9B3QUVRY...==",  // Base64-encoded gzip-compressed content
+      "timestamp": "2023-01-01T12:00:00Z",
+      "compression_info": {
+        "is_compressed": true,
+        "algorithm": "gzip",
+        "original_size": 5000,
+        "compressed_size": 1200,
+        "compression_ratio": 0.24,
+        "compressed_at": "2024-01-01T15:30:00Z"
+      }
+    }
+  ]
+}
+```
+
 ## Storage Implementation
 
 ### File System Layout
@@ -244,6 +327,12 @@ memory_slots/
 ├── groups.json               # Group hierarchy
 ├── project_alpha.json        # Individual slot files
 ├── meeting_notes.json
+└── ...
+
+archives/
+├── index.json                 # Archive index with metadata
+├── old_project_archived.json # Compressed archived slots
+├── legacy_data_archived.json
 └── ...
 
 shared_memories/
@@ -285,10 +374,12 @@ shared_memories/
 ## Performance Characteristics
 
 ### Storage Efficiency
-- **JSON compression**: Gzip compression for large entries
+- **Content compression**: Gzip compression for entries over 1KB threshold
+- **Archive compression**: Additional compression for long-term storage
 - **Incremental updates**: Only modified fields are rewritten
 - **Index optimization**: Periodic cleanup and rebuilding
 - **Memory usage**: Lazy loading of large memory slots
+- **Space savings**: 30-70% reduction with intelligent compression
 
 ### Search Performance
 - **Index size**: ~10% of total content size

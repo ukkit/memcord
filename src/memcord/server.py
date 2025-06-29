@@ -199,6 +199,31 @@ class ChatMemoryServer:
                     },
                     "required": ["question"]
                 }
+            ),
+            Tool(
+                name="memcord_compress",
+                description="Compress memory slot content to save storage space",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "slot_name": {
+                            "type": "string",
+                            "description": "Memory slot name to compress (optional, processes all slots if not specified)"
+                        },
+                        "action": {
+                            "type": "string",
+                            "enum": ["analyze", "compress", "decompress", "stats"],
+                            "description": "Action to perform: analyze (preview), compress, decompress, or stats",
+                            "default": "analyze"
+                        },
+                        "force": {
+                            "type": "boolean",
+                            "description": "Force compression even for already compressed content",
+                            "default": False
+                        }
+                    },
+                    "required": ["action"]
+                }
             )
         ]
     
@@ -337,6 +362,37 @@ class ChatMemoryServer:
                     "required": ["source_slots", "target_slot"]
                 }
             ),
+            # Storage Optimization Tools
+            Tool(
+                name="memcord_archive",
+                description="Archive or restore memory slots for long-term storage",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "slot_name": {
+                            "type": "string",
+                            "description": "Memory slot name to archive/restore"
+                        },
+                        "action": {
+                            "type": "string",
+                            "enum": ["archive", "restore", "list", "stats", "candidates"],
+                            "description": "Action to perform with archives"
+                        },
+                        "reason": {
+                            "type": "string",
+                            "description": "Reason for archiving (optional)",
+                            "default": "manual"
+                        },
+                        "days_inactive": {
+                            "type": "integer",
+                            "description": "Days of inactivity for finding archive candidates",
+                            "default": 30,
+                            "minimum": 1
+                        }
+                    },
+                    "required": ["action"]
+                }
+            ),
             # Export & Sharing Tools
             Tool(
                 name="memcord_export",
@@ -426,8 +482,10 @@ class ChatMemoryServer:
                     return await self._handle_searchmem(arguments)
                 elif name == "memcord_query":
                     return await self._handle_querymem(arguments)
+                elif name == "memcord_compress":
+                    return await self._handle_compressmem(arguments)
                 # Advanced tools (check if enabled)
-                elif name in ["memcord_tag", "memcord_list_tags", "memcord_group", "memcord_import", "memcord_merge", "memcord_export", "memcord_share"]:
+                elif name in ["memcord_tag", "memcord_list_tags", "memcord_group", "memcord_import", "memcord_merge", "memcord_archive", "memcord_export", "memcord_share"]:
                     if not self.enable_advanced_tools:
                         return [TextContent(type="text", text=f"Advanced tool '{name}' is not enabled. Set MEMCORD_ENABLE_ADVANCED=true to enable advanced features.")]
                     
@@ -441,6 +499,8 @@ class ChatMemoryServer:
                         return await self._handle_importmem(arguments)
                     elif name == "memcord_merge":
                         return await self._handle_mergemem(arguments)
+                    elif name == "memcord_archive":
+                        return await self._handle_archivemem(arguments)
                     elif name == "memcord_export":
                         return await self._handle_exportmem(arguments)
                     elif name == "memcord_share":
@@ -1127,6 +1187,322 @@ class ChatMemoryServer:
                 
         except Exception as e:
             return [TextContent(type="text", text=f"Merge operation failed: {str(e)}")]
+
+    async def _handle_compressmem(self, arguments: Dict[str, Any]) -> List[TextContent]:
+        """Handle compress tool call."""
+        action = arguments.get("action", "analyze")
+        slot_name = arguments.get("slot_name")
+        force = arguments.get("force", False)
+        
+        try:
+            if action == "stats":
+                # Get compression statistics
+                stats = await self.storage.get_compression_stats(slot_name)
+                
+                if slot_name:
+                    # Single slot stats
+                    from .compression import format_size
+                    
+                    response = [
+                        f"# Compression Statistics: {slot_name}",
+                        "",
+                        f"**Total Entries:** {stats['total_entries']}",
+                        f"**Compressed Entries:** {stats['compressed_entries']} ({stats['compression_percentage']:.1f}%)",
+                        f"**Original Size:** {format_size(stats['total_original_size'])}",
+                        f"**Compressed Size:** {format_size(stats['total_compressed_size'])}",
+                        f"**Space Saved:** {format_size(stats['space_saved'])} ({stats['space_saved_percentage']:.1f}%)",
+                        f"**Compression Ratio:** {stats['compression_ratio']:.3f}"
+                    ]
+                else:
+                    # All slots stats
+                    from .compression import format_size
+                    
+                    response = [
+                        "# Overall Compression Statistics",
+                        "",
+                        f"**Total Slots:** {stats['total_slots']}",
+                        f"**Total Entries:** {stats['total_entries']}",
+                        f"**Compressed Entries:** {stats['compressed_entries']}",
+                        f"**Original Size:** {format_size(stats['total_original_size'])}",
+                        f"**Compressed Size:** {format_size(stats['total_compressed_size'])}",
+                        f"**Space Saved:** {format_size(stats['space_saved'])} ({stats['space_saved_percentage']:.1f}%)",
+                        f"**Average Compression Ratio:** {stats['compression_ratio']:.3f}"
+                    ]
+                
+                return [TextContent(type="text", text="\n".join(response))]
+            
+            elif action == "analyze":
+                # Analyze compression potential
+                from .compression import ContentCompressor, format_compression_report
+                
+                compressor = ContentCompressor()
+                
+                if slot_name:
+                    # Analyze single slot
+                    slot = await self.storage.read_memory(slot_name)
+                    if not slot:
+                        return [TextContent(type="text", text=f"Memory slot '{slot_name}' not found")]
+                    
+                    slot_data = [slot.model_dump()]
+                    stats = compressor.get_compression_stats(slot_data)
+                    report = format_compression_report(stats)
+                    
+                    return [TextContent(type="text", text=report)]
+                else:
+                    # Analyze all slots
+                    slots_info = await self.storage.list_memory_slots()
+                    slot_data = []
+                    
+                    for slot_info in slots_info:
+                        slot = await self.storage.read_memory(slot_info["name"])
+                        if slot:
+                            slot_data.append(slot.model_dump())
+                    
+                    stats = compressor.get_compression_stats(slot_data)
+                    report = format_compression_report(stats)
+                    
+                    return [TextContent(type="text", text=report)]
+            
+            elif action == "compress":
+                # Perform compression
+                if slot_name:
+                    # Compress single slot
+                    compression_stats = await self.storage.compress_slot(slot_name, force)
+                    
+                    from .compression import format_size
+                    
+                    response = [
+                        f"✅ Compression completed for '{slot_name}'",
+                        "",
+                        f"**Entries Processed:** {compression_stats['entries_processed']}",
+                        f"**Entries Compressed:** {compression_stats['entries_compressed']}",
+                        f"**Original Size:** {format_size(compression_stats['original_size'])}",
+                        f"**Compressed Size:** {format_size(compression_stats['compressed_size'])}",
+                        f"**Space Saved:** {format_size(compression_stats['space_saved'])}",
+                        f"**Compression Ratio:** {compression_stats['compression_ratio']:.3f}"
+                    ]
+                    
+                    return [TextContent(type="text", text="\n".join(response))]
+                else:
+                    # Compress all slots
+                    slots_info = await self.storage.list_memory_slots()
+                    total_stats = {
+                        "slots_processed": 0,
+                        "total_entries_processed": 0,
+                        "total_entries_compressed": 0,
+                        "total_original_size": 0,
+                        "total_compressed_size": 0,
+                        "total_space_saved": 0
+                    }
+                    
+                    for slot_info in slots_info:
+                        try:
+                            compression_stats = await self.storage.compress_slot(slot_info["name"], force)
+                            total_stats["slots_processed"] += 1
+                            total_stats["total_entries_processed"] += compression_stats["entries_processed"]
+                            total_stats["total_entries_compressed"] += compression_stats["entries_compressed"]
+                            total_stats["total_original_size"] += compression_stats["original_size"]
+                            total_stats["total_compressed_size"] += compression_stats["compressed_size"]
+                            total_stats["total_space_saved"] += compression_stats["space_saved"]
+                        except Exception:
+                            continue
+                    
+                    from .compression import format_size
+                    
+                    overall_ratio = (total_stats["total_compressed_size"] / total_stats["total_original_size"] 
+                                   if total_stats["total_original_size"] > 0 else 1.0)
+                    
+                    response = [
+                        "✅ Bulk compression completed",
+                        "",
+                        f"**Slots Processed:** {total_stats['slots_processed']}",
+                        f"**Total Entries Processed:** {total_stats['total_entries_processed']}",
+                        f"**Total Entries Compressed:** {total_stats['total_entries_compressed']}",
+                        f"**Total Original Size:** {format_size(total_stats['total_original_size'])}",
+                        f"**Total Compressed Size:** {format_size(total_stats['total_compressed_size'])}",
+                        f"**Total Space Saved:** {format_size(total_stats['total_space_saved'])}",
+                        f"**Overall Compression Ratio:** {overall_ratio:.3f}"
+                    ]
+                    
+                    return [TextContent(type="text", text="\n".join(response))]
+            
+            elif action == "decompress":
+                # Perform decompression
+                if not slot_name:
+                    return [TextContent(type="text", text="Error: slot_name is required for decompress action")]
+                
+                decompression_stats = await self.storage.decompress_slot(slot_name)
+                
+                response = [
+                    f"✅ Decompression completed for '{slot_name}'",
+                    "",
+                    f"**Entries Processed:** {decompression_stats['entries_processed']}",
+                    f"**Entries Decompressed:** {decompression_stats['entries_decompressed']}",
+                    f"**Success:** {'Yes' if decompression_stats['decompressed_successfully'] else 'Partial'}"
+                ]
+                
+                return [TextContent(type="text", text="\n".join(response))]
+            
+            else:
+                return [TextContent(type="text", text=f"Error: Unknown action '{action}'. Use 'analyze', 'compress', 'decompress', or 'stats'.")]
+        
+        except Exception as e:
+            return [TextContent(type="text", text=f"Compression operation failed: {str(e)}")]
+
+    async def _handle_archivemem(self, arguments: Dict[str, Any]) -> List[TextContent]:
+        """Handle archive tool call."""
+        action = arguments.get("action")
+        slot_name = arguments.get("slot_name")
+        reason = arguments.get("reason", "manual")
+        days_inactive = arguments.get("days_inactive", 30)
+        
+        try:
+            if action == "archive":
+                # Archive a memory slot
+                if not slot_name:
+                    return [TextContent(type="text", text="Error: slot_name is required for archive action")]
+                
+                archive_result = await self.storage.archive_slot(slot_name, reason)
+                
+                from .compression import format_size
+                
+                response = [
+                    f"✅ Memory slot '{slot_name}' archived successfully",
+                    "",
+                    f"**Archived At:** {archive_result['archived_at']}",
+                    f"**Reason:** {archive_result['archive_reason']}",
+                    f"**Original Size:** {format_size(archive_result['original_size'])}",
+                    f"**Archived Size:** {format_size(archive_result['archived_size'])}",
+                    f"**Space Saved:** {format_size(archive_result['space_saved'])}",
+                    f"**Compression Ratio:** {archive_result['compression_ratio']:.3f}",
+                    "",
+                    f"The slot has been moved to archive storage and removed from active memory."
+                ]
+                
+                return [TextContent(type="text", text="\n".join(response))]
+            
+            elif action == "restore":
+                # Restore from archive
+                if not slot_name:
+                    return [TextContent(type="text", text="Error: slot_name is required for restore action")]
+                
+                restore_result = await self.storage.restore_from_archive(slot_name)
+                
+                response = [
+                    f"✅ Memory slot '{slot_name}' restored from archive",
+                    "",
+                    f"**Restored At:** {restore_result['restored_at']}",
+                    f"**Entry Count:** {restore_result['entry_count']}",
+                    f"**Total Size:** {restore_result['total_size']:,} characters",
+                    "",
+                    f"The slot is now available in active memory storage."
+                ]
+                
+                return [TextContent(type="text", text="\n".join(response))]
+            
+            elif action == "list":
+                # List archived slots
+                archives = await self.storage.list_archives(include_stats=True)
+                
+                if not archives:
+                    return [TextContent(type="text", text="No archived memory slots found.")]
+                
+                response = [
+                    f"# Archived Memory Slots ({len(archives)} total)",
+                    ""
+                ]
+                
+                from .compression import format_size
+                
+                for archive in archives:
+                    days_ago = (datetime.now() - datetime.fromisoformat(archive["archived_at"])).days
+                    
+                    archive_info = [
+                        f"## {archive['slot_name']}",
+                        f"- **Archived:** {days_ago} days ago ({archive['archived_at'][:10]})",
+                        f"- **Reason:** {archive['archive_reason']}",
+                        f"- **Entries:** {archive['entry_count']}",
+                        f"- **Original Size:** {format_size(archive['original_size'])}",
+                        f"- **Archived Size:** {format_size(archive['archived_size'])}",
+                        f"- **Space Saved:** {format_size(archive['space_saved'])}",
+                    ]
+                    
+                    if archive.get("tags"):
+                        archive_info.append(f"- **Tags:** {', '.join(archive['tags'])}")
+                    
+                    if archive.get("group_path"):
+                        archive_info.append(f"- **Group:** {archive['group_path']}")
+                    
+                    response.extend(archive_info)
+                    response.append("")
+                
+                return [TextContent(type="text", text="\n".join(response))]
+            
+            elif action == "stats":
+                # Get archive statistics
+                stats = await self.storage.get_archive_stats()
+                
+                if stats["total_archives"] == 0:
+                    return [TextContent(type="text", text="No archived memory slots found.")]
+                
+                from .compression import format_size
+                
+                response = [
+                    "# Archive Storage Statistics",
+                    "",
+                    f"**Total Archives:** {stats['total_archives']}",
+                    f"**Original Size:** {format_size(stats['total_original_size'])}",
+                    f"**Archived Size:** {format_size(stats['total_archived_size'])}",
+                    f"**Space Saved:** {format_size(stats['total_savings'])} ({stats['savings_percentage']:.1f}%)",
+                    f"**Average Compression:** {stats['average_compression_ratio']:.3f}"
+                ]
+                
+                return [TextContent(type="text", text="\n".join(response))]
+            
+            elif action == "candidates":
+                # Find archival candidates
+                candidates = await self.storage.find_archival_candidates(days_inactive)
+                
+                if not candidates:
+                    return [TextContent(type="text", text=f"No memory slots found that have been inactive for {days_inactive}+ days.")]
+                
+                response = [
+                    f"# Archive Candidates (inactive for {days_inactive}+ days)",
+                    "",
+                    f"Found {len(candidates)} memory slots that could be archived:",
+                    ""
+                ]
+                
+                from .compression import format_size
+                
+                for slot_name, info in candidates:
+                    response.extend([
+                        f"## {slot_name}",
+                        f"- **Last Updated:** {info['last_updated'][:10]} ({info['days_inactive']} days ago)",
+                        f"- **Entries:** {info['entry_count']}",
+                        f"- **Size:** {format_size(info['current_size'])}",
+                    ])
+                    
+                    if info.get("tags"):
+                        response.append(f"- **Tags:** {', '.join(info['tags'])}")
+                    
+                    if info.get("group_path"):
+                        response.append(f"- **Group:** {info['group_path']}")
+                    
+                    response.append("")
+                
+                response.extend([
+                    "To archive any of these slots, use:",
+                    f"`memcord_archive slot_name=\"<slot_name>\" action=\"archive\" reason=\"inactive_{days_inactive}d\"`"
+                ])
+                
+                return [TextContent(type="text", text="\n".join(response))]
+            
+            else:
+                return [TextContent(type="text", text=f"Error: Unknown action '{action}'. Use 'archive', 'restore', 'list', 'stats', or 'candidates'.")]
+        
+        except Exception as e:
+            return [TextContent(type="text", text=f"Archive operation failed: {str(e)}")]
 
     async def run(self):
         """Run the MCP server."""

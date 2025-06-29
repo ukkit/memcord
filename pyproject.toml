@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "memcord"
-version = "1.0.0"
+version = "1.1.0"
 description = "MCP server for chat memory management with summarization and file sharing"
 authors = [
     {name = "MemCord", email = "memcord@example.com"}

@@ -8,8 +8,10 @@ from datetime import datetime
 import aiofiles
 import aiofiles.os
 
-from .models import MemorySlot, MemoryEntry, ServerState, SearchQuery, SearchResult, GroupInfo
+from .models import MemorySlot, MemoryEntry, ServerState, SearchQuery, SearchResult, GroupInfo, CompressionInfo
 from .search import SearchEngine
+from .compression import ContentCompressor
+from .archival import ArchivalManager
 
 
 class StorageManager:
@@ -21,6 +23,8 @@ class StorageManager:
         self._lock = asyncio.Lock()
         self._state = ServerState()
         self._search_engine = SearchEngine()
+        self._compressor = ContentCompressor()
+        self._archival_manager = ArchivalManager(memory_dir, "archives")
         
         # Ensure directories exist
         self.memory_dir.mkdir(exist_ok=True)
@@ -456,3 +460,225 @@ class StorageManager:
     def get_server_state(self) -> ServerState:
         """Get the current server state."""
         return self._state
+    
+    async def compress_slot(self, slot_name: str, force: bool = False) -> Dict[str, Any]:
+        """Compress content in a memory slot."""
+        async with self._lock:
+            slot = await self._load_slot(slot_name)
+            if not slot:
+                raise ValueError(f"Memory slot '{slot_name}' not found")
+            
+            compression_stats = {
+                "slot_name": slot_name,
+                "entries_processed": 0,
+                "entries_compressed": 0,
+                "original_size": 0,
+                "compressed_size": 0,
+                "space_saved": 0,
+                "compression_ratio": 1.0
+            }
+            
+            entries_modified = False
+            
+            for entry in slot.entries:
+                original_size = len(entry.content.encode('utf-8'))
+                compression_stats["original_size"] += original_size
+                compression_stats["entries_processed"] += 1
+                
+                # Skip if already compressed and not forcing
+                if entry.compression_info.is_compressed and not force:
+                    compression_stats["compressed_size"] += entry.compression_info.compressed_size or original_size
+                    continue
+                
+                # Check if content should be compressed
+                if self._compressor.should_compress(entry.content) or force:
+                    try:
+                        compressed_content, metadata = self._compressor.compress_json_content(entry.content)
+                        
+                        # Update entry with compressed content
+                        entry.content = compressed_content
+                        entry.compression_info = CompressionInfo(
+                            is_compressed=True,
+                            algorithm=metadata.algorithm,
+                            original_size=metadata.original_size,
+                            compressed_size=metadata.compressed_size,
+                            compression_ratio=metadata.compression_ratio,
+                            compressed_at=metadata.compressed_at
+                        )
+                        
+                        compression_stats["entries_compressed"] += 1
+                        compression_stats["compressed_size"] += metadata.compressed_size
+                        entries_modified = True
+                        
+                    except Exception as e:
+                        print(f"Warning: Failed to compress entry in slot {slot_name}: {e}")
+                        compression_stats["compressed_size"] += original_size
+                else:
+                    compression_stats["compressed_size"] += original_size
+            
+            # Save slot if any entries were modified
+            if entries_modified:
+                await self._save_slot(slot)
+                self._search_engine.add_slot(slot)  # Update search index
+            
+            # Calculate final statistics
+            compression_stats["space_saved"] = compression_stats["original_size"] - compression_stats["compressed_size"]
+            compression_stats["compression_ratio"] = (
+                compression_stats["compressed_size"] / compression_stats["original_size"]
+                if compression_stats["original_size"] > 0 else 1.0
+            )
+            
+            return compression_stats
+    
+    async def decompress_slot(self, slot_name: str) -> Dict[str, Any]:
+        """Decompress content in a memory slot."""
+        async with self._lock:
+            slot = await self._load_slot(slot_name)
+            if not slot:
+                raise ValueError(f"Memory slot '{slot_name}' not found")
+            
+            decompression_stats = {
+                "slot_name": slot_name,
+                "entries_processed": 0,
+                "entries_decompressed": 0,
+                "decompressed_successfully": True
+            }
+            
+            entries_modified = False
+            
+            for entry in slot.entries:
+                decompression_stats["entries_processed"] += 1
+                
+                if entry.compression_info.is_compressed:
+                    try:
+                        # Decompress content
+                        from .compression import CompressionMetadata
+                        metadata = CompressionMetadata(
+                            algorithm=entry.compression_info.algorithm,
+                            original_size=entry.compression_info.original_size or 0,
+                            compressed_size=entry.compression_info.compressed_size or 0,
+                            compression_ratio=entry.compression_info.compression_ratio or 1.0,
+                            compressed_at=entry.compression_info.compressed_at or datetime.now()
+                        )
+                        
+                        decompressed_content = self._compressor.decompress_json_content(entry.content, metadata)
+                        
+                        # Update entry with decompressed content
+                        entry.content = decompressed_content
+                        entry.compression_info = CompressionInfo()  # Reset compression info
+                        
+                        decompression_stats["entries_decompressed"] += 1
+                        entries_modified = True
+                        
+                    except Exception as e:
+                        print(f"Warning: Failed to decompress entry in slot {slot_name}: {e}")
+                        decompression_stats["decompressed_successfully"] = False
+            
+            # Save slot if any entries were modified
+            if entries_modified:
+                await self._save_slot(slot)
+                self._search_engine.add_slot(slot)  # Update search index
+            
+            return decompression_stats
+    
+    async def get_compression_stats(self, slot_name: Optional[str] = None) -> Dict[str, Any]:
+        """Get compression statistics for a slot or all slots."""
+        if slot_name:
+            slot = await self._load_slot(slot_name)
+            if not slot:
+                raise ValueError(f"Memory slot '{slot_name}' not found")
+            return slot.get_compression_stats()
+        else:
+            # Get stats for all slots
+            all_stats = {
+                "total_slots": 0,
+                "total_entries": 0,
+                "compressed_entries": 0,
+                "total_original_size": 0,
+                "total_compressed_size": 0,
+                "slot_stats": {}
+            }
+            
+            for slot_file in self.memory_dir.glob("*.json"):
+                slot_name = slot_file.stem
+                try:
+                    slot = await self._load_slot(slot_name)
+                    if slot:
+                        stats = slot.get_compression_stats()
+                        all_stats["total_slots"] += 1
+                        all_stats["total_entries"] += stats["total_entries"]
+                        all_stats["compressed_entries"] += stats["compressed_entries"]
+                        all_stats["total_original_size"] += stats["total_original_size"]
+                        all_stats["total_compressed_size"] += stats["total_compressed_size"]
+                        all_stats["slot_stats"][slot_name] = stats
+                except Exception:
+                    continue
+            
+            # Calculate overall compression ratio
+            all_stats["compression_ratio"] = (
+                all_stats["total_compressed_size"] / all_stats["total_original_size"]
+                if all_stats["total_original_size"] > 0 else 1.0
+            )
+            all_stats["space_saved"] = all_stats["total_original_size"] - all_stats["total_compressed_size"]
+            all_stats["space_saved_percentage"] = (1 - all_stats["compression_ratio"]) * 100
+            
+            return all_stats
+    
+    async def archive_slot(self, slot_name: str, reason: str = "manual") -> Dict[str, Any]:
+        """Archive a memory slot."""
+        async with self._lock:
+            slot = await self._load_slot(slot_name)
+            if not slot:
+                raise ValueError(f"Memory slot '{slot_name}' not found")
+            
+            # Archive the slot
+            archive_entry = await self._archival_manager.archive_slot(slot, reason)
+            
+            # Remove from active storage
+            await self.delete_slot(slot_name)
+            
+            return {
+                "slot_name": slot_name,
+                "archived_at": archive_entry.archived_at.isoformat(),
+                "archive_reason": reason,
+                "original_size": archive_entry.original_size,
+                "archived_size": archive_entry.archived_size,
+                "compression_ratio": archive_entry.compression_ratio,
+                "space_saved": archive_entry.original_size - archive_entry.archived_size
+            }
+    
+    async def restore_from_archive(self, slot_name: str) -> Dict[str, Any]:
+        """Restore a memory slot from archive."""
+        async with self._lock:
+            # Check if slot already exists in active storage
+            if await self._load_slot(slot_name):
+                raise ValueError(f"Memory slot '{slot_name}' already exists in active storage")
+            
+            # Restore from archive
+            slot = await self._archival_manager.restore_slot(slot_name)
+            
+            # Save to active storage
+            await self._save_slot(slot)
+            self._search_engine.add_slot(slot)
+            
+            # Remove from archive (optional - could keep for backup)
+            # await self._archival_manager.delete_archive(slot_name)
+            
+            return {
+                "slot_name": slot_name,
+                "restored_at": datetime.now().isoformat(),
+                "entry_count": len(slot.entries),
+                "total_size": slot.get_total_content_length()
+            }
+    
+    async def list_archives(self, include_stats: bool = False) -> List[Dict[str, Any]]:
+        """List all archived memory slots."""
+        return await self._archival_manager.list_archives(include_stats)
+    
+    async def get_archive_stats(self) -> Dict[str, Any]:
+        """Get archive statistics."""
+        return await self._archival_manager.get_archive_stats()
+    
+    async def find_archival_candidates(self, days_inactive: int = 30) -> List[Tuple[str, Dict[str, Any]]]:
+        """Find memory slots that could be archived."""
+        return await self._archival_manager.find_candidates_for_archival(days_inactive)

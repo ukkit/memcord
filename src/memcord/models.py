@@ -6,6 +6,17 @@ import re
 from pydantic import BaseModel, Field
 
 
+class CompressionInfo(BaseModel):
+    """Information about content compression."""
+    
+    is_compressed: bool = Field(False, description="Whether content is compressed")
+    algorithm: str = Field("none", description="Compression algorithm used")
+    original_size: Optional[int] = Field(None, description="Original size in bytes")
+    compressed_size: Optional[int] = Field(None, description="Compressed size in bytes")
+    compression_ratio: Optional[float] = Field(None, description="Compression ratio")
+    compressed_at: Optional[datetime] = Field(None, description="When compression was applied")
+
+
 class MemoryEntry(BaseModel):
     """Single entry in a memory slot."""
     
@@ -15,6 +26,7 @@ class MemoryEntry(BaseModel):
     original_length: Optional[int] = Field(None, description="Length of original text for summaries")
     summary_length: Optional[int] = Field(None, description="Length of summary for summaries")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    compression_info: CompressionInfo = Field(default_factory=CompressionInfo, description="Compression information")
 
 
 class MemorySlot(BaseModel):
@@ -34,6 +46,9 @@ class MemorySlot(BaseModel):
     group_path: Optional[str] = Field(None, description="Group/folder path for organization")
     description: Optional[str] = Field(None, description="Optional description of the memory slot")
     priority: int = Field(0, description="Priority level for organization (0=normal, 1=high, -1=low)")
+    is_archived: bool = Field(False, description="Whether this slot is archived")
+    archived_at: Optional[datetime] = Field(None, description="When slot was archived")
+    archive_reason: Optional[str] = Field(None, description="Reason for archiving")
     
     def add_entry(self, entry: MemoryEntry) -> None:
         """Add a new entry and update timestamp."""
@@ -81,6 +96,50 @@ class MemorySlot(BaseModel):
             content_parts.append(self.group_path)
         content_parts.extend(entry.content for entry in self.entries)
         return ' '.join(content_parts)
+    
+    def archive(self, reason: str = None) -> None:
+        """Mark this memory slot as archived."""
+        self.is_archived = True
+        self.archived_at = datetime.now()
+        self.archive_reason = reason
+        self.updated_at = datetime.now()
+    
+    def unarchive(self) -> None:
+        """Remove archive status from this memory slot."""
+        self.is_archived = False
+        self.archived_at = None
+        self.archive_reason = None
+        self.updated_at = datetime.now()
+    
+    def get_compression_stats(self) -> Dict[str, Any]:
+        """Get compression statistics for this slot."""
+        total_entries = len(self.entries)
+        compressed_entries = sum(1 for entry in self.entries if entry.compression_info.is_compressed)
+        
+        total_original_size = 0
+        total_compressed_size = 0
+        
+        for entry in self.entries:
+            if entry.compression_info.is_compressed:
+                total_original_size += entry.compression_info.original_size or 0
+                total_compressed_size += entry.compression_info.compressed_size or 0
+            else:
+                content_size = len(entry.content.encode('utf-8'))
+                total_original_size += content_size
+                total_compressed_size += content_size
+        
+        compression_ratio = total_compressed_size / total_original_size if total_original_size > 0 else 1.0
+        
+        return {
+            "total_entries": total_entries,
+            "compressed_entries": compressed_entries,
+            "compression_percentage": (compressed_entries / total_entries * 100) if total_entries > 0 else 0,
+            "total_original_size": total_original_size,
+            "total_compressed_size": total_compressed_size, 
+            "compression_ratio": compression_ratio,
+            "space_saved": total_original_size - total_compressed_size,
+            "space_saved_percentage": (1 - compression_ratio) * 100
+        }
 
 
 class ExportConfig(BaseModel):

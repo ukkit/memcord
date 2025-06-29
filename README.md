@@ -2,55 +2,43 @@
 
 A Model Context Protocol (MCP) server for managing chat memory with automatic summarization, intelligent search, and file sharing capabilities. Save, organize, and retrieve conversation history with powerful AI-enhanced search across all your memories.
 
-[![MCP Server](https://img.shields.io/badge/MCP-Server-blue)](https://github.com/modelcontextprotocol)
-  [![Claude Desktop](https://img.shields.io/badge/Claude-Desktop-orange)](https://claude.ai/desktop)
-  [![Python](https://img.shields.io/badge/Python-3.10+-green)](https://python.org)
-  [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
+# MemCord Features
 
+## Never Lose Context Again
+Transform your Claude conversations into a searchable, organized knowledge base that grows with you
 
-## Key Features
+### **Core Benefits**
 
-- **Memory Management**: Create named memory slots, save conversations, generate summaries
-- **Content Import**: Import from text files, PDFs, web URLs, and structured data (CSV/JSON)
-- **Intelligent Search**: Full-text search with natural language queries and Boolean operators
-- **Smart Organization**: Tag-based categorization and hierarchical group management
-- **Memory Merging**: Consolidate multiple slots with duplicate detection and chronological ordering
-- **Multiple Formats**: Export to Markdown, Text, or JSON with MCP file resource sharing
-- **Local & Secure**: All data stored locally with no cloud dependencies
-- **AI-Enhanced**: TF-IDF search scoring, automatic summarization, contextual responses
+* **🧠 Infinite Memory** - Claude remembers everything across unlimited conversations with intelligent auto-summarization
+* **🔒 Your Data, Your Control** - 100% local storage with zero cloud dependencies or privacy concerns
+* **📚 Universal Knowledge Import** - Pull in PDFs, research papers, web articles, and data files instantly
+* **⚡ Lightning Search** - Ask questions in plain English: "What did we decide about the API design?"
+* **🎯 Effortless Organization** - Smart tags and folders that organize themselves around your workflow
+* **🔗 Intelligent Merging** - Automatically combines related conversations while eliminating duplicates
+* **🤖 AI-Powered Intelligence** - Advanced search algorithms that understand context, not just keywords
+* **⚙️ Set-and-Forget Setup** - Configure once, works invisibly forever
+
+### **The Bottom Line**
+
+Stop losing brilliant ideas in chat history. Turn every Claude conversation into permanent, searchable knowledge that compounds over time.
+
+**Perfect for:** Researchers, consultants, developers, and anyone who has important conversations with Claude that they can't afford to lose.
 
 ## Quick Start
 
 ```bash
-# Install
-git clone <repository-url>
+# First time installation
+git clone https://github.com/ukkit/memcord.git
 cd memcord
+uv venv
+source .venv/bin/activate
 uv pip install -e .
 ```
 
 ## Add to Claude Desktop
 
 ### Basic Mode (Default - 7 Tools)
-```json
-{
-  "mcpServers": {
-    "memcord": {
-      "command": "uv",
-      "args": [
-        "--directory",
-        "/path/to/memcord",
-        "run",
-        "memcord"
-      ],
-      "env": {
-        "PYTHONPATH": "/path/to/memcord/src"
-      }
-    }
-  }
-}
-```
 
-### Advanced Mode (All 14 Tools)
 ```json
 {
   "mcpServers": {
@@ -58,13 +46,12 @@ uv pip install -e .
       "command": "uv",
       "args": [
         "--directory",
-        "/path/to/memcord",
+        "/path/to/chat-memory-mcp",
         "run",
         "memcord"
       ],
       "env": {
-        "PYTHONPATH": "/path/to/memcord/src",
-        "MEMCORD_ENABLE_ADVANCED": "true"
+        "PYTHONPATH": "/path/to/chat-memory-mcp/src"
       }
     }
   }
@@ -95,6 +82,10 @@ memcord_group set "meetings/weekly"
 # Merge related memory slots
 memcord_merge source_slots=["meeting1","meeting2"] target_slot="project_summary" action="preview"
 
+# Optimize storage with compression
+memcord_compress action="analyze"  # Preview compression potential
+memcord_compress action="compress" slot_name="project_meeting"
+
 # Export and share
 memcord_export "project_meeting" "md"
 ```
@@ -103,7 +94,7 @@ memcord_export "project_meeting" "md"
 
 MemCord offers **two modes** to suit different use cases:
 
-### 🔧 Basic Mode (Default - 7 Tools)
+### 🔧 Basic Mode (Default - 8 Tools)
 Essential memory management features always available:
 
 **Core Tools**
@@ -117,7 +108,10 @@ Essential memory management features always available:
 - `memcord_search` - Full-text search with Boolean operators
 - `memcord_query` - Natural language questions about memories
 
-### ⚡ Advanced Mode (All 14 Tools)
+**Storage Optimization**
+- `memcord_compress` - Compress memory content to save storage space
+
+### ⚡ Advanced Mode (All 15 Tools)
 Set `MEMCORD_ENABLE_ADVANCED=true` to unlock additional features:
 
 **Organization** (Advanced)
@@ -133,7 +127,10 @@ Set `MEMCORD_ENABLE_ADVANCED=true` to unlock additional features:
 - `memcord_export` - Export to Markdown, Text, or JSON
 - `memcord_share` - Generate shareable files in multiple formats
 
-**📖 [Complete Tools Reference](docs/tools-reference.md)** - Detailed documentation for all 14 tools with examples and parameters.
+**Archival & Long-term Storage** (Advanced)
+- `memcord_archive` - Archive inactive memory slots for long-term storage
+
+**📖 [Complete Tools Reference](docs/tools-reference.md)** - Detailed documentation for all 15 tools with examples and parameters.
 
 ## Tool Modes
 
@@ -151,9 +148,32 @@ Set `MEMCORD_ENABLE_ADVANCED=true` to unlock additional features:
 
 **Switching Modes**: You can enable/disable advanced tools anytime by setting the `MEMCORD_ENABLE_ADVANCED` environment variable and restarting the MCP server.
 
+### Advanced Mode Config (All 14 Tools)
+
+```json
+{
+  "mcpServers": {
+    "memcord": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/chat-memory-mcp",
+        "run",
+        "memcord"
+      ],
+      "env": {
+        "PYTHONPATH": "/path/to/chat-memory-mcp/src",
+        "MEMCORD_ENABLE_ADVANCED": "true"
+      }
+    }
+  }
+}
+```
+
 ## Documentation
 
 - **📚 [Installation Guide](docs/installation.md)** - Complete setup instructions for all MCP applications
+- **📃 [Feature Guide](docs/features-guide.md)** - Complete list of features
 - **📖 [Tools Reference](docs/tools-reference.md)** - Detailed documentation for all 14 tools
 - **📥 [Import & Merge Guide](docs/import-and-merge.md)** - Comprehensive guide for Phase 3 features 🆕
 - **🔍 [Search & Query Guide](docs/search-and-query.md)** - Advanced search features and natural language queries
@@ -161,28 +181,9 @@ Set `MEMCORD_ENABLE_ADVANCED=true` to unlock additional features:
 - **⚙️ [Data Format Specification](docs/data-format.md)** - Technical details and file formats
 - **🛠️ [Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
 
-## Features in Detail
-
-### Memory Management
-- **Named Slots**: Organize conversations by project, topic, or purpose
-- **Auto-Summarization**: Compress content by 85-95% while preserving key information
-- **Timestamps**: Track when memories were created and last updated
-- **Multiple Formats**: Store and export in Markdown, Text, or JSON
-
-### Search & Intelligence
-- **TF-IDF Scoring**: Relevance-ranked search results with snippet previews
-- **Boolean Search**: Use AND, OR, NOT operators for complex queries
-- **Natural Language**: Ask questions like "What decisions were made about the API?"
-- **Fast Indexing**: Sub-second search across thousands of memory slots
-
-### Organization & Sharing
-- **Tags**: Multi-tag categorization with hierarchical support
-- **Groups**: Organize memories into folders and subfolders
-- **MCP Resources**: Auto-generated file resources accessible to other MCP apps
-- **Export Options**: Share memories in multiple formats simultaneously
-
 ## License & Support
 
 **MIT License** - see LICENSE file for details.
 
 **Issues & Feature Requests**: Use the GitHub issue tracker
+**Contributing**: Contributions welcome! Please read CONTRIBUTING.md for guidelines
