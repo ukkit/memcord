@@ -553,6 +553,8 @@ class ChatMemoryServer:
                     return await self._handle_querymem(arguments)
                 elif name == "memcord_compress":
                     return await self._handle_compressmem(arguments)
+                elif name == "memcord_zero":
+                    return await self._handle_zeromem(arguments)
                 # Advanced tools (check if enabled)
                 elif name in ["memcord_tag", "memcord_list_tags", "memcord_group", "memcord_import", "memcord_merge", "memcord_archive", "memcord_export", "memcord_share"]:
                     if not self.enable_advanced_tools:
