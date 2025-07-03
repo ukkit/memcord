@@ -76,12 +76,10 @@ class ChatMemoryServer:
                 return await self._handle_searchmem(arguments)
             elif name == "memcord_query":
                 return await self._handle_querymem(arguments)
-            elif name == "memcord_compress":
-                return await self._handle_compressmem(arguments)
             elif name == "memcord_zero":
                 return await self._handle_zeromem(arguments)
             # Advanced tools (check if enabled)
-            elif name in ["memcord_tag", "memcord_list_tags", "memcord_group", "memcord_import", "memcord_merge", "memcord_archive", "memcord_export", "memcord_share"]:
+            elif name in ["memcord_tag", "memcord_list_tags", "memcord_group", "memcord_import", "memcord_merge", "memcord_archive", "memcord_export", "memcord_share", "memcord_compress"]:
                 if not self.enable_advanced_tools:
                     return [TextContent(type="text", text=f"Advanced tool '{name}' is not enabled. Set MEMCORD_ENABLE_ADVANCED=true to enable advanced features.")]
                 
@@ -101,6 +99,8 @@ class ChatMemoryServer:
                     return await self._handle_exportmem(arguments)
                 elif name == "memcord_share":
                     return await self._handle_sharemem(arguments)
+                elif name == "memcord_compress":
+                    return await self._handle_compressmem(arguments)
                 else:
                     return [TextContent(type="text", text=f"Unknown advanced tool: {name}")]
             else:
@@ -262,31 +262,6 @@ class ChatMemoryServer:
                 }
             ),
             Tool(
-                name="memcord_compress",
-                description="Compress memory slot content to save storage space",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "slot_name": {
-                            "type": "string",
-                            "description": "Memory slot name to compress (optional, processes all slots if not specified)"
-                        },
-                        "action": {
-                            "type": "string",
-                            "enum": ["analyze", "compress", "decompress", "stats"],
-                            "description": "Action to perform: analyze (preview), compress, decompress, or stats",
-                            "default": "analyze"
-                        },
-                        "force": {
-                            "type": "boolean",
-                            "description": "Force compression even for already compressed content",
-                            "default": False
-                        }
-                    },
-                    "required": ["action"]
-                }
-            ),
-            Tool(
                 name="memcord_zero",
                 description="Activate zero mode - no memory will be saved until switched to another slot",
                 inputSchema={
@@ -433,6 +408,31 @@ class ChatMemoryServer:
             ),
             # Storage Optimization Tools
             Tool(
+                name="memcord_compress",
+                description="Compress memory slot content to save storage space",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "slot_name": {
+                            "type": "string",
+                            "description": "Memory slot name to compress (optional, processes all slots if not specified)"
+                        },
+                        "action": {
+                            "type": "string",
+                            "enum": ["analyze", "compress", "decompress", "stats"],
+                            "description": "Action to perform: analyze (preview), compress, decompress, or stats",
+                            "default": "analyze"
+                        },
+                        "force": {
+                            "type": "boolean",
+                            "description": "Force compression even for already compressed content",
+                            "default": False
+                        }
+                    },
+                    "required": ["action"]
+                }
+            ),
+            Tool(
                 name="memcord_archive",
                 description="Archive or restore memory slots for long-term storage",
                 inputSchema={
@@ -551,12 +551,10 @@ class ChatMemoryServer:
                     return await self._handle_searchmem(arguments)
                 elif name == "memcord_query":
                     return await self._handle_querymem(arguments)
-                elif name == "memcord_compress":
-                    return await self._handle_compressmem(arguments)
                 elif name == "memcord_zero":
                     return await self._handle_zeromem(arguments)
                 # Advanced tools (check if enabled)
-                elif name in ["memcord_tag", "memcord_list_tags", "memcord_group", "memcord_import", "memcord_merge", "memcord_archive", "memcord_export", "memcord_share"]:
+                elif name in ["memcord_tag", "memcord_list_tags", "memcord_group", "memcord_import", "memcord_merge", "memcord_archive", "memcord_export", "memcord_share", "memcord_compress"]:
                     if not self.enable_advanced_tools:
                         return [TextContent(type="text", text=f"Advanced tool '{name}' is not enabled. Set MEMCORD_ENABLE_ADVANCED=true to enable advanced features.")]
                     
@@ -576,6 +574,8 @@ class ChatMemoryServer:
                         return await self._handle_exportmem(arguments)
                     elif name == "memcord_share":
                         return await self._handle_sharemem(arguments)
+                    elif name == "memcord_compress":
+                        return await self._handle_compressmem(arguments)
                 else:
                     return [TextContent(type="text", text=f"Unknown tool: {name}")]
             except Exception as e:

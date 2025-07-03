@@ -53,7 +53,7 @@ uv pip install -e .
 
 ## Add to Claude Desktop
 
-### Basic Mode (Default - 7 Tools)
+### Basic Mode (Default - 8 Tools)
 
 ```json
 {
@@ -82,6 +82,7 @@ uv pip install -e .
 # Create a memory slot and save conversation
 memcord_name "project_meeting"
 memcord_save "Our discussion about the new API design..."
+memcord_save_progress
 
 # Privacy control - activate zero mode (no saving)
 memcord_zero  # No memory will be saved until switched to another slot
@@ -111,11 +112,7 @@ memcord_query "What did we decide about authentication?"
 - `memcord_search` - Full-text search with Boolean operators
 - `memcord_query` - Natural language questions about memories
 
-**Storage Optimization**
-
-- `memcord_compress` - Compress memory content to save storage space
-
-Refer to **📖 [Complete Tools Reference](docs/tools-reference.md)** for detailed documentation for all 16 tools with examples and parameters.
+Refer to **📖 [Complete Tools Reference](docs/tools-reference.md)** for Advance Mode and detailed documentation for all 17 tools with examples and parameters.
 
 ## Documentation
 
