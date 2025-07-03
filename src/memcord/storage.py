@@ -3,7 +3,7 @@
 import json
 import asyncio
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime
 import aiofiles
 import aiofiles.os
@@ -73,6 +73,27 @@ class StorageManager:
             backup_path = slot_path.with_suffix('.json.bak')
             if backup_path.exists():
                 await aiofiles.os.remove(str(backup_path))
+            
+            # Update global tags
+            for tag in slot.tags:
+                self._state.add_tag_to_global_set(tag)
+            
+            # Update group information
+            if slot.group_path:
+                from .models import GroupInfo
+                if slot.group_path not in self._state.groups:
+                    # Create new group
+                    group_info = GroupInfo(
+                        path=slot.group_path,
+                        name=slot.group_path.split('/')[-1],
+                        parent_path='/'.join(slot.group_path.split('/')[:-1]) if '/' in slot.group_path else None
+                    )
+                    self._state.add_group(group_info)
+                
+                self._state.groups[slot.group_path].updated_at = datetime.now()
+            
+            # Update search index
+            self._search_engine.add_slot(slot)
                 
         except Exception as e:
             # Restore backup if save failed
@@ -95,6 +116,10 @@ class StorageManager:
     
     async def create_or_get_slot(self, slot_name: str) -> MemorySlot:
         """Create a new slot or get existing one."""
+        # Validate slot name
+        if not slot_name or not slot_name.strip():
+            raise ValueError("Slot name cannot be empty")
+        
         async with self._lock:
             slot = await self._load_slot(slot_name)
             
@@ -112,6 +137,10 @@ class StorageManager:
     
     async def save_memory(self, slot_name: str, content: str, entry_type: str = "manual_save") -> MemoryEntry:
         """Save content to memory slot."""
+        # Validate content
+        if not content or not content.strip():
+            raise ValueError("Content cannot be empty")
+        
         async with self._lock:
             slot = await self._load_slot(slot_name)
             
@@ -429,6 +458,22 @@ class StorageManager:
     
     async def list_groups(self) -> List[GroupInfo]:
         """List all memory groups."""
+        # Dynamically update member counts
+        group_counts = {}
+        for slot_file in self.memory_dir.glob("*.json"):
+            slot_name = slot_file.stem
+            try:
+                slot = await self._load_slot(slot_name)
+                if slot and slot.group_path:
+                    group_counts[slot.group_path] = group_counts.get(slot.group_path, 0) + 1
+            except Exception:
+                continue
+        
+        # Update member counts in groups
+        for group_path, count in group_counts.items():
+            if group_path in self._state.groups:
+                self._state.groups[group_path].member_count = count
+        
         return list(self._state.groups.values())
     
     async def delete_slot(self, slot_name: str) -> bool:

@@ -244,3 +244,11 @@ class ServerState(BaseModel):
                 hierarchy[parent] = []
             hierarchy[parent].append(group_path)
         return hierarchy
+    
+    def is_zero_mode(self) -> bool:
+        """Check if currently in zero mode."""
+        return self.current_slot == "__ZERO__"
+    
+    def activate_zero_mode(self) -> None:
+        """Activate zero mode - no memory will be saved."""
+        self.current_slot = "__ZERO__"

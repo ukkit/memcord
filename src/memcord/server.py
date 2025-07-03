@@ -58,6 +58,67 @@ class ChatMemoryServer:
             
         self._setup_handlers()
     
+    async def call_tool_direct(self, name: str, arguments: Dict[str, Any]) -> Sequence[TextContent]:
+        """Direct tool calling method for testing purposes."""
+        try:
+            # Basic tools (always available)
+            if name == "memcord_name":
+                return await self._handle_memname(arguments)
+            elif name == "memcord_save":
+                return await self._handle_savemem(arguments)
+            elif name == "memcord_read":
+                return await self._handle_readmem(arguments)
+            elif name == "memcord_save_progress":
+                return await self._handle_saveprogress(arguments)
+            elif name == "memcord_list":
+                return await self._handle_listmems(arguments)
+            elif name == "memcord_search":
+                return await self._handle_searchmem(arguments)
+            elif name == "memcord_query":
+                return await self._handle_querymem(arguments)
+            elif name == "memcord_compress":
+                return await self._handle_compressmem(arguments)
+            elif name == "memcord_zero":
+                return await self._handle_zeromem(arguments)
+            # Advanced tools (check if enabled)
+            elif name in ["memcord_tag", "memcord_list_tags", "memcord_group", "memcord_import", "memcord_merge", "memcord_archive", "memcord_export", "memcord_share"]:
+                if not self.enable_advanced_tools:
+                    return [TextContent(type="text", text=f"Advanced tool '{name}' is not enabled. Set MEMCORD_ENABLE_ADVANCED=true to enable advanced features.")]
+                
+                if name == "memcord_tag":
+                    return await self._handle_tagmem(arguments)
+                elif name == "memcord_list_tags":
+                    return await self._handle_listtags(arguments)
+                elif name == "memcord_group":
+                    return await self._handle_groupmem(arguments)
+                elif name == "memcord_import":
+                    return await self._handle_importmem(arguments)
+                elif name == "memcord_merge":
+                    return await self._handle_mergemem(arguments)
+                elif name == "memcord_archive":
+                    return await self._handle_archivemem(arguments)
+                elif name == "memcord_export":
+                    return await self._handle_exportmem(arguments)
+                elif name == "memcord_share":
+                    return await self._handle_sharemem(arguments)
+                else:
+                    return [TextContent(type="text", text=f"Unknown advanced tool: {name}")]
+            else:
+                return [TextContent(type="text", text=f"Unknown tool: {name}")]
+        except Exception as e:
+            return [TextContent(type="text", text=f"Error: {str(e)}")]
+    
+    async def list_tools_direct(self) -> List[Tool]:
+        """Direct tools listing method for testing purposes."""
+        tools = self._get_basic_tools()
+        if self.enable_advanced_tools:
+            tools.extend(self._get_advanced_tools())
+        return tools
+    
+    async def list_resources_direct(self) -> List[Resource]:
+        """Direct resources listing method for testing purposes."""
+        return []
+    
     def _get_basic_tools(self) -> List[Tool]:
         """Get the list of basic tools (always available)."""
         return [
@@ -223,6 +284,14 @@ class ChatMemoryServer:
                         }
                     },
                     "required": ["action"]
+                }
+            ),
+            Tool(
+                name="memcord_zero",
+                description="Activate zero mode - no memory will be saved until switched to another slot",
+                inputSchema={
+                    "type": "object",
+                    "properties": {}
                 }
             )
         ]
@@ -613,6 +682,16 @@ class ChatMemoryServer:
         if not slot_name:
             return [TextContent(type="text", text="Error: No memory slot selected. Use 'memname' first.")]
         
+        # Check for zero mode
+        if self.storage._state.is_zero_mode():
+            return [TextContent(
+                type="text", 
+                text="⚠️ Zero mode active - content NOT saved.\n\n"
+                     "💡 To save this content:\n"
+                     "1. Use 'memcord_name [slot_name]' to select a memory slot\n"
+                     "2. Then retry your save command"
+            )]
+        
         if not chat_text.strip():
             return [TextContent(type="text", text="Error: Chat text cannot be empty")]
         
@@ -670,6 +749,16 @@ class ChatMemoryServer:
         if not slot_name:
             return [TextContent(type="text", text="Error: No memory slot selected. Use 'memname' first.")]
         
+        # Check for zero mode
+        if self.storage._state.is_zero_mode():
+            return [TextContent(
+                type="text", 
+                text="⚠️ Zero mode active - progress NOT saved.\n\n"
+                     "💡 To save this progress:\n"
+                     "1. Use 'memcord_name [slot_name]' to select a memory slot\n"
+                     "2. Then retry your save progress command"
+            )]
+        
         if not chat_text.strip():
             return [TextContent(type="text", text="Error: Chat text cannot be empty")]
         
@@ -692,23 +781,50 @@ class ChatMemoryServer:
     async def _handle_listmems(self, arguments: Dict[str, Any]) -> List[TextContent]:
         """Handle listmems tool call."""
         slots_info = await self.storage.list_memory_slots()
-        
-        if not slots_info:
-            return [TextContent(type="text", text="No memory slots found.")]
-        
         current_slot = self.storage.get_current_slot()
         
-        lines = ["Available memory slots:"]
-        for slot_info in slots_info:
-            name = slot_info["name"]
-            marker = " (current)" if name == current_slot else ""
-            lines.append(
-                f"• {name}{marker} - {slot_info['entry_count']} entries, "
-                f"{slot_info['total_length']} chars, "
-                f"updated {slot_info['updated_at'][:19]}"
-            )
+        # Check for zero mode and show status
+        if self.storage._state.is_zero_mode():
+            lines = ["🚫 ZERO MODE ACTIVE - No memory will be saved", ""]
+            if not slots_info:
+                lines.append("No memory slots found.")
+            else:
+                lines.append("Available memory slots:")
+                for slot_info in slots_info:
+                    name = slot_info["name"]
+                    marker = " (current)" if name == current_slot else ""
+                    lines.append(
+                        f"• {name}{marker} - {slot_info['entry_count']} entries, "
+                        f"{slot_info['total_length']} chars, "
+                        f"updated {slot_info['updated_at'][:19]}"
+                    )
+            lines.extend(["", "💡 Use 'memcord_name [slot_name]' to resume saving"])
+        else:
+            if not slots_info:
+                return [TextContent(type="text", text="No memory slots found.")]
+            
+            lines = ["Available memory slots:"]
+            for slot_info in slots_info:
+                name = slot_info["name"]
+                marker = " (current)" if name == current_slot else ""
+                lines.append(
+                    f"• {name}{marker} - {slot_info['entry_count']} entries, "
+                    f"{slot_info['total_length']} chars, "
+                    f"updated {slot_info['updated_at'][:19]}"
+                )
         
         return [TextContent(type="text", text="\n".join(lines))]
+    
+    async def _handle_zeromem(self, arguments: Dict[str, Any]) -> List[TextContent]:
+        """Handle zeromem tool call - activate zero mode."""
+        # Activate zero mode by setting current slot to special __ZERO__ slot
+        self.storage._state.activate_zero_mode()
+        
+        return [TextContent(
+            type="text",
+            text="🚫 Zero mode activated. No memory will be saved until you switch to another memory slot.\n\n"
+                 "ℹ️  Use 'memcord_name [slot_name]' to resume saving."
+        )]
     
     async def _handle_exportmem(self, arguments: Dict[str, Any]) -> List[TextContent]:
         """Handle exportmem tool call."""

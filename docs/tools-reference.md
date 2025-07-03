@@ -1,18 +1,19 @@
 # Tools Reference
 
-Complete reference for all 15 tools available in the Chat Memory MCP Server.
+Complete reference for all 17 tools available in the Chat Memory MCP Server.
 
 ## Tool Availability
 
 MemCord offers **two modes** with different tool sets:
 
-### 🔧 Basic Mode (Default - 8 Tools)
+### 🔧 Basic Mode (Default - 9 Tools)
 Available without configuration:
 - Core: `memcord_name`, `memcord_save`, `memcord_read`, `memcord_save_progress`, `memcord_list`
 - Search: `memcord_search`, `memcord_query`
 - Storage: `memcord_compress`
+- Privacy: `memcord_zero`
 
-### ⚡ Advanced Mode (All 15 Tools)
+### ⚡ Advanced Mode (All 17 Tools)
 Requires `MEMCORD_ENABLE_ADVANCED=true`:
 - **All Basic tools** plus:
 - Organization: `memcord_tag`, `memcord_list_tags`, `memcord_group`
@@ -129,35 +130,92 @@ Compress memory slot content to save storage space with intelligent gzip compres
 - Maintains search functionality on compressed content
 - Transparent decompression when reading content
 
+### Privacy Control
+
+### 9. `memcord_zero`
+Activate zero mode - no memory will be saved until switched to another slot.
+
+**Parameters:**
+- None
+
+**Behavior:**
+- Activates "zero mode" where all save operations are blocked
+- Clear notifications inform user when zero mode is active
+- `memcord_list` shows zero mode status prominently
+- Mode persists until user switches to another memory slot with `memcord_name`
+
+**Examples:**
+- `memcord_zero` - Activate zero mode
+- After activation, any `memcord_save` or `memcord_save_progress` will be blocked with helpful guidance
+
+**Use Cases:**
+- **Privacy conversations**: Ensure sensitive discussions aren't accidentally saved
+- **Testing scenarios**: Prevent test conversations from polluting memory
+- **Temporary usage**: Use Claude without building permanent memory
+- **Guest access**: Allow others to use your setup without saving their conversations
+
+**Exit Zero Mode:**
+- Use `memcord_name [slot_name]` to select any memory slot and resume saving
+
 ---
 
 ## Advanced Tools (Requires MEMCORD_ENABLE_ADVANCED=true)
 
-### Export & Sharing
+### Organization Tools
 
-### 8. `memcord_export <slot_name> <format>`
-Exports memory slot as an MCP file resource.
-
-**Parameters:**
-- `slot_name`: Name of the memory slot to export
-- `format`: Export format (`md`, `txt`, `json`)
-
-**Examples:**
-- "Export project_alpha as markdown"
-- "Export meeting_notes as JSON"
-
-### 7. `memcord_share <slot_name> [formats]`
-Generates shareable files in multiple formats.
+### 10. `memcord_tag <action> [tags]`
+Manage tags for memory slots.
 
 **Parameters:**
-- `slot_name`: Name of the memory slot to share
-- `formats` (optional): Comma-separated list of formats (default: all)
+- `action`: Action to perform (`add`, `remove`, `list`)
+- `tags` (optional): Space-separated list of tags (required for add/remove)
 
 **Examples:**
-- "Share project_alpha in markdown and text formats"
-- "Share meeting_notes in all formats"
+- "Add tags 'project', 'meeting' to current slot"
+- "Remove tag 'draft' from current slot"
+- "List all tags for current slot"
 
-### 9. `memcord_share <slot_name> [formats]`
+**Tag Features:**
+- Multiple tags per slot
+- Case-insensitive (stored in lowercase)
+- Hierarchical tags using dot notation (e.g., "project.alpha.backend")
+- Auto-completion suggestions
+
+### 11. `memcord_list_tags`
+List all tags used across all memory slots.
+
+**Parameters:** None
+
+**Examples:**
+- "Show me all available tags"
+- "What tags are being used?"
+
+**Output includes:**
+- Tag name
+- Usage count
+- Associated memory slots
+
+### 12. `memcord_group <action> [group_path]`
+Manage memory slot groups and folders.
+
+**Parameters:**
+- `action`: Action to perform (`set`, `remove`, `list`)
+- `group_path` (optional): Hierarchical path (required for set)
+
+**Examples:**
+- "Set group 'projects/alpha' for current slot"
+- "Remove group assignment from current slot"
+- "List all memory groups"
+
+**Group Features:**
+- Hierarchical folder structure
+- Unlimited nesting depth
+- Path-based navigation
+- Bulk operations on group members
+
+### Import & Integration
+
+### 13. `memcord_import <source> [options]`
 Import content from various sources including files, PDFs, web URLs, and structured data.
 
 **Parameters:**
@@ -186,7 +244,7 @@ Import content from various sources including files, PDFs, web URLs, and structu
 - Support for large files (up to 50MB)
 - Comprehensive error handling
 
-### 9. `memcord_merge <source_slots> <target_slot> [options]`
+### 14. `memcord_merge <source_slots> <target_slot> [options]`
 Merge multiple memory slots into one with intelligent duplicate detection.
 
 **Parameters:**
@@ -215,7 +273,7 @@ Merge multiple memory slots into one with intelligent duplicate detection.
 
 ### Archival & Long-term Storage
 
-### `memcord_archive`
+### 15. `memcord_archive <action> [options]`
 Archive or restore memory slots for long-term storage with automatic compression.
 
 **Parameters:**
@@ -245,100 +303,29 @@ Archive or restore memory slots for long-term storage with automatic compression
 - **Safe Operations**: Archives preserve original data with restoration capability
 - **Usage Analytics**: Identifies inactive slots for archival recommendations
 
-## Search & Query Tools
+### Export & Sharing
 
-### 10. `memcord_search <query> [options]`
-Search across all memory slots with advanced filtering.
-
-**Parameters:**
-- `query`: Search query string
-- `include_tags` (optional): Only include slots with these tags
-- `exclude_tags` (optional): Exclude slots with these tags
-- `max_results` (optional): Maximum number of results (default: 20)
-- `case_sensitive` (optional): Whether search is case sensitive (default: false)
-
-**Examples:**
-- "Search for 'API integration'"
-- "Search for 'database' excluding tag 'archived'"
-- "Find 'meeting notes' with tag 'urgent'"
-
-**Boolean Operators:**
-- Use `AND` for required terms: "API AND database"
-- Use `OR` for alternative terms: "meeting OR standup"
-- Use `NOT` to exclude terms: "project NOT archived"
-
-### 11. `memcord_query <question>`
-Ask natural language questions about your memory contents.
+### 16. `memcord_export <slot_name> <format>`
+Exports memory slot as an MCP file resource.
 
 **Parameters:**
-- `question`: Natural language question
-- `max_results` (optional): Maximum results to consider (default: 5)
+- `slot_name`: Name of the memory slot to export
+- `format`: Export format (`md`, `txt`, `json`)
 
 **Examples:**
-- "What decisions were made about the API?"
-- "Who was responsible for the database migration?"
-- "When did we discuss the budget changes?"
-- "What was the status of the project last week?"
+- "Export project_alpha as markdown"
+- "Export meeting_notes as JSON"
 
-**Supported Question Types:**
-- **What**: Content and decision queries
-- **Who**: Person/responsibility identification
-- **When**: Timeline and temporal queries
-- **Where**: Location and context queries
-- **Why**: Reasoning and explanation queries
-- **How**: Process and method queries
-
-## Organization Tools
-
-### 12. `memcord_tag <action> [tags]`
-Manage tags for memory slots.
+### 17. `memcord_share <slot_name> [formats]`
+Generates shareable files in multiple formats.
 
 **Parameters:**
-- `action`: Action to perform (`add`, `remove`, `list`)
-- `tags` (optional): Space-separated list of tags (required for add/remove)
+- `slot_name`: Name of the memory slot to share
+- `formats` (optional): Comma-separated list of formats (default: all)
 
 **Examples:**
-- "Add tags 'project', 'meeting' to current slot"
-- "Remove tag 'draft' from current slot"
-- "List all tags for current slot"
-
-**Tag Features:**
-- Multiple tags per slot
-- Case-insensitive (stored in lowercase)
-- Hierarchical tags using dot notation (e.g., "project.alpha.backend")
-- Auto-completion suggestions
-
-### 14. `memcord_list_tags`
-List all tags used across all memory slots.
-
-**Parameters:** None
-
-**Examples:**
-- "Show me all available tags"
-- "What tags are being used?"
-
-**Output includes:**
-- Tag name
-- Usage count
-- Associated memory slots
-
-### 13. `memcord_group <action> [group_path]`
-Manage memory slot groups and folders.
-
-**Parameters:**
-- `action`: Action to perform (`set`, `remove`, `list`)
-- `group_path` (optional): Hierarchical path (required for set)
-
-**Examples:**
-- "Set group 'projects/alpha' for current slot"
-- "Remove group assignment from current slot"
-- "List all memory groups"
-
-**Group Features:**
-- Hierarchical folder structure
-- Unlimited nesting depth
-- Path-based navigation
-- Bulk operations on group members
+- "Share project_alpha in markdown and text formats"
+- "Share meeting_notes in all formats"
 
 ## Advanced Usage Patterns
 

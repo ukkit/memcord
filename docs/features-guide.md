@@ -65,33 +65,98 @@ Ask questions about your memories in plain English:
 ### 3. Content Import & Integration
 
 #### Multi-Format Support
-Import content from various sources:
 
-**Text Files**
-- `.txt`, `.md`, `.markdown`, `.rst`, `.log`
-- Preserves formatting and structure
-- Automatic metadata extraction
 
-**PDF Documents**
-- Page-by-page text extraction
-- Handles complex layouts and formatting
-- Maintains document structure
+Import content from various sources through a modular handler system:
 
-**Web Content**
-- Clean article extraction from URLs
-- Removes ads, navigation, and clutter
-- Preserves main content and headings
+**Text Files** (`.txt`, `.md`, `.markdown`, `.rst`, `.log`)
+```python
+# Usage example
+memcord_import source="/path/to/notes.md" slot_name="research_notes" tags=["notes","draft"]
+```
+- Uses `aiofiles` for async file reading
+- Preserves UTF-8 encoding and formatting
+- Extracts file metadata (size, extension, timestamps)
 
-**Structured Data**
-- CSV and JSON file processing
-- Automatic schema detection
-- Converts tabular data to readable format
+**PDF Documents** (`.pdf`)
+```python
+# Usage example  
+memcord_import source="/path/to/document.pdf" slot_name="research_docs" tags=["pdf","research"]
+```
+- Uses `pdfplumber` library for robust text extraction
+- Processes page-by-page with clear page markers
+- Handles complex layouts, tables, and formatting
+- Includes page count and extraction method in metadata
 
-#### Import Features
-- **Large file support** (up to 50MB)
-- **Automatic source attribution** with timestamps
-- **Tag and group assignment** during import
-- **Error handling** for corrupted or inaccessible files
+**Web URLs** (`http://`, `https://`)
+```python
+# Usage example
+memcord_import source="https://example.com/article" slot_name="web_content" group_path="articles/tech"
+```
+- Uses `trafilatura` for intelligent content extraction
+- Falls back to `BeautifulSoup` for additional coverage
+- Removes ads, navigation, comments, and clutter
+- Extracts page titles and metadata
+- 30-second timeout with proper error handling
+
+**Structured Data** (`.json`, `.csv`, `.tsv`)
+```python
+# Usage examples
+memcord_import source="/data/export.csv" slot_name="analytics_data" description="Sales data Q1 2025"
+memcord_import source="/config/settings.json" slot_name="config_backup"
+```
+- JSON: Pretty-prints with proper indentation and structure detection
+- CSV/TSV: Uses `pandas` for robust parsing and data conversion
+- Includes schema information (columns, row counts, data types)
+- Converts tabular data to human-readable format
+
+#### Import Process Architecture
+
+**Handler System:**
+1. `ContentImporter` coordinates specialized handlers
+2. Automatic handler selection based on source type
+3. Extensible architecture for new content types
+4. `ImportResult` model for standardized responses
+
+**Import Flow:**
+1. **Source Detection**: Automatic routing based on file extension/URL scheme
+2. **Content Extraction**: Handler-specific processing with error handling
+3. **Metadata Creation**: Standard metadata plus source-specific information
+4. **Content Formatting**: Adds import header with source attribution
+5. **Memory Storage**: Saves to specified slot with optional tags/groups
+
+#### Advanced Import Features
+
+**Automatic Detection:**
+- File extension-based routing for local files
+- URL scheme detection for web content
+- MIME type validation where available
+- Graceful fallbacks for ambiguous sources
+
+**Rich Metadata Preservation:**
+- Import timestamps and source attribution
+- File sizes and processing statistics
+- Content-specific details (page counts, column names, etc.)
+- Extraction method and library information
+
+**Error Handling & Recovery:**
+- Comprehensive validation at each step
+- Graceful fallbacks (multiple web extraction methods)
+- Detailed error messages with troubleshooting hints
+- Partial success handling for large imports
+
+**Large File Support:**
+- Up to 50MB file size limit
+- Streaming processing for memory efficiency
+- Progress tracking for long operations
+- Timeout handling for web requests
+
+**Integration Features:**
+- **Tag Assignment**: Apply tags during import for immediate organization
+- **Group Placement**: Set hierarchical groups for imported content
+- **Description Support**: Add custom descriptions to imported memories
+- **Metadata Preservation**: Maintain all original source information
+>>>>>>> 71d9d1e (added tests)
 
 ### 4. Memory Slot Merging
 

@@ -19,24 +19,36 @@ class TextSummarizer:
             'this', 'that', 'these', 'those', 'my', 'your', 'his', 'her', 'its', 'our', 'their'
         }
     
-    def summarize(self, text: str, target_ratio: float = 0.15) -> str:
+    def summarize(self, text: str, target_ratio: float = 0.15, compression_ratio: float = None) -> str:
         """
         Create an extractive summary of the text.
         
         Args:
             text: Input text to summarize
             target_ratio: Target length as ratio of original (0.1 = 10%)
+            compression_ratio: Alternative name for target_ratio (for backward compatibility)
         
         Returns:
             Summary text
         """
+        # Handle backward compatibility with compression_ratio parameter
+        if compression_ratio is not None:
+            target_ratio = compression_ratio
+        
+        # Validate inputs
+        if text is None:
+            raise ValueError("Text cannot be None")
+        if not isinstance(text, str):
+            raise TypeError("Text must be a string")
         if not text.strip():
-            return text
+            raise ValueError("Text cannot be empty")
+        if target_ratio <= 0 or target_ratio > 1:
+            raise ValueError("Compression ratio must be between 0 and 1")
         
         # Split into sentences
         sentences = self._split_into_sentences(text)
         
-        if len(sentences) <= 3:
+        if len(sentences) <= 2:
             # Too short to summarize meaningfully
             return text
         
@@ -176,10 +188,18 @@ class TextSummarizer:
     
     def get_summary_stats(self, original: str, summary: str) -> Dict[str, int]:
         """Get statistics about the summarization."""
+        # Validate inputs
+        if not isinstance(original, str):
+            raise TypeError("Original text must be a string")
+        if not isinstance(summary, str):
+            raise TypeError("Summary text must be a string")
+        
         return {
             'original_length': len(original),
             'summary_length': len(summary),
             'original_words': len(original.split()),
             'summary_words': len(summary.split()),
+            'words_original': len(original.split()),  # Alternative name for backward compatibility
+            'words_summary': len(summary.split()),    # Alternative name for backward compatibility
             'compression_ratio': len(summary) / len(original) if original else 0
         }
