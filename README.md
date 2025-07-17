@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/ukkit-memcord-badge.png)](https://mseep.ai/app/ukkit-memcord)
+
 <table>
   <tr>
     <td>
