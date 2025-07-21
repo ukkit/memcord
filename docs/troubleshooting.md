@@ -47,7 +47,7 @@ memcord_save "conversation content"
 
 **Troubleshooting steps**:
 1. Check Python version: `python --version` (3.8+ required)
-2. Verify installation: `uv run chat-memory-mcp --help`
+2. Verify installation: `uv run memcord --help`
 3. Check file permissions in the project directory
 4. Verify PYTHONPATH environment variable
 
@@ -135,7 +135,7 @@ claude mcp restart chat-memory
 claude mcp list
 
 # Add if missing
-claude mcp add chat-memory uv --directory /path/to/chat-memory-mcp run chat-memory-mcp -e PYTHONPATH=/path/to/chat-memory-mcp/src
+claude mcp add chat-memory uv --directory /path/to/memcord run memcord -e PYTHONPATH=/path/to/memcord/src
 
 # Check configuration
 claude mcp get chat-memory
@@ -168,7 +168,7 @@ PYTHONPATH=src python -m chat_memory.server --debug
 
 # Set log level
 export LOG_LEVEL=DEBUG
-uv run chat-memory-mcp
+uv run memcord
 
 # Check specific component
 python -c "from src.chat_memory.search import SearchEngine; print('Search OK')"
@@ -389,7 +389,7 @@ If all else fails:
 
 2. **Reinstall fresh**:
    ```bash
-   uv pip uninstall chat-memory-mcp
+   uv pip uninstall memcord
    uv pip install -e .
    ```
 

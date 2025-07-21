@@ -156,7 +156,6 @@ memcord_import source="/config/settings.json" slot_name="config_backup"
 - **Group Placement**: Set hierarchical groups for imported content
 - **Description Support**: Add custom descriptions to imported memories
 - **Metadata Preservation**: Maintain all original source information
->>>>>>> 71d9d1e (added tests)
 
 ### 4. Memory Slot Merging
 
@@ -308,7 +307,7 @@ Robust data handling:
 - Basic search and query needs
 - Minimal setup requirements
 
-### Advanced Mode (15 Tools)
+### Advanced Mode (17 Tools)
 **Target Users**: Power users, complex workflows, team collaboration
 
 **Additional Features:**

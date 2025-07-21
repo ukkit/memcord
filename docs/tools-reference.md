@@ -6,7 +6,7 @@ Complete reference for all 17 tools available in the Chat Memory MCP Server.
 
 MemCord offers **two modes** with different tool sets:
 
-### 🔧 Basic Mode (Default - 9 Tools)
+### 🔧 Basic Mode (Default - 8 Tools)
 Available without configuration:
 - Core: `memcord_name`, `memcord_save`, `memcord_read`, `memcord_save_progress`, `memcord_list`
 - Search: `memcord_search`, `memcord_query`
@@ -102,37 +102,9 @@ Ask natural language questions about your stored memories.
 - "What decisions were made about the API design?"
 - "What issues were discussed in the last meeting?"
 
-### Storage Optimization
-
-### 8. `memcord_compress`
-Compress memory slot content to save storage space with intelligent gzip compression.
-
-**Parameters:**
-- `action`: Action to perform (`analyze`, `compress`, `decompress`, `stats`)
-- `slot_name` (optional): Memory slot name to compress. Processes all slots if not specified
-- `force` (optional): Force compression even for already compressed content (default: false)
-
-**Actions:**
-- **`analyze`**: Preview compression potential without making changes
-- **`compress`**: Apply compression to memory slot content 
-- **`decompress`**: Restore compressed content to original form
-- **`stats`**: View detailed compression statistics
-
-**Examples:**
-- `memcord_compress action="analyze"` - Preview compression for all slots
-- `memcord_compress action="compress" slot_name="project_alpha"` - Compress specific slot
-- `memcord_compress action="stats"` - View overall compression statistics
-- `memcord_compress action="decompress" slot_name="project_alpha"` - Restore original content
-
-**Features:**
-- Automatic compression threshold (1KB minimum)
-- 30-70% typical storage reduction
-- Maintains search functionality on compressed content
-- Transparent decompression when reading content
-
 ### Privacy Control
 
-### 9. `memcord_zero`
+### 8. `memcord_zero`
 Activate zero mode - no memory will be saved until switched to another slot.
 
 **Parameters:**
@@ -160,6 +132,34 @@ Activate zero mode - no memory will be saved until switched to another slot.
 ---
 
 ## Advanced Tools (Requires MEMCORD_ENABLE_ADVANCED=true)
+
+### Storage Optimization
+
+### 9. `memcord_compress`
+Compress memory slot content to save storage space with intelligent gzip compression.
+
+**Parameters:**
+- `action`: Action to perform (`analyze`, `compress`, `decompress`, `stats`)
+- `slot_name` (optional): Memory slot name to compress. Processes all slots if not specified
+- `force` (optional): Force compression even for already compressed content (default: false)
+
+**Actions:**
+- **`analyze`**: Preview compression potential without making changes
+- **`compress`**: Apply compression to memory slot content 
+- **`decompress`**: Restore compressed content to original form
+- **`stats`**: View detailed compression statistics
+
+**Examples:**
+- `memcord_compress action="analyze"` - Preview compression for all slots
+- `memcord_compress action="compress" slot_name="project_alpha"` - Compress specific slot
+- `memcord_compress action="stats"` - View overall compression statistics
+- `memcord_compress action="decompress" slot_name="project_alpha"` - Restore original content
+
+**Features:**
+- Automatic compression threshold (1KB minimum)
+- 30-70% typical storage reduction
+- Maintains search functionality on compressed content
+- Transparent decompression when reading content
 
 ### Organization Tools
 

@@ -124,9 +124,13 @@ class SearchIndex:
                 df = len(self.word_to_slots.get(word, set()))
                 
                 # Inverse Document Frequency
-                idf = math.log(self.total_slots / (df + 1))
+                idf = math.log(self.total_slots / df) if df > 0 else 0
                 
-                score += tf * idf
+                # If IDF is 0 (single document), use TF only
+                if idf == 0:
+                    score += tf
+                else:
+                    score += tf * idf
         
         return min(1.0, score)  # Normalize to 0-1
     

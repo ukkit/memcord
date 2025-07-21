@@ -4,7 +4,7 @@
       <img src="assets/image/memcord_1024.png" width="256">
     </td>
     <td>
-      <h3>MEMCORD (mcp server)</h3>
+      <h3>MEMCORD v2 (mcp server)</h3>
       <p>
         This privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control.
       </p>
@@ -13,10 +13,11 @@
 </table>
 
 [![MCP Server](https://img.shields.io/badge/MCP-Server-blue)](https://github.com/modelcontextprotocol)
+  [![Claude Code](https://img.shields.io/badge/Claude-Code-purple)](https://docs.anthropic.com/claude/docs/claude-code)
   [![Claude Desktop](https://img.shields.io/badge/Claude-Desktop-orange)](https://claude.ai/desktop)
   [![Python](https://img.shields.io/badge/Python-3.10+-green)](https://python.org)
   [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
-  [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-%E2%98%95-yellow)](https://buymeacoffee.com/ukkit)
+  [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-%E2%☕-yellow)](https://buymeacoffee.com/ukkit)
 
 # Features
 
@@ -43,17 +44,10 @@ Stop losing brilliant ideas in chat history. Turn every Claude conversation into
 ## Quick Start
 
 ```bash
-# First time installation
-git clone https://github.com/ukkit/memcord.git
-cd memcord
-uv venv
-source .venv/bin/activate
-uv pip install -e .
+curl -fsSL https://github.com/ukkit/memcord/raw/main/install.sh | bash
 ```
 
-## Add to Claude Desktop
-
-### Basic Mode (Default - 8 Tools)
+### Claude Desktop Configuration
 
 ```json
 {
@@ -62,16 +56,38 @@ uv pip install -e .
       "command": "uv",
       "args": [
         "--directory",
-        "/path/to/chat-memory-mcp",
+        "</path/to/memcord>",
         "run",
         "memcord"
       ],
       "env": {
-        "PYTHONPATH": "/path/to/chat-memory-mcp/src"
+        "PYTHONPATH": "</path/to/memcord/>src"
       }
     }
   }
 }
+```
+
+### ✨  Claude Code MCP 🆕
+
+```bash
+# Add MCP server for your project (team sharing via .mcp.json)
+claude mcp add-json memcord '{"type":"stdio","command":"uv","args":["--directory","</path/to/memcord>","run","memcord"],"env":{"PYTHONPATH":"</path/to/memcord>/src"}}'
+
+# Verify installation
+claude mcp list
+claude mcp get memcord
+```
+
+### Manual Installaion
+
+```bash
+# Traditional installation method
+git clone https://github.com/ukkit/memcord.git
+cd memcord
+uv venv
+source .venv/bin/activate
+uv pip install -e .
 ```
 
 **📚 [Complete Installation Guide](docs/installation.md)** - Detailed setup for Claude Code, Claude Desktop, and other MCP applications.
@@ -112,13 +128,13 @@ memcord_query "What did we decide about authentication?"
 - `memcord_search` - Full-text search with Boolean operators
 - `memcord_query` - Natural language questions about memories
 
-Refer to **📖 [Complete Tools Reference](docs/tools-reference.md)** for Advance Mode and detailed documentation for all 17 tools with examples and parameters.
+Refer to **📖 [Complete Tools Reference](docs/tools-reference.md)** for Advanced Mode and detailed documentation for all 17 tools with examples and parameters.
 
 ## Documentation
 
 - **📚 [Installation Guide](docs/installation.md)** - Complete setup instructions for all MCP applications
 - **📃 [Feature Guide](docs/features-guide.md)** - Complete list of features
-- **📖 [Tools Reference](docs/tools-reference.md)** - Detailed documentation for all 14 tools
+- **📖 [Tools Reference](docs/tools-reference.md)** - Detailed documentation for all 17 tools
 - **📥 [Import & Merge Guide](docs/import-and-merge.md)** - Comprehensive guide for Phase 3 features 🆕
 - **🔍 [Search & Query Guide](docs/search-and-query.md)** - Advanced search features and natural language queries
 - **🗂️ [Usage Examples](docs/examples.md)** - Real-world workflows and practical use cases

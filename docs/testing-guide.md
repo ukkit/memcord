@@ -34,7 +34,7 @@ Multi-component interaction tests:
 ### MCP Protocol Tests (`pytest -m mcp`)
 MCP protocol compliance and tool testing:
 - **Protocol Compliance** - MCP specification adherence
-- **Tool Functionality** - All 16 memcord tools (8 basic + 8 advanced)
+- **Tool Functionality** - All 17 memcord tools (8 basic + 9 advanced)
 - **Resource Handling** - MCP resource creation and access
 - **Error Handling** - Graceful error responses
 
@@ -216,7 +216,7 @@ tests/
 ### Testing All Memcord Tools
 
 ```bash
-# Test all 16 memcord tools
+# Test all 17 memcord tools
 pytest tests/mcp/test_memcord_tools.py
 
 # Test only basic tools (8 tools)

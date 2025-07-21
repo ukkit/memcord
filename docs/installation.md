@@ -33,30 +33,59 @@ pip install -e .
 
 ## Configuration
 
-### Claude Code CLI (Recommended)
+### Claude Code CLI (Recommended) ⭐
 
-Add the MCP server to Claude Code using the CLI:
+MemCord includes a `.mcp.json` configuration file for seamless Claude Code integration. This enables project-level configuration and team sharing via version control.
+
+#### Project-Level Installation (Team Sharing)
 
 ```bash
-# Navigate to your project directory
+# Navigate to the memcord project directory
 cd /path/to/memcord
 
-# Add the MCP server (choose one method)
+# Install the MCP server for this project
+claude mcp install ./
 
-# Method 1: Project-specific (shared with team via .mcp.json)
-claude mcp add memcord uv --directory /path/to/memcord run memcord --scope project -e PYTHONPATH=/path/to/memcord/src
-
-# Method 2: User-wide (available across all projects)
-claude mcp add memcord uv --directory /path/to/memcord run memcord --scope user -e PYTHONPATH=/path/to/memcord/src
-
-# Method 3: Local to current directory (default)
-claude mcp add memcord uv --directory /path/to/memcord run memcord -e PYTHONPATH=/path/to/memcord/src
+# Or install from the current directory
+claude mcp install .
 ```
 
-Verify the server is configured:
+#### Manual Claude Code Configuration
+
+If you prefer manual configuration or need custom settings:
+
 ```bash
+# Method 1: Project-specific (shared with team)
+claude mcp add memcord uv --directory . run memcord --scope project -e PYTHONPATH=./src -e MEMCORD_ENABLE_ADVANCED=true
+
+# Method 2: User-wide (available across all projects)  
+claude mcp add memcord uv --directory /path/to/memcord run memcord --scope user -e PYTHONPATH=/path/to/memcord/src -e MEMCORD_ENABLE_ADVANCED=true
+
+# Method 3: Local to current directory
+claude mcp add memcord uv --directory . run memcord -e PYTHONPATH=./src -e MEMCORD_ENABLE_ADVANCED=true
+```
+
+#### Verification
+
+Verify the server is configured correctly:
+```bash
+# List all configured MCP servers
 claude mcp list
+
+# Get detailed information about memcord
 claude mcp get memcord
+
+# Test the server startup
+claude mcp test memcord
+```
+
+#### Advanced Tools
+
+By default, the `.mcp.json` configuration enables all 17 tools (8 basic + 9 advanced). To use only basic tools, set:
+
+```bash
+# Disable advanced tools
+claude mcp configure memcord -e MEMCORD_ENABLE_ADVANCED=false
 ```
 
 ### Claude Desktop
@@ -67,7 +96,7 @@ MemCord offers two tool modes. Choose the configuration that fits your needs:
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
-#### Basic Mode (Default - 7 Tools)
+#### Basic Mode (Default - 8 Tools)
 Essential memory management features:
 
 ```json
@@ -89,7 +118,7 @@ Essential memory management features:
 }
 ```
 
-#### Advanced Mode (All 14 Tools)
+#### Advanced Mode (All 17 Tools)
 Includes organization, import/export, and advanced features:
 
 ```json
