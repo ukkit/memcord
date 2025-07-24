@@ -64,6 +64,8 @@ class ChatMemoryServer:
             # Basic tools (always available)
             if name == "memcord_name":
                 return await self._handle_memname(arguments)
+            elif name == "memcord_use":
+                return await self._handle_memuse(arguments)
             elif name == "memcord_save":
                 return await self._handle_savemem(arguments)
             elif name == "memcord_read":
@@ -132,6 +134,20 @@ class ChatMemoryServer:
                         "slot_name": {
                             "type": "string",
                             "description": "Name of the memory slot to create or select"
+                        }
+                    },
+                    "required": ["slot_name"]
+                }
+            ),
+            Tool(
+                name="memcord_use",
+                description="Activate an existing memory slot (does not create new slots)",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "slot_name": {
+                            "type": "string",
+                            "description": "Name of the existing memory slot to activate"
                         }
                     },
                     "required": ["slot_name"]
@@ -539,6 +555,8 @@ class ChatMemoryServer:
                 # Basic tools (always available)
                 if name == "memcord_name":
                     return await self._handle_memname(arguments)
+                elif name == "memcord_use":
+                    return await self._handle_memuse(arguments)
                 elif name == "memcord_save":
                     return await self._handle_savemem(arguments)
                 elif name == "memcord_read":
@@ -675,6 +693,30 @@ class ChatMemoryServer:
             type="text",
             text=f"Memory slot '{slot_name}' is now active. Created: {slot.created_at.strftime('%Y-%m-%d %H:%M:%S')}"
         )]
+    
+    async def _handle_memuse(self, arguments: Dict[str, Any]) -> List[TextContent]:
+        """Handle memuse tool call - activate existing memory slots only."""
+        slot_name = arguments["slot_name"]
+        
+        if not slot_name or not slot_name.strip():
+            return [TextContent(type="text", text="Error: Slot name cannot be empty")]
+        
+        # Clean slot name
+        slot_name = slot_name.strip().replace(" ", "_")
+        
+        # Check if slot exists (DO NOT CREATE)
+        existing_slot = await self.storage._load_slot(slot_name)
+        if existing_slot:
+            self.storage._state.set_current_slot(slot_name)
+            return [TextContent(
+                type="text",
+                text=f"Memory slot '{slot_name}' is now active. Created: {existing_slot.created_at.strftime('%Y-%m-%d %H:%M:%S')}"
+            )]
+        else:
+            return [TextContent(
+                type="text", 
+                text=f"Error: Memory slot '{slot_name}' does not exist. Use 'memcord_name' to create new slots or 'memcord_list' to see available slots."
+            )]
     
     async def _handle_savemem(self, arguments: Dict[str, Any]) -> List[TextContent]:
         """Handle savemem tool call."""

@@ -44,7 +44,7 @@ claude mcp get memcord
 claude mcp test memcord
 ```
 
-You should see all 17 tools available (8 basic + 9 advanced).
+You should see all 18 tools available (9 basic + 9 advanced).
 
 ## Project Configuration
 
@@ -70,7 +70,7 @@ MemCord includes a comprehensive `.mcp.json` configuration:
 
 Key features:
 - **Relative paths** - Works from any project location
-- **Advanced tools enabled** - All 17 tools available by default
+- **Advanced tools enabled** - All 18 tools available by default
 - **Team sharing** - Configuration tracked in version control
 - **Environment isolation** - Uses project's virtual environment
 
@@ -79,7 +79,7 @@ Key features:
 You can customize the configuration after installation:
 
 ```bash
-# Disable advanced tools (use only 8 basic tools)
+# Disable advanced tools (use only 9 basic tools)
 claude mcp configure memcord -e MEMCORD_ENABLE_ADVANCED=false
 
 # Re-enable advanced tools
@@ -491,5 +491,5 @@ Many IDEs can run Claude Code commands directly:
 
 For more information, see:
 - [Installation Guide](installation.md) - Complete setup instructions
-- [Tools Reference](tools-reference.md) - Detailed documentation for all 17 tools
+- [Tools Reference](tools-reference.md) - Detailed documentation for all 18 tools
 - [Usage Examples](examples.md) - Real-world workflows and use cases
