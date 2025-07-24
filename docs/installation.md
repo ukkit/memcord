@@ -81,7 +81,7 @@ claude mcp test memcord
 
 #### Advanced Tools
 
-By default, the `.mcp.json` configuration enables all 17 tools (8 basic + 9 advanced). To use only basic tools, set:
+By default, the `.mcp.json` configuration enables all 18 tools (9 basic + 9 advanced). To use only basic tools, set:
 
 ```bash
 # Disable advanced tools

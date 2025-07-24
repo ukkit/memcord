@@ -1,19 +1,18 @@
 # Tools Reference
 
-Complete reference for all 17 tools available in the Chat Memory MCP Server.
+Complete reference for all 18 tools available in the Chat Memory MCP Server.
 
 ## Tool Availability
 
 MemCord offers **two modes** with different tool sets:
 
-### 🔧 Basic Mode (Default - 8 Tools)
+### 🔧 Basic Mode (Default - 9 Tools)
 Available without configuration:
-- Core: `memcord_name`, `memcord_save`, `memcord_read`, `memcord_save_progress`, `memcord_list`
+- Core: `memcord_name`, `memcord_use`, `memcord_save`, `memcord_read`, `memcord_save_progress`, `memcord_list`
 - Search: `memcord_search`, `memcord_query`
-- Storage: `memcord_compress`
 - Privacy: `memcord_zero`
 
-### ⚡ Advanced Mode (All 17 Tools)
+### ⚡ Advanced Mode (All 18 Tools)
 Requires `MEMCORD_ENABLE_ADVANCED=true`:
 - **All Basic tools** plus:
 - Organization: `memcord_tag`, `memcord_list_tags`, `memcord_group`
@@ -37,7 +36,19 @@ Creates or selects a named memory slot.
 - "Set memory slot to 'project_alpha'"
 - "Create memory slot called 'meeting_notes'"
 
-### 2. `memcord_save <chat_text>`
+### 2. `memcord_use <slot_name>`
+Activates an existing memory slot (does not create new slots).
+
+**Parameters:**
+- `slot_name`: Name of the existing memory slot to activate
+
+**Examples:**
+- "Use memory slot 'project_alpha'"
+- "Switch to existing slot 'meeting_notes'"
+
+**Note:** This tool only activates existing slots. If the slot doesn't exist, it returns an error suggesting to use `memcord_name` to create new slots or `memcord_list` to see available slots.
+
+### 3. `memcord_save <chat_text>`
 Manually saves exact chat text to current memory slot (overwrites existing content).
 
 **Parameters:**
@@ -47,7 +58,7 @@ Manually saves exact chat text to current memory slot (overwrites existing conte
 - "Save this conversation to memory"
 - "Store our discussion about the API changes"
 
-### 3. `memcord_read [slot_name]`
+### 4. `memcord_read [slot_name]`
 Retrieves full content from memory slot.
 
 **Parameters:**
@@ -57,7 +68,7 @@ Retrieves full content from memory slot.
 - "What did we discuss in the last session?"
 - "Read from slot 'project_alpha'"
 
-### 4. `memcord_save_progress <chat_text> [compression_ratio]`
+### 5. `memcord_save_progress <chat_text> [compression_ratio]`
 Generates a summary and appends it to memory slot with timestamp.
 
 **Parameters:**
@@ -68,7 +79,7 @@ Generates a summary and appends it to memory slot with timestamp.
 - "Summarize our progress and save it"
 - "Save progress with 10% compression"
 
-### 5. `memcord_list`
+### 6. `memcord_list`
 Lists all available memory slots with metadata.
 
 **Parameters:** None
@@ -77,7 +88,7 @@ Lists all available memory slots with metadata.
 - "Show me all my memory slots"
 - "List all available memories"
 
-### 6. `memcord_search <query> [options]`
+### 7. `memcord_search <query> [options]`
 Search across all memory slots with advanced filtering.
 
 **Parameters:**
@@ -91,7 +102,7 @@ Search across all memory slots with advanced filtering.
 - "Search for 'API integration'"
 - "Search for 'database' excluding tag 'archived'"
 
-### 7. `memcord_query <question>`
+### 8. `memcord_query <question>`
 Ask natural language questions about your stored memories.
 
 **Parameters:**
@@ -104,7 +115,7 @@ Ask natural language questions about your stored memories.
 
 ### Privacy Control
 
-### 8. `memcord_zero`
+### 9. `memcord_zero`
 Activate zero mode - no memory will be saved until switched to another slot.
 
 **Parameters:**
@@ -135,7 +146,7 @@ Activate zero mode - no memory will be saved until switched to another slot.
 
 ### Storage Optimization
 
-### 9. `memcord_compress`
+### 10. `memcord_compress`
 Compress memory slot content to save storage space with intelligent gzip compression.
 
 **Parameters:**
@@ -163,7 +174,7 @@ Compress memory slot content to save storage space with intelligent gzip compres
 
 ### Organization Tools
 
-### 10. `memcord_tag <action> [tags]`
+### 11. `memcord_tag <action> [tags]`
 Manage tags for memory slots.
 
 **Parameters:**
@@ -181,7 +192,7 @@ Manage tags for memory slots.
 - Hierarchical tags using dot notation (e.g., "project.alpha.backend")
 - Auto-completion suggestions
 
-### 11. `memcord_list_tags`
+### 12. `memcord_list_tags`
 List all tags used across all memory slots.
 
 **Parameters:** None
@@ -195,7 +206,7 @@ List all tags used across all memory slots.
 - Usage count
 - Associated memory slots
 
-### 12. `memcord_group <action> [group_path]`
+### 13. `memcord_group <action> [group_path]`
 Manage memory slot groups and folders.
 
 **Parameters:**
@@ -215,7 +226,7 @@ Manage memory slot groups and folders.
 
 ### Import & Integration
 
-### 13. `memcord_import <source> [options]`
+### 14. `memcord_import <source> [options]`
 Import content from various sources including files, PDFs, web URLs, and structured data.
 
 **Parameters:**
@@ -244,7 +255,7 @@ Import content from various sources including files, PDFs, web URLs, and structu
 - Support for large files (up to 50MB)
 - Comprehensive error handling
 
-### 14. `memcord_merge <source_slots> <target_slot> [options]`
+### 15. `memcord_merge <source_slots> <target_slot> [options]`
 Merge multiple memory slots into one with intelligent duplicate detection.
 
 **Parameters:**
@@ -273,7 +284,7 @@ Merge multiple memory slots into one with intelligent duplicate detection.
 
 ### Archival & Long-term Storage
 
-### 15. `memcord_archive <action> [options]`
+### 16. `memcord_archive <action> [options]`
 Archive or restore memory slots for long-term storage with automatic compression.
 
 **Parameters:**
@@ -305,7 +316,7 @@ Archive or restore memory slots for long-term storage with automatic compression
 
 ### Export & Sharing
 
-### 16. `memcord_export <slot_name> <format>`
+### 17. `memcord_export <slot_name> <format>`
 Exports memory slot as an MCP file resource.
 
 **Parameters:**
@@ -316,7 +327,7 @@ Exports memory slot as an MCP file resource.
 - "Export project_alpha as markdown"
 - "Export meeting_notes as JSON"
 
-### 17. `memcord_share <slot_name> [formats]`
+### 18. `memcord_share <slot_name> [formats]`
 Generates shareable files in multiple formats.
 
 **Parameters:**

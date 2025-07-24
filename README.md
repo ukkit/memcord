@@ -17,7 +17,7 @@
   [![Claude Desktop](https://img.shields.io/badge/Claude-Desktop-orange)](https://claude.ai/desktop)
   [![Python](https://img.shields.io/badge/Python-3.10+-green)](https://python.org)
   [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
-  [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-%E2%☕-yellow)](https://buymeacoffee.com/ukkit)
+  [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20A-Coffee-white)](https://buymeacoffee.com/ukkit)
 
 # Features
 
@@ -47,6 +47,11 @@ Stop losing brilliant ideas in chat history. Turn every Claude conversation into
 curl -fsSL https://github.com/ukkit/memcord/raw/main/install.sh | bash
 ```
 
+This will:
+- Download and setup **memcord**
+- Set Up Python Virtual Environment using uv
+- Update claude_desktop_config.json & README.md with Installation Path
+
 ### Claude Desktop Configuration
 
 ```json
@@ -61,22 +66,25 @@ curl -fsSL https://github.com/ukkit/memcord/raw/main/install.sh | bash
         "memcord"
       ],
       "env": {
-        "PYTHONPATH": "</path/to/memcord/>src"
+        "PYTHONPATH": "</path/to/memcord/>/src"
       }
     }
   }
 }
 ```
 
-### ✨  Claude Code MCP 🆕
+### ✨  Claude Code MCP
 
 ```bash
-# Add MCP server for your project (team sharing via .mcp.json)
+# Add MCP server for your project
 claude mcp add-json memcord '{"type":"stdio","command":"uv","args":["--directory","</path/to/memcord>","run","memcord"],"env":{"PYTHONPATH":"</path/to/memcord>/src"}}'
 
 # Verify installation
 claude mcp list
 claude mcp get memcord
+
+# Add at top of your CLAUDE.md file
+memcord_name "NAME_OF_YOUR_PROJECT"
 ```
 
 ### Manual Installaion
@@ -88,6 +96,8 @@ cd memcord
 uv venv
 source .venv/bin/activate
 uv pip install -e .
+
+# Replace </path/to/memcord/> in claude_desktop_config.json to the path where you installed it manually
 ```
 
 **📚 [Complete Installation Guide](docs/installation.md)** - Detailed setup for Claude Code, Claude Desktop, and other MCP applications.
@@ -99,6 +109,9 @@ uv pip install -e .
 memcord_name "project_meeting"
 memcord_save "Our discussion about the new API design..."
 memcord_save_progress
+
+# Use existing memory slot
+memcord_use "project_meeting" 🆕
 
 # Privacy control - activate zero mode (no saving)
 memcord_zero  # No memory will be saved until switched to another slot
@@ -118,6 +131,7 @@ memcord_query "What did we decide about authentication?"
 - `memcord_read` - Retrieve stored content
 - `memcord_save_progress` - Auto-summarize and append
 - `memcord_list` - List all memory slots
+- `memcord_use` - Use existing memory slot
 
 **Privacy Control**
 
