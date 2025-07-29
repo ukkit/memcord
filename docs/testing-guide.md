@@ -34,7 +34,7 @@ Multi-component interaction tests:
 ### MCP Protocol Tests (`pytest -m mcp`)
 MCP protocol compliance and tool testing:
 - **Protocol Compliance** - MCP specification adherence
-- **Tool Functionality** - All 18 memcord tools (9 basic + 9 advanced)
+- **Tool Functionality** - All 19 memcord tools (11 basic + 8 advanced)
 - **Resource Handling** - MCP resource creation and access
 - **Error Handling** - Graceful error responses
 

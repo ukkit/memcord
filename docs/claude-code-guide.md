@@ -44,7 +44,7 @@ claude mcp get memcord
 claude mcp test memcord
 ```
 
-You should see all 18 tools available (9 basic + 9 advanced).
+You should see all 19 tools available (11 basic + 8 advanced).
 
 ## Project Configuration
 
@@ -55,7 +55,7 @@ MemCord includes a comprehensive `.mcp.json` configuration:
 ```json
 {
   "name": "memcord",
-  "version": "1.1.0",
+  "version": "2.2.0",
   "description": "MCP server for chat memory management with summarization and file sharing",
   "server": {
     "command": "uv",

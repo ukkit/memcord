@@ -80,8 +80,12 @@ class ChatMemoryServer:
                 return await self._handle_querymem(arguments)
             elif name == "memcord_zero":
                 return await self._handle_zeromem(arguments)
+            elif name == "memcord_select_entry":
+                return await self._handle_select_entry(arguments)
+            elif name == "memcord_merge":
+                return await self._handle_mergemem(arguments)
             # Advanced tools (check if enabled)
-            elif name in ["memcord_tag", "memcord_list_tags", "memcord_group", "memcord_import", "memcord_merge", "memcord_archive", "memcord_export", "memcord_share", "memcord_compress"]:
+            elif name in ["memcord_tag", "memcord_list_tags", "memcord_group", "memcord_import", "memcord_archive", "memcord_export", "memcord_share", "memcord_compress"]:
                 if not self.enable_advanced_tools:
                     return [TextContent(type="text", text=f"Advanced tool '{name}' is not enabled. Set MEMCORD_ENABLE_ADVANCED=true to enable advanced features.")]
                 
@@ -93,8 +97,6 @@ class ChatMemoryServer:
                     return await self._handle_groupmem(arguments)
                 elif name == "memcord_import":
                     return await self._handle_importmem(arguments)
-                elif name == "memcord_merge":
-                    return await self._handle_mergemem(arguments)
                 elif name == "memcord_archive":
                     return await self._handle_archivemem(arguments)
                 elif name == "memcord_export":
@@ -284,6 +286,79 @@ class ChatMemoryServer:
                     "type": "object",
                     "properties": {}
                 }
+            ),
+            Tool(
+                name="memcord_select_entry",
+                description="Select and retrieve a specific memory entry by timestamp, relative time, or index within a memory slot",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "slot_name": {
+                            "type": "string",
+                            "description": "Target memory slot (optional, uses current if not specified)"
+                        },
+                        "timestamp": {
+                            "type": "string",
+                            "description": "Exact timestamp in ISO format (e.g., '2025-07-21T17:30:00')"
+                        },
+                        "relative_time": {
+                            "type": "string",
+                            "description": "Human descriptions like 'latest', 'oldest', '2 hours ago', 'yesterday'"
+                        },
+                        "entry_index": {
+                            "type": "integer",
+                            "description": "Direct numeric index (0-based, negative for reverse indexing)"
+                        },
+                        "entry_type": {
+                            "type": "string",
+                            "enum": ["manual_save", "auto_summary"],
+                            "description": "Filter by entry type"
+                        },
+                        "show_context": {
+                            "type": "boolean",
+                            "default": True,
+                            "description": "Include timeline position and adjacent entries info"
+                        }
+                    }
+                }
+            ),
+            Tool(
+                name="memcord_merge",
+                description="Merge multiple memory slots into one with duplicate detection",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "source_slots": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "List of memory slot names to merge",
+                            "minItems": 2
+                        },
+                        "target_slot": {
+                            "type": "string",
+                            "description": "Name for the merged memory slot"
+                        },
+                        "action": {
+                            "type": "string",
+                            "enum": ["preview", "merge"],
+                            "description": "Action to perform: 'preview' to see merge preview, 'merge' to execute",
+                            "default": "preview"
+                        },
+                        "similarity_threshold": {
+                            "type": "number",
+                            "minimum": 0.0,
+                            "maximum": 1.0,
+                            "description": "Threshold for duplicate detection (0.0-1.0, default 0.8)",
+                            "default": 0.8
+                        },
+                        "delete_sources": {
+                            "type": "boolean",
+                            "description": "Whether to delete source slots after successful merge",
+                            "default": False
+                        }
+                    },
+                    "required": ["source_slots", "target_slot"]
+                }
             )
         ]
     
@@ -382,44 +457,6 @@ class ChatMemoryServer:
                         }
                     },
                     "required": ["source", "slot_name"]
-                }
-            ),
-            Tool(
-                name="memcord_merge",
-                description="Merge multiple memory slots into one with duplicate detection",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "source_slots": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "List of memory slot names to merge",
-                            "minItems": 2
-                        },
-                        "target_slot": {
-                            "type": "string",
-                            "description": "Name for the merged memory slot"
-                        },
-                        "action": {
-                            "type": "string",
-                            "enum": ["preview", "merge"],
-                            "description": "Action to perform: 'preview' to see merge preview, 'merge' to execute",
-                            "default": "preview"
-                        },
-                        "similarity_threshold": {
-                            "type": "number",
-                            "minimum": 0.0,
-                            "maximum": 1.0,
-                            "description": "Threshold for duplicate detection (0.0-1.0, default 0.8)",
-                            "default": 0.8
-                        },
-                        "delete_sources": {
-                            "type": "boolean",
-                            "description": "Whether to delete source slots after successful merge",
-                            "default": False
-                        }
-                    },
-                    "required": ["source_slots", "target_slot"]
                 }
             ),
             # Storage Optimization Tools
@@ -571,8 +608,12 @@ class ChatMemoryServer:
                     return await self._handle_querymem(arguments)
                 elif name == "memcord_zero":
                     return await self._handle_zeromem(arguments)
+                elif name == "memcord_select_entry":
+                    return await self._handle_select_entry(arguments)
+                elif name == "memcord_merge":
+                    return await self._handle_mergemem(arguments)
                 # Advanced tools (check if enabled)
-                elif name in ["memcord_tag", "memcord_list_tags", "memcord_group", "memcord_import", "memcord_merge", "memcord_archive", "memcord_export", "memcord_share", "memcord_compress"]:
+                elif name in ["memcord_tag", "memcord_list_tags", "memcord_group", "memcord_import", "memcord_archive", "memcord_export", "memcord_share", "memcord_compress"]:
                     if not self.enable_advanced_tools:
                         return [TextContent(type="text", text=f"Advanced tool '{name}' is not enabled. Set MEMCORD_ENABLE_ADVANCED=true to enable advanced features.")]
                     
@@ -584,8 +625,6 @@ class ChatMemoryServer:
                         return await self._handle_groupmem(arguments)
                     elif name == "memcord_import":
                         return await self._handle_importmem(arguments)
-                    elif name == "memcord_merge":
-                        return await self._handle_mergemem(arguments)
                     elif name == "memcord_archive":
                         return await self._handle_archivemem(arguments)
                     elif name == "memcord_export":
@@ -869,6 +908,176 @@ class ChatMemoryServer:
             text="🚫 Zero mode activated. No memory will be saved until you switch to another memory slot.\n\n"
                  "ℹ️  Use 'memcord_name [slot_name]' to resume saving."
         )]
+
+    async def _handle_select_entry(self, arguments: Dict[str, Any]) -> List[TextContent]:
+        """Handle memcord_select_entry tool call - select specific memory entry by timestamp, relative time, or index."""
+        from .temporal_parser import TemporalParser
+        
+        # Get slot name (use current if not specified)
+        slot_name = arguments.get("slot_name", self.storage.get_current_slot())
+        if not slot_name:
+            return [TextContent(
+                type="text",
+                text="❌ No memory slot selected. Use 'memcord_name [slot_name]' to select a slot first."
+            )]
+        
+        # Check if in zero mode
+        if self.storage._state.is_zero_mode():
+            return [TextContent(
+                type="text",
+                text="🚫 Zero mode is active. Use 'memcord_name [slot_name]' to select a memory slot first."
+            )]
+        
+        # Load the memory slot
+        try:
+            slot = await self.storage.read_memory(slot_name)
+            if not slot:
+                return [TextContent(
+                    type="text",
+                    text=f"❌ Memory slot '{slot_name}' not found. Use 'memcord_list' to see available slots."
+                )]
+        except Exception as e:
+            return [TextContent(
+                type="text",
+                text=f"❌ Error loading memory slot '{slot_name}': {str(e)}"
+            )]
+        
+        # Check if slot has entries
+        if not slot.entries:
+            return [TextContent(
+                type="text",
+                text=f"📭 Memory slot '{slot_name}' is empty. No entries to select."
+            )]
+        
+        # Extract and validate selection parameters
+        timestamp = arguments.get("timestamp")
+        relative_time = arguments.get("relative_time")
+        entry_index = arguments.get("entry_index")
+        entry_type = arguments.get("entry_type")
+        show_context = arguments.get("show_context", True)
+        
+        # Validate that exactly one selection method is provided
+        is_valid, error_msg = TemporalParser.validate_selection_input(timestamp, relative_time, entry_index)
+        if not is_valid:
+            return [TextContent(
+                type="text",
+                text=f"❌ {error_msg}\n\n"
+                     f"Available selection methods:\n"
+                     f"• timestamp: '2025-07-21T17:30:00'\n"
+                     f"• relative_time: 'latest', 'oldest', '2 hours ago', 'yesterday'\n"
+                     f"• entry_index: 0 (oldest), -1 (latest), etc."
+            )]
+        
+        # Find the entry based on selection method
+        selected_entry = None
+        selected_index = -1
+        selection_method = ""
+        selection_query = ""
+        tolerance_applied = False
+        
+        try:
+            if timestamp:
+                # Parse timestamp and find closest entry
+                parsed_time = TemporalParser.parse_timestamp(timestamp)
+                if not parsed_time:
+                    return [TextContent(
+                        type="text",
+                        text=f"❌ Invalid timestamp format: '{timestamp}'\n\n"
+                             f"Expected formats:\n"
+                             f"• ISO format: '2025-07-21T17:30:00'\n"
+                             f"• Date only: '2025-07-21'\n"
+                             f"• With timezone: '2025-07-21T17:30:00Z'"
+                    )]
+                
+                result = slot.get_entry_by_timestamp(parsed_time)
+                if result:
+                    selected_index, selected_entry = result
+                    selection_method = "timestamp_exact"
+                    selection_query = timestamp
+                    # Check if tolerance was needed (not exact match)
+                    if abs(selected_entry.timestamp - parsed_time).total_seconds() > 60:
+                        tolerance_applied = True
+                
+            elif relative_time:
+                # Parse relative time expression
+                result = slot.get_entry_by_relative_time(relative_time)
+                if result:
+                    selected_index, selected_entry = result
+                    selection_method = "relative_time"
+                    selection_query = relative_time
+                
+            elif entry_index is not None:
+                # Get entry by index
+                result = slot.get_entry_by_index(entry_index)
+                if result:
+                    selected_index, selected_entry = result
+                    selection_method = "index"
+                    selection_query = str(entry_index)
+            
+            # Filter by entry type if specified
+            if selected_entry and entry_type and selected_entry.type != entry_type:
+                selected_entry = None
+                selected_index = -1
+            
+            # Handle no match found
+            if not selected_entry:
+                available_timestamps = slot.get_available_timestamps()
+                available_info = f"\n\nAvailable entries in '{slot_name}':\n"
+                for i, ts in enumerate(available_timestamps):
+                    entry = slot.entries[i]
+                    time_desc = TemporalParser.format_time_description(entry.timestamp)
+                    available_info += f"• Index {i}: {ts} ({entry.type}) - {time_desc}\n"
+                
+                return [TextContent(
+                    type="text",
+                    text=f"❌ No matching entry found for {selection_method.replace('_', ' ')}: '{selection_query}'"
+                         f"{available_info}"
+                )]
+            
+            # Build the response
+            response_lines = []
+            
+            # Selected entry info
+            response_lines.append(f"✅ Selected entry from '{slot_name}':")
+            response_lines.append(f"📅 **Timestamp:** {selected_entry.timestamp.isoformat()}")
+            response_lines.append(f"📝 **Type:** {selected_entry.type}")
+            response_lines.append(f"🔍 **Selection method:** {selection_method.replace('_', ' ')} ('{selection_query}')")
+            if tolerance_applied:
+                response_lines.append("⚠️ **Note:** Closest match found (not exact timestamp)")
+            response_lines.append("")
+            
+            # Entry content
+            response_lines.append("**Content:**")
+            response_lines.append(selected_entry.content)
+            response_lines.append("")
+            
+            # Timeline context if requested
+            if show_context:
+                context = slot.get_timeline_context(selected_index)
+                if context:
+                    response_lines.append(f"📍 **Timeline Position:** {context['position']}")
+                    
+                    if "previous_entry" in context:
+                        prev = context["previous_entry"]
+                        response_lines.append(f"⬅️ **Previous:** {prev['timestamp']} ({prev['type']}) - {prev['time_description']}")
+                        response_lines.append(f"   Preview: {prev['content_preview']}")
+                    
+                    if "next_entry" in context:
+                        next_entry = context["next_entry"]
+                        response_lines.append(f"➡️ **Next:** {next_entry['timestamp']} ({next_entry['type']}) - {next_entry['time_description']}")
+                        response_lines.append(f"   Preview: {next_entry['content_preview']}")
+            
+            return [TextContent(
+                type="text",
+                text="\n".join(response_lines)
+            )]
+            
+        except Exception as e:
+            return [TextContent(
+                type="text",
+                text=f"❌ Error selecting entry: {str(e)}\n\n"
+                     f"Please check your selection parameters and try again."
+            )]
     
     async def _handle_exportmem(self, arguments: Dict[str, Any]) -> List[TextContent]:
         """Handle exportmem tool call."""
@@ -1242,8 +1451,36 @@ class ChatMemoryServer:
             existing_target = await self.storage.read_memory(target_slot)
             
             if action == "preview":
-                # Create merge preview
-                preview = self.merger.create_merge_preview(slots, target_slot, similarity_threshold)
+                # Create merge preview with comprehensive error handling
+                try:
+                    preview = self.merger.create_merge_preview(slots, target_slot, similarity_threshold)
+                except Exception as e:
+                    # Enhanced debug information for any errors
+                    debug_info = []
+                    for i, slot in enumerate(slots):
+                        debug_info.append(f"Slot {i} ({slot.slot_name}):")
+                        debug_info.append(f"  - type: {type(slot)}")
+                        debug_info.append(f"  - has_content: {hasattr(slot, 'content')}")
+                        debug_info.append(f"  - has_name: {hasattr(slot, 'name')}")
+                        debug_info.append(f"  - has_entries: {hasattr(slot, 'entries')}")
+                        debug_info.append(f"  - entries_count: {len(slot.entries) if hasattr(slot, 'entries') else 'N/A'}")
+                        
+                        # Try to access the properties that are failing
+                        try:
+                            content = slot.content
+                            debug_info.append(f"  - content_access: SUCCESS (length: {len(content)})")
+                        except Exception as content_error:
+                            debug_info.append(f"  - content_access: FAILED ({content_error})")
+                        
+                        try:
+                            name = slot.name
+                            debug_info.append(f"  - name_access: SUCCESS ({name})")
+                        except Exception as name_error:
+                            debug_info.append(f"  - name_access: FAILED ({name_error})")
+                    
+                    import traceback
+                    error_msg = f"Merge operation failed: {e}\n\nFull traceback:\n{traceback.format_exc()}\n\nDebug info:\n" + "\n".join(debug_info)
+                    return [TextContent(type="text", text=error_msg)]
                 
                 response_parts = [
                     f"=== MERGE PREVIEW: {target_slot} ===",
@@ -1346,7 +1583,21 @@ class ChatMemoryServer:
                 return [TextContent(type="text", text=f"Error: Unknown action '{action}'. Use 'preview' or 'merge'.")]
                 
         except Exception as e:
-            return [TextContent(type="text", text=f"Merge operation failed: {str(e)}")]
+            # Enhanced error reporting with debug info
+            import traceback
+            error_trace = traceback.format_exc()
+            
+            # Try to get debug info about loaded slots if available
+            debug_info = ""
+            try:
+                if 'slots' in locals():
+                    debug_info = f"\n\nDebug info:\n"
+                    for i, slot in enumerate(slots):
+                        debug_info += f"Slot {i} ({slot.slot_name}): has_content={hasattr(slot, 'content')}, has_name={hasattr(slot, 'name')}, type={type(slot)}\n"
+            except:
+                debug_info = "\n\nCould not retrieve debug info"
+            
+            return [TextContent(type="text", text=f"Merge operation failed: {str(e)}{debug_info}\n\nFull trace:\n{error_trace}")]
 
     async def _handle_compressmem(self, arguments: Dict[str, Any]) -> List[TextContent]:
         """Handle compress tool call."""

@@ -1,22 +1,25 @@
 # Tools Reference
 
-Complete reference for all 18 tools available in the Chat Memory MCP Server.
+Complete reference for all 19 tools available in the Chat Memory MCP Server.
 
 ## Tool Availability
 
 MemCord offers **two modes** with different tool sets:
 
-### 🔧 Basic Mode (Default - 9 Tools)
+### 🔧 Basic Mode (Default - 11 Tools)
 Available without configuration:
 - Core: `memcord_name`, `memcord_use`, `memcord_save`, `memcord_read`, `memcord_save_progress`, `memcord_list`
 - Search: `memcord_search`, `memcord_query`
 - Privacy: `memcord_zero`
+- Selection: `memcord_select_entry`
+- Integration: `memcord_merge`
 
-### ⚡ Advanced Mode (All 18 Tools)
+### ⚡ Advanced Mode (All 19 Tools)
 Requires `MEMCORD_ENABLE_ADVANCED=true`:
 - **All Basic tools** plus:
 - Organization: `memcord_tag`, `memcord_list_tags`, `memcord_group`
-- Import & Integration: `memcord_import`, `memcord_merge`
+- Import: `memcord_import`
+- Storage: `memcord_compress`
 - Export & Sharing: `memcord_export`, `memcord_share`
 - Archival: `memcord_archive`
 
@@ -140,13 +143,92 @@ Activate zero mode - no memory will be saved until switched to another slot.
 **Exit Zero Mode:**
 - Use `memcord_name [slot_name]` to select any memory slot and resume saving
 
+### Entry Selection & Timeline Navigation
+
+### 10. `memcord_select_entry`
+Select and retrieve a specific memory entry by timestamp, relative time, or index within a memory slot.
+
+**Parameters:**
+- `slot_name` (optional): Target memory slot (uses current if not specified)
+- `timestamp` (optional): Exact timestamp in ISO format (e.g., '2025-07-21T17:30:00')
+- `relative_time` (optional): Human descriptions like 'latest', 'oldest', '2 hours ago', 'yesterday'
+- `entry_index` (optional): Direct numeric index (0-based, negative for reverse indexing)
+- `entry_type` (optional): Filter by entry type ('manual_save' or 'auto_summary')
+- `show_context` (optional): Include timeline position and adjacent entries info (default: true)
+
+**Selection Methods (choose exactly one):**
+- **Timestamp Selection**: Exact timestamp matching with 30-minute tolerance
+- **Relative Time**: Natural language expressions for temporal navigation
+- **Index Selection**: Direct numeric access to entries in chronological order
+
+**Examples:**
+- `memcord_select_entry timestamp="2025-07-21T17:30:00"` - Select entry closest to specific time
+- `memcord_select_entry relative_time="latest"` - Get the most recent entry
+- `memcord_select_entry relative_time="2 hours ago"` - Get entry from approximately 2 hours ago
+- `memcord_select_entry entry_index=0` - Get the oldest entry (first in timeline)
+- `memcord_select_entry entry_index=-1` - Get the newest entry (last in timeline)
+- `memcord_select_entry relative_time="oldest" entry_type="manual_save"` - Get oldest manual save
+
+**Relative Time Expressions:**
+- **Simple**: 'latest', 'newest', 'oldest', 'earliest', 'first'
+- **Ordinal**: '2nd latest', 'third oldest', 'second newest'
+- **Time Deltas**: '2 hours ago', '30 minutes ago', 'yesterday', 'last week'
+
+**Features:**
+- **Timeline Context**: Shows position and adjacent entries for navigation
+- **Flexible Matching**: Tolerant timestamp matching for approximate selection
+- **Type Filtering**: Filter by manual saves vs auto summaries
+- **Error Guidance**: Helpful messages with available options when selection fails
+- **Index Support**: Both positive (0=oldest) and negative (-1=newest) indexing
+
+**Use Cases:**
+- **Timeline Navigation**: Jump to specific points in conversation history
+- **Content Retrieval**: Access specific decisions or discussions by time
+- **Version Comparison**: Compare different versions of content over time
+- **Context Building**: Select relevant entries for current discussion
+
+### Memory Integration
+
+### 11. `memcord_merge <source_slots> <target_slot> [options]`
+Merge multiple memory slots into one with intelligent duplicate detection.
+
+**Parameters:**
+- `source_slots`: Array of memory slot names to merge (minimum 2)
+- `target_slot`: Name for the merged memory slot
+- `action` (optional): `preview` (default) or `merge`
+- `similarity_threshold` (optional): Duplicate detection threshold 0.0-1.0 (default 0.8)
+- `delete_sources` (optional): Delete source slots after successful merge (default false)
+
+**Actions:**
+- **Preview**: Shows merge statistics and content preview without executing
+- **Merge**: Executes the merge operation with duplicate removal
+
+**Examples:**
+- "Preview merge: `memcord_merge source_slots=['meeting1','meeting2','meeting3'] target_slot='project_meetings' action='preview'`"
+- "Execute merge: `memcord_merge source_slots=['draft1','draft2'] target_slot='final_document' action='merge' similarity_threshold=0.7`"
+- "Merge with cleanup: `memcord_merge source_slots=['temp1','temp2'] target_slot='consolidated' action='merge' delete_sources=true`"
+
+**Features:**
+- **Duplicate Detection**: Configurable similarity threshold for content deduplication
+- **Chronological Ordering**: Maintains timeline of merged content
+- **Metadata Consolidation**: Merges tags and groups from all source slots
+- **Preview Mode**: See merge results before execution
+- **Source Cleanup**: Optional deletion of source slots after successful merge
+- **Merge Statistics**: Detailed information about content and duplicates removed
+
+**Use Cases:**
+- **Project Consolidation**: Combine related project discussions into single slot
+- **Meeting Summaries**: Merge multiple meeting notes into comprehensive overview
+- **Research Organization**: Consolidate scattered research into organized collection
+- **Content Cleanup**: Remove duplicates while preserving unique information
+
 ---
 
 ## Advanced Tools (Requires MEMCORD_ENABLE_ADVANCED=true)
 
 ### Storage Optimization
 
-### 10. `memcord_compress`
+### 12. `memcord_compress`
 Compress memory slot content to save storage space with intelligent gzip compression.
 
 **Parameters:**
@@ -174,7 +256,7 @@ Compress memory slot content to save storage space with intelligent gzip compres
 
 ### Organization Tools
 
-### 11. `memcord_tag <action> [tags]`
+### 13. `memcord_tag <action> [tags]`
 Manage tags for memory slots.
 
 **Parameters:**
@@ -192,7 +274,7 @@ Manage tags for memory slots.
 - Hierarchical tags using dot notation (e.g., "project.alpha.backend")
 - Auto-completion suggestions
 
-### 12. `memcord_list_tags`
+### 14. `memcord_list_tags`
 List all tags used across all memory slots.
 
 **Parameters:** None
@@ -206,7 +288,7 @@ List all tags used across all memory slots.
 - Usage count
 - Associated memory slots
 
-### 13. `memcord_group <action> [group_path]`
+### 15. `memcord_group <action> [group_path]`
 Manage memory slot groups and folders.
 
 **Parameters:**
@@ -226,7 +308,7 @@ Manage memory slot groups and folders.
 
 ### Import & Integration
 
-### 14. `memcord_import <source> [options]`
+### 16. `memcord_import <source> [options]`
 Import content from various sources including files, PDFs, web URLs, and structured data.
 
 **Parameters:**
@@ -255,36 +337,9 @@ Import content from various sources including files, PDFs, web URLs, and structu
 - Support for large files (up to 50MB)
 - Comprehensive error handling
 
-### 15. `memcord_merge <source_slots> <target_slot> [options]`
-Merge multiple memory slots into one with intelligent duplicate detection.
-
-**Parameters:**
-- `source_slots`: Array of memory slot names to merge (minimum 2)
-- `target_slot`: Name for the merged memory slot
-- `action` (optional): `preview` (default) or `merge`
-- `similarity_threshold` (optional): Duplicate detection threshold 0.0-1.0 (default 0.8)
-- `delete_sources` (optional): Delete source slots after successful merge (default false)
-
-**Actions:**
-- **Preview**: Shows merge statistics and content preview without executing
-- **Merge**: Executes the merge operation with duplicate removal
-
-**Examples:**
-- "Preview merge: `memcord_merge source_slots=['meeting1','meeting2','meeting3'] target_slot='project_meetings' action='preview'`"
-- "Execute merge: `memcord_merge source_slots=['draft1','draft2'] target_slot='final_document' action='merge' similarity_threshold=0.7`"
-- "Merge with cleanup: `memcord_merge source_slots=['temp1','temp2'] target_slot='consolidated' action='merge' delete_sources=true`"
-
-**Features:**
-- **Duplicate Detection**: Configurable similarity threshold for content deduplication
-- **Chronological Ordering**: Maintains timeline of merged content
-- **Metadata Consolidation**: Merges tags and groups from all source slots
-- **Preview Mode**: See merge results before execution
-- **Source Cleanup**: Optional deletion of source slots after successful merge
-- **Merge Statistics**: Detailed information about content and duplicates removed
-
 ### Archival & Long-term Storage
 
-### 16. `memcord_archive <action> [options]`
+### 17. `memcord_archive <action> [options]`
 Archive or restore memory slots for long-term storage with automatic compression.
 
 **Parameters:**
@@ -316,7 +371,7 @@ Archive or restore memory slots for long-term storage with automatic compression
 
 ### Export & Sharing
 
-### 17. `memcord_export <slot_name> <format>`
+### 18. `memcord_export <slot_name> <format>`
 Exports memory slot as an MCP file resource.
 
 **Parameters:**
@@ -327,7 +382,7 @@ Exports memory slot as an MCP file resource.
 - "Export project_alpha as markdown"
 - "Export meeting_notes as JSON"
 
-### 18. `memcord_share <slot_name> [formats]`
+### 19. `memcord_share <slot_name> [formats]`
 Generates shareable files in multiple formats.
 
 **Parameters:**

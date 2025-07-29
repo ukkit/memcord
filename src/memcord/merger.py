@@ -125,12 +125,15 @@ class MemorySlotMerger:
         chronological_entries = []
         
         for slot in slots:
-            all_content.append(slot.content)
+            # Direct MemorySlot access instead of using compatibility properties
+            content = '\n\n'.join(entry.content for entry in slot.entries)
+            all_content.append(content)
             all_tags.update(slot.tags or [])
             if slot.group_path:
                 all_groups.add(slot.group_path)
             
-            chronological_entries.append((slot.name, slot.updated_at))
+            # Use slot_name directly
+            chronological_entries.append((slot.slot_name, slot.updated_at))
         
         # Sort chronologically
         chronological_entries.sort(key=lambda x: x[1])
@@ -154,7 +157,7 @@ class MemorySlotMerger:
         content_preview = merged_content[:500] + "..." if len(merged_content) > 500 else merged_content
         
         return MergePreview(
-            source_slots=[slot.name for slot in slots],
+            source_slots=[slot.slot_name for slot in slots],
             target_slot=target_name,
             total_content_length=len(merged_content),
             duplicate_content_removed=duplicates_count,
@@ -200,7 +203,7 @@ class MemorySlotMerger:
             return MergeResult(
                 success=True,
                 merged_slot_name=target_name,
-                source_slots=[slot.name for slot in slots],
+                source_slots=[slot.slot_name for slot in slots],
                 content_length=len(merged_content),
                 duplicates_removed=preview.duplicate_content_removed,
                 tags_merged=merged_tags,
@@ -212,7 +215,7 @@ class MemorySlotMerger:
             return MergeResult(
                 success=False,
                 merged_slot_name=target_name,
-                source_slots=[slot.name for slot in slots],
+                source_slots=[slot.slot_name for slot in slots],
                 content_length=0,
                 duplicates_removed=0,
                 tags_merged=[],
@@ -237,12 +240,14 @@ class MemorySlotMerger:
         
         for slot in sorted_slots:
             timestamp = slot.updated_at.strftime("%Y-%m-%d %H:%M:%S")
-            header = f"\n--- From {slot.name} ({timestamp}) ---\n"
+            content = '\n\n'.join(entry.content for entry in slot.entries)
+            
+            header = f"\n--- From {slot.slot_name} ({timestamp}) ---\n"
             
             content_sections.append({
                 'header': header,
-                'content': slot.content,
-                'slot_name': slot.name,
+                'content': content,
+                'slot_name': slot.slot_name,
                 'timestamp': slot.updated_at
             })
         
@@ -256,7 +261,7 @@ class MemorySlotMerger:
         
         # Add merge header
         merge_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        source_names = [slot.name for slot in sorted_slots]
+        source_names = [slot.slot_name for slot in sorted_slots]
         
         merge_header = (
             f"=== MERGED MEMORY SLOT ===\n"
@@ -324,18 +329,23 @@ class MemorySlotMerger:
         processed_slots = set()
         
         for i, slot1 in enumerate(slots):
-            if slot1.name in processed_slots:
+            name1 = slot1.slot_name
+            if name1 in processed_slots:
                 continue
             
-            similar_slots = [slot1.name]
+            similar_slots = [name1]
             
             for j, slot2 in enumerate(slots[i+1:], i+1):
-                if slot2.name in processed_slots:
+                name2 = slot2.slot_name
+                if name2 in processed_slots:
                     continue
                 
                 # Check content similarity
+                content1 = '\n\n'.join(entry.content for entry in slot1.entries)
+                content2 = '\n\n'.join(entry.content for entry in slot2.entries)
+                    
                 content_similarity = self.similarity_analyzer.calculate_similarity(
-                    slot1.content, slot2.content
+                    content1, content2
                 )
                 
                 # Check tag overlap
@@ -354,8 +364,8 @@ class MemorySlotMerger:
                 )
                 
                 if combined_score >= similarity_threshold:
-                    similar_slots.append(slot2.name)
-                    processed_slots.add(slot2.name)
+                    similar_slots.append(name2)
+                    processed_slots.add(name2)
             
             if len(similar_slots) > 1:
                 merge_candidates.append(similar_slots)

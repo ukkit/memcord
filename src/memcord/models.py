@@ -1,7 +1,7 @@
 """Data models for chat memory management."""
 
 from datetime import datetime
-from typing import List, Optional, Dict, Any, Set
+from typing import List, Optional, Dict, Any, Set, Tuple
 import re
 from pydantic import BaseModel, Field
 
@@ -97,6 +97,16 @@ class MemorySlot(BaseModel):
         content_parts.extend(entry.content for entry in self.entries)
         return ' '.join(content_parts)
     
+    @property
+    def content(self) -> str:
+        """Get combined content from all entries for compatibility with merger."""
+        return '\n\n'.join(entry.content for entry in self.entries)
+    
+    @property  
+    def name(self) -> str:
+        """Get slot name for compatibility with merger."""
+        return self.slot_name
+    
     def archive(self, reason: str = None) -> None:
         """Mark this memory slot as archived."""
         self.is_archived = True
@@ -140,6 +150,98 @@ class MemorySlot(BaseModel):
             "space_saved": total_original_size - total_compressed_size,
             "space_saved_percentage": (1 - compression_ratio) * 100
         }
+    
+    def get_entry_by_timestamp(self, target_time: datetime, tolerance_minutes: int = 30) -> Optional[Tuple[int, MemoryEntry]]:
+        """Get entry closest to target timestamp within tolerance."""
+        from .temporal_parser import TemporalParser
+        return TemporalParser.find_closest_entry_by_time(self.entries, target_time, tolerance_minutes)
+    
+    def get_entry_by_relative_time(self, relative_desc: str) -> Optional[Tuple[int, MemoryEntry]]:
+        """Get entry by relative time description."""
+        from .temporal_parser import TemporalParser
+        
+        parsed = TemporalParser.parse_relative_time(relative_desc)
+        if not parsed:
+            return None
+        
+        mode, ordinal, target_time = parsed
+        
+        if target_time:  # Absolute time from relative expression
+            return self.get_entry_by_timestamp(target_time)
+        elif ordinal:  # Ordinal expression (2nd latest, etc.)
+            return TemporalParser.get_entry_by_ordinal(self.entries, mode, ordinal)
+        else:  # Simple latest/oldest
+            if mode == 'latest':
+                if self.entries:
+                    return (len(self.entries) - 1, self.entries[-1])
+            elif mode == 'oldest':
+                if self.entries:
+                    return (0, self.entries[0])
+        
+        return None
+    
+    def get_entry_by_index(self, index: int, reverse: bool = False) -> Optional[Tuple[int, MemoryEntry]]:
+        """Get entry by index (supports negative indexing)."""
+        if not self.entries:
+            return None
+        
+        try:
+            if reverse:
+                # Reverse indexing: -1 is latest, -2 is second latest, etc.
+                actual_index = len(self.entries) + index if index < 0 else len(self.entries) - 1 - index
+            else:
+                # Normal indexing: 0 is oldest, -1 is latest
+                actual_index = index if index >= 0 else len(self.entries) + index
+            
+            if 0 <= actual_index < len(self.entries):
+                return (actual_index, self.entries[actual_index])
+        except IndexError:
+            pass
+        
+        return None
+    
+    def get_timeline_context(self, selected_index: int) -> Dict[str, Any]:
+        """Get timeline context around a selected entry."""
+        if not self.entries or selected_index < 0 or selected_index >= len(self.entries):
+            return {}
+        
+        from .temporal_parser import TemporalParser
+        
+        selected_entry = self.entries[selected_index]
+        total_entries = len(self.entries)
+        
+        context = {
+            "position": f"{selected_index + 1} of {total_entries} entries",
+            "selected_timestamp": selected_entry.timestamp.isoformat(),
+            "selected_type": selected_entry.type,
+            "total_entries": total_entries
+        }
+        
+        # Add previous entry info
+        if selected_index > 0:
+            prev_entry = self.entries[selected_index - 1]
+            context["previous_entry"] = {
+                "timestamp": prev_entry.timestamp.isoformat(),
+                "type": prev_entry.type,
+                "time_description": TemporalParser.format_time_description(prev_entry.timestamp),
+                "content_preview": prev_entry.content[:100] + "..." if len(prev_entry.content) > 100 else prev_entry.content
+            }
+        
+        # Add next entry info
+        if selected_index < total_entries - 1:
+            next_entry = self.entries[selected_index + 1]
+            context["next_entry"] = {
+                "timestamp": next_entry.timestamp.isoformat(),
+                "type": next_entry.type,
+                "time_description": TemporalParser.format_time_description(next_entry.timestamp),
+                "content_preview": next_entry.content[:100] + "..." if len(next_entry.content) > 100 else next_entry.content
+            }
+        
+        return context
+    
+    def get_available_timestamps(self) -> List[str]:
+        """Get list of all available timestamps for user reference."""
+        return [entry.timestamp.isoformat() for entry in self.entries]
 
 
 class ExportConfig(BaseModel):
@@ -156,11 +258,11 @@ class ExportConfig(BaseModel):
 class SearchResult(BaseModel):
     """Result from a search query."""
     
-    slot_name: str = Field(..., description="Name of the memory slot")
+    slot_name: str = Field(..., min_length=1, description="Name of the memory slot")
     entry_index: Optional[int] = Field(None, description="Index of matching entry, None for slot-level match")
-    relevance_score: float = Field(..., description="Relevance score (0.0 to 1.0)")
+    relevance_score: float = Field(..., ge=0.0, le=1.0, description="Relevance score (0.0 to 1.0)")
     snippet: str = Field(..., description="Preview snippet of matching content")
-    match_type: str = Field(..., description="Type of match: 'slot', 'entry', 'tag', 'group'")
+    match_type: str = Field(..., pattern="^(slot|entry|tag|group)$", description="Type of match: 'slot', 'entry', 'tag', 'group'")
     timestamp: datetime = Field(..., description="Timestamp of the matched content")
     tags: List[str] = Field(default_factory=list, description="Tags of the memory slot")
     group_path: Optional[str] = Field(None, description="Group path of the memory slot")
@@ -169,7 +271,7 @@ class SearchResult(BaseModel):
 class SearchQuery(BaseModel):
     """Search query configuration."""
     
-    query: str = Field(..., description="Search query string")
+    query: str = Field(..., min_length=1, description="Search query string")
     include_tags: List[str] = Field(default_factory=list, description="Tags to include in search")
     exclude_tags: List[str] = Field(default_factory=list, description="Tags to exclude from search")
     include_groups: List[str] = Field(default_factory=list, description="Groups to include in search")
@@ -177,7 +279,7 @@ class SearchQuery(BaseModel):
     date_from: Optional[datetime] = Field(None, description="Search from this date")
     date_to: Optional[datetime] = Field(None, description="Search until this date")
     content_types: List[str] = Field(default_factory=lambda: ['manual_save', 'auto_summary'], description="Content types to search")
-    max_results: int = Field(20, description="Maximum number of results to return")
+    max_results: int = Field(20, gt=0, le=100, description="Maximum number of results to return")
     case_sensitive: bool = Field(False, description="Whether search should be case sensitive")
     use_regex: bool = Field(False, description="Whether to treat query as regex pattern")
 

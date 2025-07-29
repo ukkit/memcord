@@ -304,6 +304,46 @@ claude mcp restart chat-memory
    cat ~/.mcp.json  # Check project config
    ```
 
+### Merge Operation Errors
+
+#### 11. "Merge operation failed: 'MemorySlot' object has no attribute 'content'"
+**Problem**: Memory slot merging fails with attribute errors after code updates.
+
+**Root Cause**: MCP server needs to reload after code changes to reflect updated merger functionality.
+
+**Solutions**:
+
+1. **Complete restart** (Recommended):
+   ```bash
+   # Exit Claude Code and restart
+   # Press Ctrl+D to exit Claude Code
+   # Then restart Claude Code
+   ```
+
+2. **Remove and re-add server**:
+   ```bash
+   # Remove the server
+   claude mcp remove memcord
+   
+   # Re-add the server  
+   claude mcp add memcord uv --directory /path/to/memcord run memcord -e PYTHONPATH=/path/to/memcord/src
+   ```
+
+3. **MCP Hot Reload Server** (Advanced):
+   ```bash
+   # Install hot reload capability for seamless restarts
+   git clone https://github.com/claude-code-mcp-reload/mcp-hot-reload.git
+   pip install -e .
+   
+   # Configure in .mcp.json:
+   # "memcord-hot": {
+   #   "command": "mcp-hot-reload", 
+   #   "args": ["wrap", "--name", "memcord", "--", "uv", "run", "memcord"]
+   # }
+   ```
+
+**Note**: This is a known limitation where MCP servers need manual restart after code changes. There's an active feature request for automatic reload functionality in Claude Code.
+
 ## Validation & Testing
 
 ### Test Server Functionality

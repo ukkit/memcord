@@ -81,7 +81,7 @@ claude mcp test memcord
 
 #### Advanced Tools
 
-By default, the `.mcp.json` configuration enables all 18 tools (9 basic + 9 advanced). To use only basic tools, set:
+By default, the `.mcp.json` configuration enables all 19 tools (11 basic + 8 advanced). To use only basic tools, set:
 
 ```bash
 # Disable advanced tools
@@ -96,7 +96,7 @@ MemCord offers two tool modes. Choose the configuration that fits your needs:
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
-#### Basic Mode (Default - 8 Tools)
+#### Basic Mode (Default - 11 Tools)
 Essential memory management features:
 
 ```json
@@ -118,7 +118,7 @@ Essential memory management features:
 }
 ```
 
-#### Advanced Mode (All 17 Tools)
+#### Advanced Mode (All 19 Tools)
 Includes organization, import/export, and advanced features:
 
 ```json
