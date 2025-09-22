@@ -3,7 +3,7 @@
 import json
 import asyncio
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any, Tuple, Callable
 from datetime import datetime
 import aiofiles
 import aiofiles.os
@@ -12,12 +12,16 @@ from .models import MemorySlot, MemoryEntry, ServerState, SearchQuery, SearchRes
 from .search import SearchEngine
 from .compression import ContentCompressor
 from .archival import ArchivalManager
+from .cache import CacheManager, CacheLevel, generate_slot_cache_key, generate_search_cache_key, generate_stats_cache_key
+from .storage_efficiency import IncrementalSearchIndex, DeltaCompressor, StreamingOperations, StorageMonitor, StorageStats
+from .memory_manager import MemoryManager, MemoryStats, MemoryAlert
 
 
 class StorageManager:
     """Manages file-based storage for memory slots."""
     
-    def __init__(self, memory_dir: str = "memory_slots", shared_dir: str = "shared_memories"):
+    def __init__(self, memory_dir: str = "memory_slots", shared_dir: str = "shared_memories", 
+                 enable_caching: bool = True, enable_efficiency: bool = True, enable_memory_management: bool = True):
         self.memory_dir = Path(memory_dir)
         self.shared_dir = Path(shared_dir)
         self._lock = asyncio.Lock()
@@ -26,19 +30,98 @@ class StorageManager:
         self._compressor = ContentCompressor()
         self._archival_manager = ArchivalManager(memory_dir, "archives")
         
+        # Initialize caching system
+        self.enable_caching = enable_caching
+        self._cache_manager: Optional[CacheManager] = None
+        if enable_caching:
+            self._cache_manager = CacheManager(
+                memory_cache_size=1000,
+                memory_cache_memory_mb=50,
+                disk_cache_dir=str(self.memory_dir / "cache"),
+                disk_cache_max_files=5000,
+                enable_predictive_loading=True
+            )
+        
+        # Initialize storage efficiency enhancements
+        self.enable_efficiency = enable_efficiency
+        self._incremental_index: Optional[IncrementalSearchIndex] = None
+        self._delta_compressor: Optional[DeltaCompressor] = None
+        self._storage_monitor: Optional[StorageMonitor] = None
+        
+        if enable_efficiency:
+            self._incremental_index = IncrementalSearchIndex(self.memory_dir / "index")
+            self._delta_compressor = DeltaCompressor(self.memory_dir)
+            self._storage_monitor = StorageMonitor(self.memory_dir)
+        
+        # Initialize memory management
+        self.enable_memory_management = enable_memory_management
+        self._memory_manager: Optional[MemoryManager] = None
+        if enable_memory_management:
+            # Configure reasonable defaults (500MB limit, monitoring enabled)
+            self._memory_manager = MemoryManager(
+                enable_tracemalloc=True,
+                memory_limit_mb=500.0,  # 500MB default limit
+                warning_threshold=0.8,
+                critical_threshold=0.9
+            )
+        
         # Ensure directories exist
         self.memory_dir.mkdir(exist_ok=True)
         self.shared_dir.mkdir(exist_ok=True)
         
-        # Flag to track if search index is initialized
+        # Flag to track if subsystems are initialized
         self._search_initialized = False
+        self._cache_initialized = False
+        self._efficiency_initialized = False
+        self._memory_management_initialized = False
+    
+    async def _ensure_cache_initialized(self):
+        """Initialize cache manager if not already initialized."""
+        if self.enable_caching and self._cache_manager and not self._cache_initialized:
+            await self._cache_manager.initialize()
+            self._cache_initialized = True
+            
+    async def _ensure_efficiency_initialized(self):
+        """Initialize efficiency enhancements if not already initialized."""
+        if self.enable_efficiency and not self._efficiency_initialized:
+            if self._incremental_index:
+                await self._incremental_index.initialize()
+            self._efficiency_initialized = True
+    
+    async def _ensure_memory_management_initialized(self):
+        """Initialize memory management if not already initialized."""
+        if self.enable_memory_management and self._memory_manager and not self._memory_management_initialized:
+            await self._memory_manager.start_monitoring(interval=30.0)
+            self._memory_management_initialized = True
+    
+    async def shutdown(self):
+        """Shutdown storage manager and all subsystems."""
+        if self._cache_manager:
+            await self._cache_manager.shutdown()
+        if self._incremental_index:
+            await self._incremental_index.shutdown()
+        if self._memory_manager:
+            await self._memory_manager.stop_monitoring()
     
     async def _get_slot_path(self, slot_name: str) -> Path:
         """Get the file path for a memory slot."""
         return self.memory_dir / f"{slot_name}.json"
     
     async def _load_slot(self, slot_name: str) -> Optional[MemorySlot]:
-        """Load memory slot from file."""
+        """Load memory slot from file with caching support."""
+        await self._ensure_cache_initialized()
+        
+        # Try cache first if enabled
+        if self._cache_manager:
+            cache_key = generate_slot_cache_key(slot_name)
+            cached_data, hit = await self._cache_manager.get(cache_key, CacheLevel.MEMORY)
+            if hit:
+                try:
+                    return MemorySlot(**cached_data)
+                except Exception as e:
+                    # Cache corruption, fall back to disk
+                    await self._cache_manager.remove(cache_key)
+        
         slot_path = await self._get_slot_path(slot_name)
         
         if not slot_path.exists():
@@ -48,13 +131,46 @@ class StorageManager:
             async with aiofiles.open(slot_path, 'r', encoding='utf-8') as f:
                 data = await f.read()
                 slot_data = json.loads(data)
-                return MemorySlot(**slot_data)
+                slot = MemorySlot(**slot_data)
+                
+                # Cache the loaded slot if caching is enabled
+                if self._cache_manager:
+                    cache_key = generate_slot_cache_key(slot_name)
+                    await self._cache_manager.put(
+                        cache_key, 
+                        slot.model_dump(),
+                        CacheLevel.MEMORY,
+                        ttl_seconds=3600  # Cache for 1 hour
+                    )
+                
+                return slot
         except (json.JSONDecodeError, ValueError) as e:
             raise ValueError(f"Error loading slot '{slot_name}': {e}")
     
     async def _save_slot(self, slot: MemorySlot) -> None:
-        """Save memory slot to file."""
+        """Save memory slot to file with efficiency enhancements."""
+        await self._ensure_cache_initialized()
+        await self._ensure_efficiency_initialized()
+        
         slot_path = await self._get_slot_path(slot.slot_name)
+        old_slot = None
+        
+        # Load existing slot for delta compression
+        if slot_path.exists() and self._delta_compressor:
+            try:
+                old_slot = await self._load_slot(slot.slot_name)
+            except Exception:
+                pass  # Continue with full save
+        
+        # Create delta if we have old version and compression enabled
+        delta_path = None
+        if old_slot and self._delta_compressor:
+            try:
+                delta_path = await self._delta_compressor.create_delta(
+                    slot.slot_name, old_slot, slot
+                )
+            except Exception as e:
+                print(f"Warning: Could not create delta for {slot.slot_name}: {e}")
         
         # Create a backup if file exists
         if slot_path.exists():
@@ -62,17 +178,34 @@ class StorageManager:
             await aiofiles.os.rename(str(slot_path), str(backup_path))
         
         try:
-            slot_dict = slot.model_dump()
-            # Convert datetime objects to ISO strings for JSON serialization
-            slot_dict = self._serialize_datetime(slot_dict)
-            
-            async with aiofiles.open(slot_path, 'w', encoding='utf-8') as f:
-                await f.write(json.dumps(slot_dict, indent=2, ensure_ascii=False))
+            # Use streaming operations for large slots
+            content_size = sum(len(entry.content) for entry in slot.entries)
+            if content_size > 1024 * 1024:  # 1MB threshold
+                await StreamingOperations.write_slot_streaming(slot, slot_path)
+            else:
+                # Standard write for smaller slots
+                slot_dict = slot.model_dump()
+                slot_dict = self._serialize_datetime(slot_dict)
+                
+                async with aiofiles.open(slot_path, 'w', encoding='utf-8') as f:
+                    await f.write(json.dumps(slot_dict, indent=2, ensure_ascii=False))
                 
             # Remove backup on successful save
             backup_path = slot_path.with_suffix('.json.bak')
             if backup_path.exists():
                 await aiofiles.os.remove(str(backup_path))
+            
+            # Update cache with new slot data
+            if self._cache_manager:
+                cache_key = generate_slot_cache_key(slot.slot_name)
+                await self._cache_manager.put(
+                    cache_key,
+                    slot.model_dump(),
+                    CacheLevel.MEMORY,
+                    ttl_seconds=3600
+                )
+                
+                await self._invalidate_search_caches(slot.slot_name)
             
             # Update global tags
             for tag in slot.tags:
@@ -82,7 +215,6 @@ class StorageManager:
             if slot.group_path:
                 from .models import GroupInfo
                 if slot.group_path not in self._state.groups:
-                    # Create new group
                     group_info = GroupInfo(
                         path=slot.group_path,
                         name=slot.group_path.split('/')[-1],
@@ -92,8 +224,17 @@ class StorageManager:
                 
                 self._state.groups[slot.group_path].updated_at = datetime.now()
             
-            # Update search index
+            # Update search indexes (both old and new)
             self._search_engine.add_slot(slot)
+            
+            # Update incremental index if enabled
+            if self._incremental_index:
+                try:
+                    updated = await self._incremental_index.add_or_update_slot(slot)
+                    if updated:
+                        print(f"Incremental index updated for slot: {slot.slot_name}")
+                except Exception as e:
+                    print(f"Warning: Could not update incremental index: {e}")
                 
         except Exception as e:
             # Restore backup if save failed
@@ -101,6 +242,21 @@ class StorageManager:
             if backup_path.exists():
                 await aiofiles.os.rename(str(backup_path), str(slot_path))
             raise ValueError(f"Error saving slot '{slot.slot_name}': {e}")
+    
+    async def _invalidate_search_caches(self, slot_name: str):
+        """Invalidate search caches that might be affected by slot changes."""
+        if not self._cache_manager:
+            return
+        
+        # This is a simplified invalidation strategy
+        # In production, you might want to be more selective about which caches to invalidate
+        # For now, we'll clear all search-related cache entries
+        # A more sophisticated approach would track which searches return specific slots
+        
+        # Note: This is a placeholder implementation
+        # The actual cache doesn't provide a way to iterate through keys,
+        # so we'll rely on TTL expiration for search cache invalidation
+        pass
     
     def _serialize_datetime(self, obj: Any) -> Any:
         """Convert datetime objects and sets to JSON-serializable format."""
@@ -335,6 +491,7 @@ class StorageManager:
         """Format memory slot as JSON."""
         export_data = {
             "slot_name": slot.slot_name,
+            "name": slot.slot_name,  # Backward compatibility
             "exported_at": datetime.now().isoformat(),
             "created_at": slot.created_at.isoformat(),
             "updated_at": slot.updated_at.isoformat(),
@@ -376,11 +533,42 @@ class StorageManager:
             self._search_initialized = True
     
     async def search_memory(self, query: SearchQuery) -> List[SearchResult]:
-        """Search across all memory slots."""
+        """Search across all memory slots with caching support."""
+        await self._ensure_cache_initialized()
+        
+        # Try cache first if enabled
+        if self._cache_manager:
+            cache_key = generate_search_cache_key(query)
+            cached_results, hit = await self._cache_manager.get(cache_key, CacheLevel.DISK)
+            if hit:
+                try:
+                    # Convert cached data back to SearchResult objects
+                    return [SearchResult(**result_data) for result_data in cached_results]
+                except Exception as e:
+                    # Cache corruption, fall back to fresh search
+                    await self._cache_manager.remove(cache_key)
+        
+        # Initialize search index if needed
         if not self._search_initialized:
             await self._initialize_search_index()
             self._search_initialized = True
-        return self._search_engine.search(query)
+        
+        # Perform search
+        results = self._search_engine.search(query)
+        
+        # Cache the search results if caching is enabled
+        if self._cache_manager and results:
+            cache_key = generate_search_cache_key(query)
+            # Convert SearchResult objects to dicts for caching
+            cached_data = [result.model_dump() for result in results]
+            await self._cache_manager.put(
+                cache_key,
+                cached_data,
+                CacheLevel.DISK,
+                ttl_seconds=1800  # Cache search results for 30 minutes
+            )
+        
+        return results
     
     async def add_tag_to_slot(self, slot_name: str, tag: str) -> bool:
         """Add a tag to a memory slot."""
@@ -476,27 +664,34 @@ class StorageManager:
         
         return list(self._state.groups.values())
     
+    async def _delete_slot_internal(self, slot_name: str) -> bool:
+        """Internal delete slot method - assumes lock is already held."""
+        slot_path = await self._get_slot_path(slot_name)
+        if not slot_path.exists():
+            return False
+        
+        # Remove from search index
+        self._search_engine.remove_slot(slot_name)
+        
+        # Remove from current slot if it's current
+        if self._state.current_slot == slot_name:
+            self._state.current_slot = None
+        
+        # Remove from available slots
+        if slot_name in self._state.available_slots:
+            self._state.available_slots.remove(slot_name)
+        
+        # Invalidate cache
+        await self.invalidate_slot_cache(slot_name)
+        
+        # Delete file
+        await aiofiles.os.remove(str(slot_path))
+        return True
+
     async def delete_slot(self, slot_name: str) -> bool:
         """Delete a memory slot."""
         async with self._lock:
-            slot_path = await self._get_slot_path(slot_name)
-            if not slot_path.exists():
-                return False
-            
-            # Remove from search index
-            self._search_engine.remove_slot(slot_name)
-            
-            # Remove from current slot if it's current
-            if self._state.current_slot == slot_name:
-                self._state.current_slot = None
-            
-            # Remove from available slots
-            if slot_name in self._state.available_slots:
-                self._state.available_slots.remove(slot_name)
-            
-            # Delete file
-            await aiofiles.os.remove(str(slot_path))
-            return True
+            return await self._delete_slot_internal(slot_name)
     
     async def get_search_stats(self) -> Dict[str, Any]:
         """Get search engine statistics."""
@@ -680,7 +875,7 @@ class StorageManager:
             archive_entry = await self._archival_manager.archive_slot(slot, reason)
             
             # Remove from active storage
-            await self.delete_slot(slot_name)
+            await self._delete_slot_internal(slot_name)
             
             return {
                 "slot_name": slot_name,
@@ -727,3 +922,262 @@ class StorageManager:
     async def find_archival_candidates(self, days_inactive: int = 30) -> List[Tuple[str, Dict[str, Any]]]:
         """Find memory slots that could be archived."""
         return await self._archival_manager.find_candidates_for_archival(days_inactive)
+    
+    async def get_cache_stats(self) -> Optional[Dict[str, Any]]:
+        """Get comprehensive cache statistics."""
+        if not self._cache_manager:
+            return None
+        
+        return await self._cache_manager.get_stats()
+    
+    async def clear_cache(self) -> bool:
+        """Clear all cache data."""
+        if not self._cache_manager:
+            return False
+        
+        await self._cache_manager.clear()
+        return True
+    
+    async def warm_cache_for_slots(self, slot_names: List[str]) -> int:
+        """Pre-warm cache for specified slots."""
+        if not self._cache_manager:
+            return 0
+        
+        warmed_count = 0
+        for slot_name in slot_names:
+            try:
+                # Load slot into cache
+                slot = await self._load_slot(slot_name)
+                if slot:
+                    warmed_count += 1
+            except Exception as e:
+                print(f"Warning: Failed to warm cache for slot {slot_name}: {e}")
+        
+        return warmed_count
+    
+    async def invalidate_slot_cache(self, slot_name: str) -> bool:
+        """Invalidate cache for a specific slot."""
+        if not self._cache_manager:
+            return False
+        
+        cache_key = generate_slot_cache_key(slot_name)
+        await self._cache_manager.remove(cache_key)
+        return True
+    
+    # Storage Efficiency Methods
+    
+    async def get_storage_stats(self) -> StorageStats:
+        """Get comprehensive storage statistics."""
+        await self._ensure_efficiency_initialized()
+        
+        if not self._storage_monitor:
+            # Fallback basic stats
+            return StorageStats(
+                total_slots=len(self._state.available_slots),
+                total_size_mb=0.0,
+                compressed_slots=0,
+                compression_ratio=0.0,
+                fragmentation_ratio=0.0,
+                oldest_access=datetime.now(),
+                newest_access=datetime.now(),
+                index_size_mb=0.0,
+                cache_size_mb=0.0
+            )
+        
+        return await self._storage_monitor.get_storage_stats()
+    
+    async def cleanup_storage(self, days_old: int = 30) -> Dict[str, Any]:
+        """Clean up old temporary files and identify cleanup candidates."""
+        await self._ensure_efficiency_initialized()
+        
+        cleanup_stats = {
+            "temp_files_cleaned": 0,
+            "cleanup_candidates": [],
+            "space_freed_mb": 0.0
+        }
+        
+        if self._storage_monitor:
+            # Clean temporary files
+            temp_cleaned = await self._storage_monitor.cleanup_temporary_files()
+            cleanup_stats["temp_files_cleaned"] = temp_cleaned
+            
+            # Identify cleanup candidates
+            candidates = await self._storage_monitor.identify_cleanup_candidates(days_old)
+            cleanup_stats["cleanup_candidates"] = candidates
+            
+        return cleanup_stats
+    
+    async def compress_old_slots(self, days_old: int = 30) -> Dict[str, Any]:
+        """Automatically compress slots that haven't been accessed recently."""
+        await self._ensure_efficiency_initialized()
+        
+        compression_stats = {
+            "slots_processed": 0,
+            "slots_compressed": 0,
+            "space_saved_mb": 0.0,
+            "errors": []
+        }
+        
+        if not self._storage_monitor:
+            return compression_stats
+            
+        # Get candidates for compression
+        candidates = await self._storage_monitor.identify_cleanup_candidates(days_old)
+        
+        for slot_name in candidates:
+            try:
+                compression_stats["slots_processed"] += 1
+                
+                # Compress the slot
+                result = await self.compress_slot(slot_name, force=False)
+                
+                if result.get("entries_compressed", 0) > 0:
+                    compression_stats["slots_compressed"] += 1
+                    compression_stats["space_saved_mb"] += result.get("space_saved", 0) / (1024 * 1024)
+                    
+            except Exception as e:
+                compression_stats["errors"].append(f"Failed to compress {slot_name}: {str(e)}")
+                
+        return compression_stats
+    
+    async def optimize_indexes(self) -> Dict[str, Any]:
+        """Optimize search indexes for better performance."""
+        await self._ensure_efficiency_initialized()
+        
+        optimization_stats = {
+            "traditional_index_optimized": False,
+            "incremental_index_optimized": False,
+            "maintenance_performed": False,
+            "errors": []
+        }
+        
+        try:
+            # Optimize traditional search index
+            if hasattr(self._search_engine, 'optimize'):
+                await self._search_engine.optimize()
+                optimization_stats["traditional_index_optimized"] = True
+        except Exception as e:
+            optimization_stats["errors"].append(f"Traditional index optimization failed: {str(e)}")
+            
+        try:
+            # Trigger incremental index maintenance
+            if self._incremental_index:
+                await self._incremental_index._perform_maintenance()
+                optimization_stats["incremental_index_optimized"] = True
+                optimization_stats["maintenance_performed"] = True
+        except Exception as e:
+            optimization_stats["errors"].append(f"Incremental index optimization failed: {str(e)}")
+            
+        return optimization_stats
+    
+    async def get_index_stats(self) -> Dict[str, Any]:
+        """Get statistics about search indexes."""
+        await self._ensure_efficiency_initialized()
+        
+        stats = {
+            "traditional_index": {
+                "total_words": len(getattr(self._search_engine.index, 'word_to_slots', {})),
+                "total_slots": getattr(self._search_engine.index, 'total_slots', 0),
+                "dirty": getattr(self._search_engine.index, 'dirty', False)
+            },
+            "incremental_index": {
+                "available": self._incremental_index is not None,
+                "total_words": 0,
+                "total_slots": 0,
+                "dirty_slots": 0,
+                "change_log_entries": 0
+            }
+        }
+        
+        if self._incremental_index:
+            stats["incremental_index"].update({
+                "total_words": len(self._incremental_index.word_to_slots),
+                "total_slots": len(self._incremental_index.slot_total_words),
+                "dirty_slots": len(self._incremental_index.dirty_slots),
+                "change_log_entries": len(self._incremental_index.change_log)
+            })
+            
+        return stats
+    
+    async def rebuild_indexes(self, force: bool = False) -> Dict[str, Any]:
+        """Rebuild search indexes from scratch."""
+        rebuild_stats = {
+            "traditional_index_rebuilt": False,
+            "incremental_index_rebuilt": False,
+            "slots_processed": 0,
+            "errors": []
+        }
+        
+        try:
+            # Rebuild traditional index
+            self._search_initialized = False
+            await self._initialize_search_index()
+            rebuild_stats["traditional_index_rebuilt"] = True
+        except Exception as e:
+            rebuild_stats["errors"].append(f"Traditional index rebuild failed: {str(e)}")
+            
+        try:
+            # Rebuild incremental index
+            if self._incremental_index:
+                # Shutdown existing index
+                await self._incremental_index.shutdown()
+                
+                # Create new index
+                self._incremental_index = IncrementalSearchIndex(self.memory_dir / "index")
+                await self._incremental_index.initialize()
+                
+                # Re-index all slots
+                for slot_file in self.memory_dir.glob("*.json"):
+                    slot_name = slot_file.stem
+                    slot = await self._load_slot(slot_name)
+                    if slot:
+                        await self._incremental_index.add_or_update_slot(slot)
+                        rebuild_stats["slots_processed"] += 1
+                        
+                rebuild_stats["incremental_index_rebuilt"] = True
+        except Exception as e:
+            rebuild_stats["errors"].append(f"Incremental index rebuild failed: {str(e)}")
+            
+        return rebuild_stats
+    
+    # Memory Management API
+    async def get_memory_stats(self) -> Optional[Dict[str, Any]]:
+        """Get comprehensive memory statistics."""
+        if not self._memory_manager:
+            return None
+        
+        await self._ensure_memory_management_initialized()
+        return await self._memory_manager.get_memory_report()
+    
+    async def get_memory_trend(self, minutes: int = 30) -> Optional[Dict[str, float]]:
+        """Get memory usage trend over specified time period."""
+        if not self._memory_manager:
+            return None
+        
+        return self._memory_manager.get_memory_trend(minutes)
+    
+    async def configure_memory_limits(self, memory_limit_mb: float, warning_threshold: float = 0.8, 
+                                    critical_threshold: float = 0.9) -> bool:
+        """Configure memory limits and thresholds."""
+        if not self._memory_manager:
+            return False
+        
+        self._memory_manager.configure_limits(memory_limit_mb, warning_threshold, critical_threshold)
+        return True
+    
+    async def force_memory_cleanup(self) -> Dict[str, int]:
+        """Force memory cleanup and garbage collection."""
+        if not self._memory_manager:
+            return {"objects_freed": 0}
+        
+        return await self._memory_manager.force_garbage_collection()
+    
+    def track_memory_object(self, obj: Any, obj_type: str):
+        """Track an object for memory monitoring."""
+        if self._memory_manager:
+            self._memory_manager.track_object(obj, obj_type)
+    
+    def add_memory_alert_callback(self, callback: Callable[[MemoryAlert], None]):
+        """Add callback for memory alerts."""
+        if self._memory_manager:
+            self._memory_manager.add_alert_callback(callback)

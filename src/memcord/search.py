@@ -293,8 +293,19 @@ class SearchEngine:
             if entry.type not in query.content_types:
                 continue
             
-            if self._content_matches_query(entry.content, query):
-                snippet = self._create_snippet(entry.content, query.query)
+            # Get entry content, decompressing if necessary
+            entry_content = entry.content
+            if entry.compression_info.is_compressed:
+                try:
+                    from .compression import ContentCompressor
+                    compressor = ContentCompressor()
+                    entry_content = compressor.decompress_json_content(entry.content, entry.compression_info)
+                except Exception:
+                    # If decompression fails, skip this entry
+                    continue
+            
+            if self._content_matches_query(entry_content, query):
+                snippet = self._create_snippet(entry_content, query.query)
                 # Boost score slightly for direct content matches
                 entry_score = min(1.0, base_score * 1.1)
                 

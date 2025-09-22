@@ -3,7 +3,10 @@
 from datetime import datetime
 from typing import List, Optional, Dict, Any, Set, Tuple
 import re
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
+from pathlib import Path
+import os
+from urllib.parse import urlparse
 
 
 class CompressionInfo(BaseModel):
@@ -20,19 +23,56 @@ class CompressionInfo(BaseModel):
 class MemoryEntry(BaseModel):
     """Single entry in a memory slot."""
     
-    type: str = Field(..., description="Type of entry: 'manual_save' or 'auto_summary'")
-    content: str = Field(..., description="Content of the entry")
+    type: str = Field(..., pattern=r"^(manual_save|auto_summary)$", description="Type of entry: 'manual_save' or 'auto_summary'")
+    content: str = Field(
+        ..., 
+        min_length=1,
+        max_length=10_485_760,  # 10MB limit
+        description="Content of the entry (1 char to 10MB)"
+    )
     timestamp: datetime = Field(default_factory=datetime.now, description="When entry was created")
     original_length: Optional[int] = Field(None, description="Length of original text for summaries")
     summary_length: Optional[int] = Field(None, description="Length of summary for summaries")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
     compression_info: CompressionInfo = Field(default_factory=CompressionInfo, description="Compression information")
+    
+    @field_validator('content')
+    @classmethod
+    def validate_content_size(cls, v):
+        """Validate content size and encoding."""
+        if not v:
+            raise ValueError("Content cannot be empty")
+        
+        # Check byte size (UTF-8 encoding)
+        byte_size = len(v.encode('utf-8'))
+        if byte_size > 10_485_760:  # 10MB
+            raise ValueError(f"Content too large: {byte_size} bytes (max 10MB)")
+        
+        # Check for potentially malicious content
+        suspicious_patterns = [
+            r'<script[^>]*>',
+            r'javascript:',
+            r'data:text/html',
+            r'vbscript:',
+            r'<[^>]*\son\w+\s*='  # HTML event handlers like <div onclick=...>
+        ]
+        
+        for pattern in suspicious_patterns:
+            if re.search(pattern, v, re.IGNORECASE):
+                raise ValueError("Content contains potentially unsafe script elements")
+        
+        return v
 
 
 class MemorySlot(BaseModel):
     """Complete memory slot with all entries."""
     
-    slot_name: str = Field(..., description="Name of the memory slot")
+    slot_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Name of the memory slot (1-100 chars, supports Unicode)"
+    )
     created_at: datetime = Field(default_factory=datetime.now, description="When slot was created")
     updated_at: datetime = Field(default_factory=datetime.now, description="When slot was last updated")
     entries: List[MemoryEntry] = Field(default_factory=list, description="All entries in this slot")
@@ -43,12 +83,96 @@ class MemorySlot(BaseModel):
         json_encoders = {
             set: list  # Convert sets to lists for JSON serialization
         }
-    group_path: Optional[str] = Field(None, description="Group/folder path for organization")
-    description: Optional[str] = Field(None, description="Optional description of the memory slot")
+    group_path: Optional[str] = Field(
+        None,
+        max_length=500,
+        pattern=r"^[a-zA-Z0-9_\-/\.\s]*$",
+        description="Group/folder path for organization (max 500 chars, safe path chars only)"
+    )
+    description: Optional[str] = Field(
+        None, 
+        max_length=1000,
+        description="Optional description of the memory slot (max 1000 chars)"
+    )
     priority: int = Field(0, description="Priority level for organization (0=normal, 1=high, -1=low)")
     is_archived: bool = Field(False, description="Whether this slot is archived")
     archived_at: Optional[datetime] = Field(None, description="When slot was archived")
-    archive_reason: Optional[str] = Field(None, description="Reason for archiving")
+    archive_reason: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="Reason for archiving (max 500 chars)"
+    )
+    
+    @field_validator('slot_name')
+    @classmethod
+    def validate_slot_name(cls, v):
+        """Validate slot name for security and usability."""
+        if not v or not v.strip():
+            raise ValueError("Slot name cannot be empty")
+
+        # Remove dangerous characters (but allow currency symbols and Unicode)
+        cleaned = v.strip()
+        dangerous_chars = ['<', '>', '"', "'", '&', '|', ';', '`', '$']
+        if any(char in cleaned for char in dangerous_chars):
+            raise ValueError("Slot name contains unsafe characters")
+
+        # Remove null bytes and dangerous control characters
+        cleaned = ''.join(char for char in cleaned if char != '\x00')
+        cleaned = ''.join(char for char in cleaned if ord(char) >= 32 or char in '\r\n\t')
+
+        # Check for SQL injection patterns and reject them
+        sql_patterns = ['DROP', 'UNION', 'SELECT', 'DELETE', 'INSERT', 'UPDATE', 'CREATE', 'ALTER', '--', '/*', '*/', ';']
+        for pattern in sql_patterns:
+            if pattern in cleaned.upper():
+                raise ValueError(f"Slot name contains SQL keyword or pattern: {pattern}")
+
+        # Prevent path traversal
+        if '../' in cleaned or '..\\' in cleaned:
+            raise ValueError("Slot name cannot contain path traversal sequences")
+
+        # Reserved names
+        reserved = {'__ZERO__', 'CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'LPT1', 'LPT2'}
+        if cleaned.upper() in reserved:
+            raise ValueError(f"Slot name '{cleaned}' is reserved")
+
+        return cleaned
+    
+    @field_validator('group_path')
+    @classmethod
+    def validate_group_path(cls, v):
+        """Validate group path for security."""
+        if v is None:
+            return v
+            
+        # Prevent path traversal
+        if '../' in v or '..\\' in v:
+            raise ValueError("Group path cannot contain path traversal sequences")
+
+        # Prevent dangerous absolute paths (path injection)
+        dangerous_paths = [
+            '/etc/', '/proc/', '/dev/', '/sys/', '/boot/', '/root/',
+            'c:\\windows\\', 'c:\\program', '\\\\.\\pipe\\',
+            '/var/log/', '/tmp/', '/usr/bin/', '/bin/'
+        ]
+
+        v_lower = v.lower()
+        for dangerous in dangerous_paths:
+            if v_lower.startswith(dangerous.lower()):
+                raise ValueError(f"Group path cannot access system directories: {dangerous}")
+
+        # Normalize path separators
+        normalized = v.replace('\\', '/').strip('/')
+
+        # Check individual components
+        if normalized:
+            components = normalized.split('/')
+            for component in components:
+                if not component.strip():
+                    raise ValueError("Group path cannot have empty components")
+                if component.strip() in ['.', '..']:
+                    raise ValueError("Group path cannot contain . or .. components")
+
+        return normalized if normalized else None
     
     def add_entry(self, entry: MemoryEntry) -> None:
         """Add a new entry and update timestamp."""
@@ -87,14 +211,31 @@ class MemorySlot(BaseModel):
         self.updated_at = datetime.now()
     
     def get_searchable_content(self) -> str:
-        """Get all searchable content combined."""
+        """Get all searchable content combined, decompressing when necessary."""
         content_parts = [self.slot_name]
         if self.description:
             content_parts.append(self.description)
         content_parts.extend(self.tags)
         if self.group_path:
             content_parts.append(self.group_path)
-        content_parts.extend(entry.content for entry in self.entries)
+        
+        # Add entry content, decompressing if necessary
+        for entry in self.entries:
+            if entry.compression_info.is_compressed:
+                try:
+                    # Import here to avoid circular imports
+                    from .compression import ContentCompressor
+                    compressor = ContentCompressor()
+                    decompressed = compressor.decompress_json_content(entry.content, entry.compression_info)
+                    content_parts.append(decompressed)
+                except Exception as e:
+                    # If decompression fails, skip this entry's content for search
+                    # but don't break the entire search
+                    print(f"Warning: Failed to decompress content for search: {e}")
+                    continue
+            else:
+                content_parts.append(entry.content)
+        
         return ' '.join(content_parts)
     
     @property
@@ -271,7 +412,32 @@ class SearchResult(BaseModel):
 class SearchQuery(BaseModel):
     """Search query configuration."""
     
-    query: str = Field(..., min_length=1, description="Search query string")
+    query: str = Field(
+        ..., 
+        min_length=1, 
+        max_length=1000,
+        description="Search query string (1-1000 chars)"
+    )
+    
+    @field_validator('query')
+    @classmethod
+    def validate_search_query(cls, v):
+        """Validate search query for security and performance."""
+        if not v or not v.strip():
+            raise ValueError("Search query cannot be empty")
+        
+        # Prevent regex injection attacks
+        dangerous_regex_chars = ['(?', '(*', '(?=', '(?!', '(?<=', '(?<!']
+        for pattern in dangerous_regex_chars:
+            if pattern in v:
+                raise ValueError(f"Search query contains potentially dangerous regex pattern: {pattern}")
+        
+        # Limit wildcards to prevent performance issues
+        wildcard_count = v.count('*') + v.count('?') + v.count('.')
+        if wildcard_count > 10:
+            raise ValueError("Search query contains too many wildcards (max 10)")
+        
+        return v.strip()
     include_tags: List[str] = Field(default_factory=list, description="Tags to include in search")
     exclude_tags: List[str] = Field(default_factory=list, description="Tags to exclude from search")
     include_groups: List[str] = Field(default_factory=list, description="Groups to include in search")
@@ -279,7 +445,42 @@ class SearchQuery(BaseModel):
     date_from: Optional[datetime] = Field(None, description="Search from this date")
     date_to: Optional[datetime] = Field(None, description="Search until this date")
     content_types: List[str] = Field(default_factory=lambda: ['manual_save', 'auto_summary'], description="Content types to search")
-    max_results: int = Field(20, gt=0, le=100, description="Maximum number of results to return")
+    max_results: int = Field(
+        20, 
+        gt=0, 
+        le=100, 
+        description="Maximum number of results to return (1-100)"
+    )
+    
+    @field_validator('include_tags', 'exclude_tags')
+    @classmethod
+    def validate_tag_lists(cls, v):
+        """Validate tag lists for reasonable limits."""
+        if len(v) > 50:
+            raise ValueError("Too many tags in filter (max 50)")
+        
+        for tag in v:
+            if not isinstance(tag, str) or len(tag.strip()) == 0:
+                raise ValueError("All tags must be non-empty strings")
+            if len(tag) > 100:
+                raise ValueError("Tag too long (max 100 chars)")
+        
+        return [tag.strip().lower() for tag in v]
+    
+    @field_validator('include_groups', 'exclude_groups')
+    @classmethod
+    def validate_group_lists(cls, v):
+        """Validate group lists for reasonable limits."""
+        if len(v) > 20:
+            raise ValueError("Too many groups in filter (max 20)")
+        
+        for group in v:
+            if not isinstance(group, str) or len(group.strip()) == 0:
+                raise ValueError("All groups must be non-empty strings")
+            if len(group) > 500:
+                raise ValueError("Group path too long (max 500 chars)")
+        
+        return v
     case_sensitive: bool = Field(False, description="Whether search should be case sensitive")
     use_regex: bool = Field(False, description="Whether to treat query as regex pattern")
 

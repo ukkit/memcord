@@ -16,6 +16,8 @@ When adding new tools:
 import asyncio
 import json
 import os
+import secrets
+import time
 from typing import Any, Sequence, Dict, List
 from pathlib import Path
 
@@ -34,7 +36,34 @@ from .models import MemorySlot, SearchQuery
 from .query import SimpleQueryProcessor
 from .importer import ContentImporter
 from .merger import MemorySlotMerger
+from .security import SecurityMiddleware
+from .errors import ErrorHandler, MemcordError, ValidationError, RateLimitError, OperationTimeoutError, handle_async_errors
+from .status_monitoring import StatusMonitoringSystem
 from datetime import datetime
+import functools
+import uuid
+
+
+def with_timeout_check(operation_id_key: str = 'operation_id'):
+    """Decorator to add timeout checking to async methods."""
+    def decorator(func):
+        @functools.wraps(func)
+        async def wrapper(self, *args, **kwargs):
+            # Extract operation_id from kwargs or generate one
+            operation_id = kwargs.get(operation_id_key) or secrets.token_hex(8)
+            
+            # Check timeout if operation is being tracked
+            if hasattr(self, 'security') and operation_id in self.security.timeout_manager.active_operations:
+                timed_out, error_msg = self.security.timeout_manager.check_timeout(operation_id)
+                if timed_out:
+                    raise OperationTimeoutError(
+                        error_msg or f"Operation {func.__name__} timed out",
+                        operation=func.__name__
+                    )
+            
+            return await func(self, *args, **kwargs)
+        return wrapper
+    return decorator
 
 
 class ChatMemoryServer:
@@ -48,6 +77,10 @@ class ChatMemoryServer:
         self.merger = MemorySlotMerger()
         self.app = Server("chat-memory")
         
+        # Security and error handling
+        self.security = SecurityMiddleware()
+        self.error_handler = ErrorHandler()
+        
         # Determine if advanced tools should be enabled
         if enable_advanced_tools is None:
             # Check environment variable
@@ -55,6 +88,9 @@ class ChatMemoryServer:
             self.enable_advanced_tools = env_value in ("true", "1", "yes", "on")
         else:
             self.enable_advanced_tools = enable_advanced_tools
+        
+        # Status monitoring system
+        self.status_monitor = StatusMonitoringSystem(storage_manager=self.storage, data_dir=memory_dir)
             
         self._setup_handlers()
     
@@ -82,12 +118,21 @@ class ChatMemoryServer:
                 return await self._handle_zeromem(arguments)
             elif name == "memcord_select_entry":
                 return await self._handle_select_entry(arguments)
-            elif name == "memcord_merge":
-                return await self._handle_mergemem(arguments)
+            
+            # Status & Monitoring tools
+            elif name == "memcord_status":
+                return await self._handle_status(arguments)
+            elif name == "memcord_metrics":
+                return await self._handle_metrics(arguments)
+            elif name == "memcord_logs":
+                return await self._handle_logs(arguments)
+            elif name == "memcord_diagnostics":
+                return await self._handle_diagnostics(arguments)
+            
             # Advanced tools (check if enabled)
-            elif name in ["memcord_tag", "memcord_list_tags", "memcord_group", "memcord_import", "memcord_archive", "memcord_export", "memcord_share", "memcord_compress"]:
+            elif name in ["memcord_tag", "memcord_list_tags", "memcord_group", "memcord_import", "memcord_merge", "memcord_archive", "memcord_export", "memcord_share", "memcord_compress"]:
                 if not self.enable_advanced_tools:
-                    return [TextContent(type="text", text=f"Advanced tool '{name}' is not enabled. Set MEMCORD_ENABLE_ADVANCED=true to enable advanced features.")]
+                    return [TextContent(type="text", text=f"Error: Advanced tool '{name}' is not enabled. Set MEMCORD_ENABLE_ADVANCED=true to enable advanced features.")]
                 
                 if name == "memcord_tag":
                     return await self._handle_tagmem(arguments)
@@ -97,6 +142,8 @@ class ChatMemoryServer:
                     return await self._handle_groupmem(arguments)
                 elif name == "memcord_import":
                     return await self._handle_importmem(arguments)
+                elif name == "memcord_merge":
+                    return await self._handle_mergemem(arguments)
                 elif name == "memcord_archive":
                     return await self._handle_archivemem(arguments)
                 elif name == "memcord_export":
@@ -106,9 +153,9 @@ class ChatMemoryServer:
                 elif name == "memcord_compress":
                     return await self._handle_compressmem(arguments)
                 else:
-                    return [TextContent(type="text", text=f"Unknown advanced tool: {name}")]
+                    return [TextContent(type="text", text=f"Error: Unknown advanced tool: {name}")]
             else:
-                return [TextContent(type="text", text=f"Unknown tool: {name}")]
+                return [TextContent(type="text", text=f"Error: Unknown tool: {name}")]
         except Exception as e:
             return [TextContent(type="text", text=f"Error: {str(e)}")]
     
@@ -121,7 +168,51 @@ class ChatMemoryServer:
     
     async def list_resources_direct(self) -> List[Resource]:
         """Direct resources listing method for testing purposes."""
-        return []
+        resources = []
+        slots_info = await self.storage.list_memory_slots()
+        
+        for slot_info in slots_info:
+            slot_name = slot_info["name"]
+            for fmt in ["md", "txt", "json"]:
+                resources.append(Resource(
+                    uri=str(f"memory://{slot_name}.{fmt}"),
+                    name=f"{slot_name} ({fmt.upper()})",
+                    description=f"Memory slot {slot_name} in {fmt.upper()} format",
+                    mimeType=f"text/{fmt}" if fmt in ["txt", "md"] else f"application/{fmt}"
+                ))
+        
+        return resources
+    
+    async def read_resource_direct(self, uri: str) -> str:
+        """Direct resource reading method for testing purposes."""
+        # Parse URI: memory://slot_name.format
+        if not uri.startswith("memory://"):
+            raise ValueError("Invalid URI scheme")
+        
+        path_part = uri[9:]  # Remove "memory://"
+        if "." not in path_part:
+            raise ValueError("Invalid URI format")
+        
+        slot_name, format_ext = path_part.rsplit(".", 1)
+        
+        # Check if slot exists
+        slot = await self.storage._load_slot(slot_name)
+        if not slot:
+            raise ValueError(f"Memory slot '{slot_name}' not found")
+        
+        # Check if format is valid
+        if format_ext not in ["md", "txt", "json"]:
+            raise ValueError(f"Unsupported format: {format_ext}")
+        
+        # Generate content in requested format
+        if format_ext == "md":
+            return self.storage._format_as_markdown(slot)
+        elif format_ext == "txt":
+            return self.storage._format_as_text(slot)
+        elif format_ext == "json":
+            return self.storage._format_as_json(slot)
+        else:
+            raise ValueError(f"Unsupported format: {format_ext}")
     
     def _get_basic_tools(self) -> List[Tool]:
         """Get the list of basic tools (always available)."""
@@ -359,6 +450,89 @@ class ChatMemoryServer:
                     },
                     "required": ["source_slots", "target_slot"]
                 }
+            ),
+            
+            # Status & Monitoring Tools
+            Tool(
+                name="memcord_status",
+                description="Get current system health status and overview",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "include_details": {
+                            "type": "boolean",
+                            "description": "Include detailed health check results",
+                            "default": False
+                        }
+                    }
+                }
+            ),
+            Tool(
+                name="memcord_metrics",
+                description="Get performance metrics and system statistics",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "metric_name": {
+                            "type": "string",
+                            "description": "Specific metric name to retrieve (optional, shows all if not specified)"
+                        },
+                        "hours": {
+                            "type": "integer",
+                            "description": "Number of hours of data to retrieve",
+                            "default": 1,
+                            "minimum": 1,
+                            "maximum": 168
+                        }
+                    }
+                }
+            ),
+            Tool(
+                name="memcord_logs",
+                description="Get operation execution logs and history",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "tool_name": {
+                            "type": "string",
+                            "description": "Filter logs by specific tool name"
+                        },
+                        "status": {
+                            "type": "string",
+                            "description": "Filter logs by operation status",
+                            "enum": ["started", "completed", "failed", "timeout"]
+                        },
+                        "hours": {
+                            "type": "integer",
+                            "description": "Number of hours of logs to retrieve",
+                            "default": 1,
+                            "minimum": 1,
+                            "maximum": 168
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "Maximum number of log entries to return",
+                            "default": 100,
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    }
+                }
+            ),
+            Tool(
+                name="memcord_diagnostics",
+                description="Run comprehensive system diagnostics and generate health report",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "check_type": {
+                            "type": "string",
+                            "description": "Type of diagnostic check to run",
+                            "enum": ["health", "performance", "full_report"],
+                            "default": "health"
+                        }
+                    }
+                }
             )
         ]
     
@@ -587,56 +761,66 @@ class ChatMemoryServer:
 
         @self.app.call_tool()
         async def call_tool(name: str, arguments: Dict[str, Any]) -> Sequence[TextContent]:
-            """Handle tool calls."""
+            """Handle tool calls with security validation."""
+            operation_id = secrets.token_hex(8)
+            client_id = "default"  # In future versions, extract from request context
+            
             try:
-                # Basic tools (always available)
-                if name == "memcord_name":
-                    return await self._handle_memname(arguments)
-                elif name == "memcord_use":
-                    return await self._handle_memuse(arguments)
-                elif name == "memcord_save":
-                    return await self._handle_savemem(arguments)
-                elif name == "memcord_read":
-                    return await self._handle_readmem(arguments)
-                elif name == "memcord_save_progress":
-                    return await self._handle_saveprogress(arguments)
-                elif name == "memcord_list":
-                    return await self._handle_listmems(arguments)
-                elif name == "memcord_search":
-                    return await self._handle_searchmem(arguments)
-                elif name == "memcord_query":
-                    return await self._handle_querymem(arguments)
-                elif name == "memcord_zero":
-                    return await self._handle_zeromem(arguments)
-                elif name == "memcord_select_entry":
-                    return await self._handle_select_entry(arguments)
-                elif name == "memcord_merge":
-                    return await self._handle_mergemem(arguments)
-                # Advanced tools (check if enabled)
-                elif name in ["memcord_tag", "memcord_list_tags", "memcord_group", "memcord_import", "memcord_archive", "memcord_export", "memcord_share", "memcord_compress"]:
-                    if not self.enable_advanced_tools:
-                        return [TextContent(type="text", text=f"Advanced tool '{name}' is not enabled. Set MEMCORD_ENABLE_ADVANCED=true to enable advanced features.")]
+                # Security validation
+                allowed, error_msg = self.security.validate_request(client_id, name, arguments)
+                if not allowed:
+                    return [TextContent(type="text", text=f"🚫 Security check failed: {error_msg}")]
+                
+                # Start operation timeout tracking
+                deadline = self.security.timeout_manager.start_operation(operation_id, name)
+                
+                try:
+                    # Basic tools (always available)
+                    if name == "memcord_name":
+                        return await self._handle_memname(arguments)
+                    elif name == "memcord_use":
+                        return await self._handle_memuse(arguments)
+                    elif name == "memcord_save":
+                        return await self._handle_savemem(arguments)
+                    elif name == "memcord_read":
+                        return await self._handle_readmem(arguments)
+                    elif name == "memcord_save_progress":
+                        return await self._handle_saveprogress(arguments)
+                    elif name == "memcord_list":
+                        return await self._handle_listmems(arguments)
+                    elif name == "memcord_search":
+                        return await self._handle_searchmem(arguments)
+                    elif name == "memcord_query":
+                        return await self._handle_querymem(arguments)
+                    elif name == "memcord_zero":
+                        return await self._handle_zeromem(arguments)
+                    elif name == "memcord_select_entry":
+                        return await self._handle_select_entry(arguments)
                     
-                    if name == "memcord_tag":
-                        return await self._handle_tagmem(arguments)
-                    elif name == "memcord_list_tags":
-                        return await self._handle_listtags(arguments)
-                    elif name == "memcord_group":
-                        return await self._handle_groupmem(arguments)
-                    elif name == "memcord_import":
-                        return await self._handle_importmem(arguments)
-                    elif name == "memcord_archive":
-                        return await self._handle_archivemem(arguments)
-                    elif name == "memcord_export":
-                        return await self._handle_exportmem(arguments)
-                    elif name == "memcord_share":
-                        return await self._handle_sharemem(arguments)
-                    elif name == "memcord_compress":
-                        return await self._handle_compressmem(arguments)
-                else:
-                    return [TextContent(type="text", text=f"Unknown tool: {name}")]
+                    # Status & Monitoring tools
+                    elif name == "memcord_status":
+                        return await self._handle_status(arguments)
+                    elif name == "memcord_metrics":
+                        return await self._handle_metrics(arguments)
+                    elif name == "memcord_logs":
+                        return await self._handle_logs(arguments)
+                    elif name == "memcord_diagnostics":
+                        return await self._handle_diagnostics(arguments)
+                    
+                    else:
+                        return [TextContent(type="text", text=f"Error: Unknown tool: {name}")]
+                    
+                finally:
+                    # Clean up operation tracking
+                    self.security.timeout_manager.finish_operation(operation_id)
+                    
+            except MemcordError as e:
+                # Handle known memcord errors with proper formatting
+                return [TextContent(type="text", text=e.get_user_message())]
             except Exception as e:
-                return [TextContent(type="text", text=f"Error: {str(e)}")]
+                # Handle unexpected errors
+                handled_error = self.error_handler.handle_error(e, name, {'operation_id': operation_id})
+                return [TextContent(type="text", text=handled_error.get_user_message())]
 
         @self.app.list_resources()
         async def list_resources() -> List[Resource]:
@@ -648,7 +832,7 @@ class ChatMemoryServer:
                 slot_name = slot_info["name"]
                 for fmt in ["md", "txt", "json"]:
                     resources.append(Resource(
-                        uri=f"memory://{slot_name}.{fmt}",
+                        uri=str(f"memory://{slot_name}.{fmt}"),
                         name=f"{slot_name} ({fmt.upper()})",
                         mimeType=self._get_mime_type(fmt),
                         description=f"Memory slot '{slot_name}' in {fmt.upper()} format"
@@ -794,7 +978,7 @@ class ChatMemoryServer:
         
         slot = await self.storage.read_memory(slot_name)
         if not slot:
-            return [TextContent(type="text", text=f"Memory slot '{slot_name}' not found.")]
+            return [TextContent(type="text", text=f"Error: Memory slot '{slot_name}' not found.")]
         
         if not slot.entries:
             return [TextContent(type="text", text=f"Memory slot '{slot_name}' is empty.")]
@@ -1093,7 +1277,7 @@ class ChatMemoryServer:
                      f"MCP resource available at: memory://{slot_name}.{format}"
             )]
         except ValueError as e:
-            return [TextContent(type="text", text=f"Export failed: {str(e)}")]
+            return [TextContent(type="text", text=f"Error: {str(e)}")]
     
     async def _handle_sharemem(self, arguments: Dict[str, Any]) -> List[TextContent]:
         """Handle sharemem tool call."""
@@ -1115,7 +1299,7 @@ class ChatMemoryServer:
                      f"MCP resources available:\n" + "\n".join(resources)
             )]
         except ValueError as e:
-            return [TextContent(type="text", text=f"Share failed: {str(e)}")]
+            return [TextContent(type="text", text=f"Error: {str(e)}")]
     
     async def _handle_searchmem(self, arguments: Dict[str, Any]) -> List[TextContent]:
         """Handle searchmem tool call."""
@@ -1223,7 +1407,7 @@ class ChatMemoryServer:
                 return [TextContent(type="text", text=f"Tags for '{slot_name}': {', '.join(tag_list)}")]
             
             else:
-                return [TextContent(type="text", text=f"Unknown action: {action}")]
+                return [TextContent(type="text", text=f"Error: Unknown action: {action}")]
                 
         except Exception as e:
             return [TextContent(type="text", text=f"Tag operation failed: {str(e)}")]
@@ -1285,7 +1469,7 @@ class ChatMemoryServer:
                 return [TextContent(type="text", text="\n".join(lines))]
             
             else:
-                return [TextContent(type="text", text=f"Unknown action: {action}")]
+                return [TextContent(type="text", text=f"Error: Unknown action: {action}")]
                 
         except Exception as e:
             return [TextContent(type="text", text=f"Group operation failed: {str(e)}")]
@@ -1324,7 +1508,7 @@ class ChatMemoryServer:
             import_result = await self.importer.import_content(source.strip())
             
             if not import_result.success:
-                return [TextContent(type="text", text=f"Import failed: {import_result.error}")]
+                return [TextContent(type="text", text=f"Error: Import failed: {import_result.error}")]
             
             # Prepare content with import metadata
             content_parts = []
@@ -1758,7 +1942,7 @@ class ChatMemoryServer:
                 return [TextContent(type="text", text=f"Error: Unknown action '{action}'. Use 'analyze', 'compress', 'decompress', or 'stats'.")]
         
         except Exception as e:
-            return [TextContent(type="text", text=f"Compression operation failed: {str(e)}")]
+            return [TextContent(type="text", text=f"Error: {str(e)}")]
 
     async def _handle_archivemem(self, arguments: Dict[str, Any]) -> List[TextContent]:
         """Handle archive tool call."""
@@ -1913,7 +2097,368 @@ class ChatMemoryServer:
                 return [TextContent(type="text", text=f"Error: Unknown action '{action}'. Use 'archive', 'restore', 'list', 'stats', or 'candidates'.")]
         
         except Exception as e:
-            return [TextContent(type="text", text=f"Archive operation failed: {str(e)}")]
+            return [TextContent(type="text", text=f"Error: Archive operation failed: {str(e)}")]
+
+    async def _handle_status(self, arguments: Dict[str, Any]) -> List[TextContent]:
+        """Handle system status check."""
+        try:
+            include_details = arguments.get("include_details", False)
+            
+            # Get system status
+            status = self.status_monitor.get_system_status()
+            
+            response = [
+                f"🏥 System Status: {status['overall_status'].upper()}",
+                f"📊 Uptime: {status['uptime_seconds']:.0f}s ({status['uptime_seconds']/3600:.1f}h)",
+                f"⚡ Active Operations: {status['active_operations']}",
+                ""
+            ]
+            
+            # Recent operation stats
+            op_stats = status.get('recent_operation_stats', {})
+            if op_stats.get('total_operations', 0) > 0:
+                response.extend([
+                    "📈 Recent Activity (Last Hour):",
+                    f"  • Total Operations: {op_stats.get('total_operations', 0)}",
+                    f"  • Success Rate: {op_stats.get('success_rate', 0):.1f}%",
+                    f"  • Average Duration: {op_stats.get('avg_duration_ms', 0):.0f}ms",
+                    ""
+                ])
+            
+            # Health checks summary
+            healthy = sum(1 for check in status['health_checks'] if check['status'] == 'healthy')
+            total_checks = len(status['health_checks'])
+            response.extend([
+                f"🔍 Health Checks: {healthy}/{total_checks} healthy",
+                ""
+            ])
+            
+            # Resource usage
+            resources = status.get('resource_usage', {})
+            if resources:
+                response.extend([
+                    "💻 Resource Usage:",
+                    f"  • CPU: {resources.get('cpu_percent', 0):.1f}%",
+                    f"  • Memory: {resources.get('memory_percent', 0):.1f}%",
+                    f"  • Disk: {resources.get('disk_usage_percent', 0):.1f}%",
+                    ""
+                ])
+            
+            if include_details:
+                response.extend([
+                    "🔍 Detailed Health Checks:",
+                    ""
+                ])
+                for check in status['health_checks']:
+                    status_emoji = {"healthy": "✅", "degraded": "⚠️", "unhealthy": "❌"}.get(check['status'], "❓")
+                    response.append(f"  {status_emoji} {check['service']}: {check['status']} ({check['response_time']:.1f}ms)")
+                    if check.get('error_message'):
+                        response.append(f"    Error: {check['error_message']}")
+                    if check.get('details'):
+                        for key, value in check['details'].items():
+                            if isinstance(value, dict):
+                                continue  # Skip complex nested objects
+                            response.append(f"    {key}: {value}")
+                
+                response.append("")
+            
+            response.append("💡 Use `memcord_diagnostics` for detailed analysis or `memcord_metrics` for performance data.")
+            
+            return [TextContent(type="text", text="\n".join(response))]
+        
+        except Exception as e:
+            return [TextContent(type="text", text=f"Status check failed: {str(e)}")]
+
+    async def _handle_metrics(self, arguments: Dict[str, Any]) -> List[TextContent]:
+        """Handle performance metrics request."""
+        try:
+            metric_name = arguments.get("metric_name")
+            hours = arguments.get("hours", 1)
+            
+            if metric_name:
+                # Get specific metric
+                metrics_data = self.status_monitor.get_performance_metrics(metric_name, hours)
+                
+                response = [
+                    f"📊 Performance Metric: {metric_name}",
+                    f"📅 Time Window: {hours} hour(s)",
+                    f"📈 Data Points: {metrics_data.get('data_points', 0)}",
+                    ""
+                ]
+                
+                summary = metrics_data.get('summary', {})
+                if summary.get('count', 0) > 0:
+                    unit = summary.get('unit', '')
+                    response.extend([
+                        "📋 Summary:",
+                        f"  • Count: {summary.get('count', 0)}",
+                        f"  • Average: {summary.get('avg', 0):.2f}{unit}",
+                        f"  • Min: {summary.get('min', 0):.2f}{unit}",
+                        f"  • Max: {summary.get('max', 0):.2f}{unit}",
+                        f"  • Latest: {summary.get('latest', 0):.2f}{unit}",
+                        ""
+                    ])
+                else:
+                    response.append("No data available for this metric in the specified time window.")
+            
+            else:
+                # Get all metrics summary
+                metrics_data = self.status_monitor.get_performance_metrics(hours=hours)
+                available_metrics = metrics_data.get('available_metrics', [])
+                summaries = metrics_data.get('summaries', {})
+                
+                response = [
+                    f"📊 Performance Metrics Overview",
+                    f"📅 Time Window: {hours} hour(s)",
+                    f"📈 Available Metrics: {len(available_metrics)}",
+                    ""
+                ]
+                
+                if summaries:
+                    response.append("📋 Metrics Summary:")
+                    for metric, summary in summaries.items():
+                        if summary.get('count', 0) > 0:
+                            unit = summary.get('unit', '')
+                            response.append(f"  • {metric}: avg={summary.get('avg', 0):.2f}{unit}, count={summary.get('count', 0)}")
+                    response.append("")
+                
+                if available_metrics:
+                    response.extend([
+                        "🔍 Available Metrics:",
+                        "  " + ", ".join(available_metrics),
+                        "",
+                        "💡 Use `memcord_metrics metric_name=\"<name>\"` for detailed metric data."
+                    ])
+                else:
+                    response.append("No metrics available yet. Metrics are collected as operations are performed.")
+            
+            return [TextContent(type="text", text="\n".join(response))]
+        
+        except Exception as e:
+            return [TextContent(type="text", text=f"Metrics request failed: {str(e)}")]
+
+    async def _handle_logs(self, arguments: Dict[str, Any]) -> List[TextContent]:
+        """Handle operation logs request."""
+        try:
+            tool_name = arguments.get("tool_name")
+            status = arguments.get("status")
+            hours = arguments.get("hours", 1)
+            limit = arguments.get("limit", 100)
+            
+            # Convert hours to datetime
+            from datetime import timedelta
+            since = datetime.now() - timedelta(hours=hours)
+            
+            # Get filtered logs
+            filters = {}
+            if tool_name:
+                filters['tool_name'] = tool_name
+            if status:
+                filters['status'] = status
+            filters['since'] = since
+            filters['limit'] = limit
+            
+            logs_data = self.status_monitor.get_operation_logs(**filters)
+            logs = logs_data.get('logs', [])
+            stats = logs_data.get('stats', {})
+            
+            response = [
+                f"📋 Operation Logs",
+                f"📅 Time Window: {hours} hour(s)",
+                f"🔍 Filters: tool={tool_name or 'all'}, status={status or 'all'}",
+                f"📊 Showing {len(logs)} of {logs_data.get('total_count', 0)} logs",
+                ""
+            ]
+            
+            # Show overall stats
+            if stats.get('total_operations', 0) > 0:
+                response.extend([
+                    "📈 Statistics:",
+                    f"  • Total Operations: {stats.get('total_operations', 0)}",
+                    f"  • Success Rate: {stats.get('success_rate', 0):.1f}%",
+                    f"  • Failed Operations: {stats.get('failed_operations', 0)}",
+                ])
+                
+                if stats.get('avg_duration_ms'):
+                    response.append(f"  • Average Duration: {stats.get('avg_duration_ms', 0):.0f}ms")
+                
+                response.append("")
+            
+            # Show recent logs
+            if logs:
+                response.append("🔍 Recent Operations:")
+                for log in logs[:20]:  # Show last 20 logs
+                    start_time = datetime.fromisoformat(log['start_time'].replace('Z', '+00:00')) if isinstance(log['start_time'], str) else log['start_time']
+                    time_str = start_time.strftime("%H:%M:%S")
+                    
+                    status_emoji = {
+                        "completed": "✅",
+                        "failed": "❌",
+                        "started": "🔄",
+                        "timeout": "⏰"
+                    }.get(log['status'], "❓")
+                    
+                    duration_str = f" ({log['duration_ms']:.0f}ms)" if log.get('duration_ms') else ""
+                    
+                    response.append(f"  {status_emoji} {time_str} {log['tool_name']}{duration_str}")
+                    
+                    if log.get('error_message'):
+                        response.append(f"    Error: {log['error_message']}")
+                
+                if len(logs) > 20:
+                    response.append(f"  ... and {len(logs) - 20} more entries")
+            
+            else:
+                response.append("No logs found matching the specified criteria.")
+            
+            response.extend([
+                "",
+                "💡 Use `memcord_diagnostics check_type=\"performance\"` for detailed analysis."
+            ])
+            
+            return [TextContent(type="text", text="\n".join(response))]
+        
+        except Exception as e:
+            return [TextContent(type="text", text=f"Logs request failed: {str(e)}")]
+
+    async def _handle_diagnostics(self, arguments: Dict[str, Any]) -> List[TextContent]:
+        """Handle system diagnostics request."""
+        try:
+            check_type = arguments.get("check_type", "health")
+            
+            if check_type == "health":
+                # Run health checks
+                health_checks = self.status_monitor.diagnostic_tool.run_health_checks()
+                
+                response = [
+                    "🏥 System Health Diagnostics",
+                    "=" * 40,
+                    ""
+                ]
+                
+                for check in health_checks:
+                    status_emoji = {"healthy": "✅", "degraded": "⚠️", "unhealthy": "❌", "unknown": "❓"}.get(check.status, "❓")
+                    response.extend([
+                        f"{status_emoji} {check.service.upper()}: {check.status}",
+                        f"  Response Time: {check.response_time:.1f}ms",
+                    ])
+                    
+                    if check.error_message:
+                        response.append(f"  Error: {check.error_message}")
+                    
+                    # Show relevant details
+                    details = check.details
+                    if details:
+                        if 'slot_count' in details:
+                            response.append(f"  Memory Slots: {details['slot_count']}")
+                        if 'process_memory_mb' in details:
+                            response.append(f"  Memory Usage: {details['process_memory_mb']:.1f}MB")
+                        if 'disk_free_gb' in details:
+                            response.append(f"  Disk Free: {details['disk_free_gb']:.1f}GB")
+                        if 'python_version' in details:
+                            version = details['python_version'].split()[0]
+                            response.append(f"  Python: {version}")
+                    
+                    response.append("")
+                
+            elif check_type == "performance":
+                # Performance analysis
+                analysis = self.status_monitor.diagnostic_tool.analyze_performance_issues(
+                    self.status_monitor.metrics_collector,
+                    self.status_monitor.operation_logger
+                )
+                
+                response = [
+                    "📊 Performance Analysis",
+                    "=" * 40,
+                    f"Analysis Time: {analysis['timestamp']}",
+                    ""
+                ]
+                
+                issues = analysis.get('issues', [])
+                if issues:
+                    response.append("⚠️ Issues Detected:")
+                    for issue in issues:
+                        severity_emoji = {"critical": "🚨", "warning": "⚠️", "info": "ℹ️"}.get(issue['severity'], "❓")
+                        response.append(f"  {severity_emoji} {issue['description']}")
+                    response.append("")
+                else:
+                    response.append("✅ No performance issues detected.")
+                    response.append("")
+                
+                recommendations = analysis.get('recommendations', [])
+                if recommendations:
+                    response.append("💡 Recommendations:")
+                    for rec in recommendations:
+                        response.append(f"  • {rec}")
+                    response.append("")
+            
+            elif check_type == "full_report":
+                # Generate comprehensive report
+                report = self.status_monitor.generate_full_report()
+                
+                response = [
+                    "📋 Comprehensive System Report",
+                    "=" * 50,
+                    f"Generated: {report['timestamp']}",
+                    ""
+                ]
+                
+                # Health summary
+                health_checks = report.get('health_checks', [])
+                healthy_count = sum(1 for check in health_checks if check['status'] == 'healthy')
+                response.extend([
+                    f"🏥 Health Status: {healthy_count}/{len(health_checks)} services healthy",
+                    ""
+                ])
+                
+                # Resource usage
+                resources = report.get('resource_usage', {})
+                if resources:
+                    response.extend([
+                        "💻 Current Resource Usage:",
+                        f"  • CPU: {resources.get('cpu_percent', 0):.1f}%",
+                        f"  • Memory: {resources.get('memory_percent', 0):.1f}% ({resources.get('memory_used_mb', 0):.0f}MB)",
+                        f"  • Disk: {resources.get('disk_usage_percent', 0):.1f}% ({resources.get('disk_free_gb', 0):.1f}GB free)",
+                        ""
+                    ])
+                
+                # Operation statistics
+                op_stats = report.get('operation_stats', {})
+                if op_stats.get('total_operations', 0) > 0:
+                    response.extend([
+                        "📊 Operation Statistics (24h):",
+                        f"  • Total Operations: {op_stats.get('total_operations', 0)}",
+                        f"  • Success Rate: {op_stats.get('success_rate', 0):.1f}%",
+                        f"  • Average Duration: {op_stats.get('avg_duration_ms', 0):.0f}ms",
+                        ""
+                    ])
+                
+                # Performance analysis summary
+                perf_analysis = report.get('performance_analysis', {})
+                issues = perf_analysis.get('issues', [])
+                if issues:
+                    response.append(f"⚠️ {len(issues)} performance issues detected")
+                    response.append("   Use `memcord_diagnostics check_type=\"performance\"` for details")
+                else:
+                    response.append("✅ No performance issues detected")
+                
+                response.extend([
+                    "",
+                    "💡 For detailed analysis of specific areas, use:",
+                    "  • `memcord_diagnostics check_type=\"health\"` - Health checks",
+                    "  • `memcord_diagnostics check_type=\"performance\"` - Performance analysis",
+                    "  • `memcord_metrics` - Performance metrics",
+                    "  • `memcord_logs` - Operation logs"
+                ])
+            
+            else:
+                return [TextContent(type="text", text=f"Invalid check_type '{check_type}'. Use 'health', 'performance', or 'full_report'.")]
+            
+            return [TextContent(type="text", text="\n".join(response))]
+        
+        except Exception as e:
+            return [TextContent(type="text", text=f"Diagnostics failed: {str(e)}")]
 
     async def run(self):
         """Run the MCP server."""

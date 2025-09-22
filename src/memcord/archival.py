@@ -132,14 +132,29 @@ class ArchivalManager:
                 await aiofiles.os.rename(str(backup_path), str(self.index_file))
             raise ValueError(f"Error saving archive index: {e}")
     
-    def _serialize_datetime(self, obj: Any) -> Any:
-        """Convert datetime objects to JSON-serializable format."""
+    def _serialize_datetime(self, obj: Any, _seen=None) -> Any:
+        """Convert datetime objects and sets to JSON-serializable format."""
+        if _seen is None:
+            _seen = set()
+        
+        # Prevent infinite recursion
+        if id(obj) in _seen:
+            return str(obj)  # fallback for circular references
+        
         if isinstance(obj, datetime):
             return obj.isoformat()
+        elif isinstance(obj, set):
+            return list(obj)
         elif isinstance(obj, dict):
-            return {k: self._serialize_datetime(v) for k, v in obj.items()}
+            _seen.add(id(obj))
+            result = {k: self._serialize_datetime(v, _seen) for k, v in obj.items()}
+            _seen.remove(id(obj))
+            return result
         elif isinstance(obj, list):
-            return [self._serialize_datetime(item) for item in obj]
+            _seen.add(id(obj))
+            result = [self._serialize_datetime(item, _seen) for item in obj]
+            _seen.remove(id(obj))
+            return result
         return obj
     
     async def get_index(self) -> ArchiveIndex:
@@ -154,12 +169,14 @@ class ArchivalManager:
             index = await self.get_index()
             
             # Calculate original size
-            original_content = json.dumps(slot.model_dump(), ensure_ascii=False)
+            original_content = json.dumps(slot.model_dump(), ensure_ascii=False, default=str)
             original_size = len(original_content.encode('utf-8'))
             
             # Compress content for archival
             compressed_slot = await self._compress_slot_for_archive(slot)
-            archived_content = json.dumps(compressed_slot, ensure_ascii=False)
+            # Serialize properly to handle sets and datetime objects
+            serialized_slot = self._serialize_datetime(compressed_slot)
+            archived_content = json.dumps(serialized_slot, ensure_ascii=False)
             archived_size = len(archived_content.encode('utf-8'))
             
             # Create archive path
@@ -255,6 +272,10 @@ class ArchivalManager:
                 entry_dict["content"] = decompressed_content
                 # Reset compression info
                 entry_dict["compression_info"] = CompressionInfo().model_dump()
+        
+        # Convert lists back to sets where appropriate (for MemorySlot model compatibility)
+        if "tags" in slot_dict and isinstance(slot_dict["tags"], list):
+            slot_dict["tags"] = set(slot_dict["tags"])
         
         return slot_dict
     

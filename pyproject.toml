@@ -4,10 +4,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "memcord"
-version = "2.2.0"
-description = "MCP server for chat memory management with summarization and file sharing"
+version = "2.3.0"
+description = "privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control."
 authors = [
-    {name = "MemCord", email = "memcord@casiphia.com"}
+    {name = "MemCord", email = "memcord@ultrafastidio.us"}
 ]
 license = {text = "MIT"}
 readme = "README.md"

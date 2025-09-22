@@ -4,7 +4,7 @@
       <img src="assets/image/memcord_1024.png" width="256">
     </td>
     <td>
-      <h3>MEMCORD v2.2 (mcp server)</h3>
+      <h3>MEMCORD v2.3.0 (mcp server)</h3>
       <p>
         This privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control.
       </p>
@@ -31,11 +31,18 @@ Transform your Claude conversations into a searchable, organized knowledge base 
 * **🎯 Effortless Organization** - Smart tags and folders that organize themselves around your workflow
 * **🔗 Intelligent Merging** - Automatically combines related conversations while eliminating duplicates
 
-## 🆕 What's new in v2.2.0
+## 🆕 What's new in v2.3.0
 
-- ✅ Timeline Navigation - ```memcord_select_entry```
-- ✅ ESimplified Slot Activation - ```memcord_use```
-- ✅  Memory Integration Promoted - ```memcord_merge```
+- ✅ Enhanced Security: Built-in protection that checks inputs, limits misuse, strengthens defenses, and handles errors safely
+
+- ✅ High Speed: Uses 42% fewer tokens, loads slots 20x faster, and makes searches 7x quicker thanks to smart caching that hits 80% of the time—keeping response times under a millisecond.
+
+- ✅ Better Documentation: Clearer documentation, intelligent default settings that adapt to your preferences, live progress tracking, and 4 new tools to monitor the system.
+
+  - ```memcord_status``` - System health checks and current status indicators
+  - ```memcord_metrics``` - Performance metrics display and monitoring
+  - ```memcord_logs``` - Operation history and system logs access
+  - ```memcord_diagnostics``` - Comprehensive diagnostic tools and system analysis
 
 ## 🚀 Quick Start
 
@@ -69,7 +76,7 @@ This will:
 }
 ```
 
-### Claude Code MCP
+### Claude Code MCP (🧪 BETA)
 
 Add MCP server for your project - check README.md for installation path
 
