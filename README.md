@@ -4,7 +4,7 @@
       <img src="assets/image/memcord_1024.png" width="256">
     </td>
     <td>
-      <h3>MEMCORD v2.3.0 (mcp server)</h3>
+      <h3>MEMCORD v2.3.1 (mcp server)</h3>
       <p>
         This privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control.
       </p>
@@ -31,18 +31,37 @@ Transform your Claude conversations into a searchable, organized knowledge base 
 * **🎯 Effortless Organization** - Smart tags and folders that organize themselves around your workflow
 * **🔗 Intelligent Merging** - Automatically combines related conversations while eliminating duplicates
 
-## 🆕 What's new in v2.3.0
+## ⚠️ Emergency Backup Fix (EBF)
 
-- ✅ Enhanced Security: Built-in protection that checks inputs, limits misuse, strengthens defenses, and handles errors safely
+### Issue:
 
-- ✅ High Speed: Uses 42% fewer tokens, loads slots 20x faster, and makes searches 7x quicker thanks to smart caching that hits 80% of the time—keeping response times under a millisecond.
+**Critical Data Loss Problem**: Running `uv pip install -e .` was causing permanent deletion of ALL memory slots without warning or backup, resulting in complete loss of user's project history and session data.
 
-- ✅ Better Documentation: Clearer documentation, intelligent default settings that adapt to your preferences, live progress tracking, and 4 new tools to monitor the system.
+### Data Protection Fix:
 
-  - ```memcord_status``` - System health checks and current status indicators
-  - ```memcord_metrics``` - Performance metrics display and monitoring
-  - ```memcord_logs``` - Operation history and system logs access
-  - ```memcord_diagnostics``` - Comprehensive diagnostic tools and system analysis
+#### **1. Enhanced Installation Script (`install.sh`)**
+- Automatic data protection during installation
+- Pre-installation data detection and backup creation
+- Installation blocks if backup creation fails
+
+#### **2. Data Protection Script (`utilities/protect_data.py`)**
+- **Purpose**: Automatic detection and backup of existing memory data (used by `install.sh`)
+- **Features**:
+  - Detects existing memory slots before installation
+  - Creates timestamped emergency backups with microsecond precision
+  - Verifies backup integrity (100% data preservation)
+  - Provides clear recovery instructions
+  - refer to [Data Protection Guide](docs/data-protection-guide.md) for details
+
+#### **Installation Testing:**
+```bash
+# Test Results: uv pip install -e . command
+📊 Pre-installation: 8 memory slots (5.3 MB)
+🛡️  Emergency backup created successfully
+⚙️  Installation completed: memcord package updated
+📊 Post-installation: 8 memory slots (5.3 MB) - NO DATA LOSS
+✅ Backup verification: 100% data integrity preserved
+```
 
 ## 🚀 Quick Start
 
