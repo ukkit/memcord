@@ -13,6 +13,33 @@ cd memcord
 MEMCORD_PATH=$(pwd)
 echo "📍 Installation path: $MEMCORD_PATH"
 
+# Data protection check
+echo "🛡️  Checking for existing memory data..."
+if [ -d "memory_slots" ] && [ "$(ls -A memory_slots 2>/dev/null)" ]; then
+    echo "⚠️  EXISTING MEMORY DATA DETECTED!"
+    echo "📊 Running data protection script..."
+
+    if [ -f "utilities/protect_data.py" ]; then
+        python3 utilities/protect_data.py --force
+        if [ $? -ne 0 ]; then
+            echo "❌ Data protection failed - installation aborted!"
+            exit 1
+        fi
+    else
+        echo "🚨 Data protection script not found!"
+        echo "⚠️  Manual backup recommended:"
+        echo "   cp -r memory_slots ~/backup_memory_slots_$(date +%Y%m%d)"
+        read -p "Continue anyway? [y/N]: " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Installation cancelled for data safety."
+            exit 1
+        fi
+    fi
+else
+    echo "✅ No existing memory data found - proceeding safely."
+fi
+
 # Create and activate virtual environment
 echo "🐍 Setting up Python virtual environment..."
 uv venv
