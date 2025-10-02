@@ -14,13 +14,11 @@ import argparse
 import json
 import shutil
 import sys
-import time
-from pathlib import Path
 from datetime import datetime
-from typing import Tuple, List, Dict, Any
+from pathlib import Path
 
 
-def detect_memory_data(memory_dir: str = "memory_slots") -> Tuple[bool, int, int, List[str]]:
+def detect_memory_data(memory_dir: str = "memory_slots") -> tuple[bool, int, int, list[str]]:
     """Detect existing memory data and return statistics.
 
     Returns:
@@ -37,7 +35,7 @@ def detect_memory_data(memory_dir: str = "memory_slots") -> Tuple[bool, int, int
     slot_names = [f.stem for f in slot_files]
 
     total_size = 0
-    for file_path in memory_path.rglob('*'):
+    for file_path in memory_path.rglob("*"):
         if file_path.is_file():
             total_size += file_path.stat().st_size
 
@@ -70,17 +68,17 @@ def create_emergency_backup(memory_dir: str = "memory_slots", backup_dir: str = 
         "source_path": str(memory_path.absolute()),
         "backup_path": str(target_backup.absolute()),
         "trigger": "pre_installation_protection",
-        "memcord_version": "unknown"
+        "memcord_version": "unknown",
     }
 
     metadata_file = target_backup / "backup_metadata.json"
-    with open(metadata_file, 'w') as f:
+    with open(metadata_file, "w") as f:
         json.dump(metadata, f, indent=2)
 
     return str(target_backup)
 
 
-def display_warning(slot_count: int, total_size: int, slot_names: List[str]):
+def display_warning(slot_count: int, total_size: int, slot_names: list[str]):
     """Display data loss warning to user."""
     size_mb = total_size / (1024 * 1024)
 
@@ -88,7 +86,7 @@ def display_warning(slot_count: int, total_size: int, slot_names: List[str]):
     print("🚨 CRITICAL DATA LOSS WARNING 🚨")
     print("🚨" * 50)
     print()
-    print(f"EXISTING MEMORY DATA DETECTED:")
+    print("EXISTING MEMORY DATA DETECTED:")
     print(f"  • {slot_count} memory slots found")
     print(f"  • Total size: {size_mb:.1f} MB")
     print(f"  • Slots: {', '.join(slot_names[:10])}")
@@ -140,16 +138,13 @@ def display_recovery_instructions(backup_path: str):
 
 def main():
     parser = argparse.ArgumentParser(description="Protect memcord data before installation")
-    parser.add_argument("--backup-only", action="store_true",
-                       help="Only create backup without warnings")
-    parser.add_argument("--check-only", action="store_true",
-                       help="Only check for data without creating backup")
-    parser.add_argument("--memory-dir", default="memory_slots",
-                       help="Memory slots directory (default: memory_slots)")
-    parser.add_argument("--backup-dir", default="emergency_backups",
-                       help="Backup directory (default: emergency_backups)")
-    parser.add_argument("--force", action="store_true",
-                       help="Force backup creation without user confirmation")
+    parser.add_argument("--backup-only", action="store_true", help="Only create backup without warnings")
+    parser.add_argument("--check-only", action="store_true", help="Only check for data without creating backup")
+    parser.add_argument("--memory-dir", default="memory_slots", help="Memory slots directory (default: memory_slots)")
+    parser.add_argument(
+        "--backup-dir", default="emergency_backups", help="Backup directory (default: emergency_backups)"
+    )
+    parser.add_argument("--force", action="store_true", help="Force backup creation without user confirmation")
 
     args = parser.parse_args()
 
@@ -162,7 +157,7 @@ def main():
         return 0
 
     if args.check_only:
-        print(f"📊 Found {slot_count} memory slots ({total_size / (1024*1024):.1f} MB)")
+        print(f"📊 Found {slot_count} memory slots ({total_size / (1024 * 1024):.1f} MB)")
         print(f"📂 Location: {Path(args.memory_dir).absolute()}")
         print("⚠️  Data protection recommended before installation!")
         return 0
@@ -177,13 +172,13 @@ def main():
         print("Do you want to create an automatic backup now? (recommended)")
         while True:
             choice = input("Enter [y]es, [n]o, or [c]ancel installation: ").lower().strip()
-            if choice in ['y', 'yes']:
+            if choice in ["y", "yes"]:
                 break
-            elif choice in ['n', 'no']:
+            elif choice in ["n", "no"]:
                 print("⚠️  Proceeding without backup - data loss risk remains!")
                 print("🔧 Consider using memcord_export or memcord_archive tools instead.")
                 return 1
-            elif choice in ['c', 'cancel']:
+            elif choice in ["c", "cancel"]:
                 print("✋ Installation cancelled - your data is safe.")
                 print("💡 Create backups when ready, then retry installation.")
                 return 2
@@ -194,7 +189,7 @@ def main():
     print("🛡️  Creating emergency backup...")
     try:
         backup_path = create_emergency_backup(args.memory_dir, args.backup_dir)
-        print(f"✅ Backup created successfully!")
+        print("✅ Backup created successfully!")
         print(f"📂 Backup location: {backup_path}")
         print()
 
