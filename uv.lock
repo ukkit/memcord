@@ -695,6 +695,7 @@ dev = [
     { name = "pytest-benchmark" },
     { name = "pytest-cov" },
     { name = "pytest-mock" },
+    { name = "ruff" },
     { name = "selenium" },
 ]
 
@@ -733,6 +734,7 @@ dev = [
     { name = "pytest-benchmark", specifier = ">=5.1.0" },
     { name = "pytest-cov", specifier = ">=6.2.1" },
     { name = "pytest-mock", specifier = ">=3.14.1" },
+    { name = "ruff", specifier = ">=0.12.0" },
     { name = "selenium", specifier = ">=4.34.0" },
 ]
 
