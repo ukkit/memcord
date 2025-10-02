@@ -2105,7 +2105,7 @@ class ChatMemoryServer:
             include_details = arguments.get("include_details", False)
             
             # Get system status
-            status = self.status_monitor.get_system_status()
+            status = await self.status_monitor.get_system_status()
             
             response = [
                 f"🏥 System Status: {status['overall_status'].upper()}",
@@ -2328,7 +2328,7 @@ class ChatMemoryServer:
             
             if check_type == "health":
                 # Run health checks
-                health_checks = self.status_monitor.diagnostic_tool.run_health_checks()
+                health_checks = await self.status_monitor.diagnostic_tool.run_health_checks()
                 
                 response = [
                     "🏥 System Health Diagnostics",
@@ -2395,7 +2395,7 @@ class ChatMemoryServer:
             
             elif check_type == "full_report":
                 # Generate comprehensive report
-                report = self.status_monitor.generate_full_report()
+                report = await self.status_monitor.generate_full_report()
                 
                 response = [
                     "📋 Comprehensive System Report",
