@@ -401,34 +401,34 @@ class DiagnosticTool:
     def __init__(self, storage_manager=None):
         self.storage_manager = storage_manager
     
-    def run_health_checks(self) -> List[HealthStatus]:
+    async def run_health_checks(self) -> List[HealthStatus]:
         """Run comprehensive health checks."""
         checks = []
-        
+
         # Storage system health
-        checks.append(self._check_storage_health())
-        
-        # Memory system health  
+        checks.append(await self._check_storage_health())
+
+        # Memory system health
         checks.append(self._check_memory_health())
-        
+
         # File system health
         checks.append(self._check_filesystem_health())
-        
+
         # Python environment health
         checks.append(self._check_python_environment())
-        
+
         return checks
     
-    def _check_storage_health(self) -> HealthStatus:
+    async def _check_storage_health(self) -> HealthStatus:
         """Check storage system health."""
         start_time = time.time()
-        
+
         try:
             if self.storage_manager:
                 # Try to list memory slots
-                slots = self.storage_manager.list_memory_slots()
+                slots = await self.storage_manager.list_memory_slots()
                 response_time = (time.time() - start_time) * 1000
-                
+
                 return HealthStatus(
                     service="storage",
                     status="healthy",
@@ -657,13 +657,14 @@ class DiagnosticTool:
         
         return analysis
     
-    def generate_system_report(self, metrics_collector: MetricsCollector,
+    async def generate_system_report(self, metrics_collector: MetricsCollector,
                               operation_logger: OperationLogger,
                               resource_monitor: ResourceMonitor) -> Dict[str, Any]:
         """Generate comprehensive system status report."""
+        health_checks = await self.run_health_checks()
         report = {
             "timestamp": datetime.now().isoformat(),
-            "health_checks": [asdict(check) for check in self.run_health_checks()],
+            "health_checks": [asdict(check) for check in health_checks],
             "performance_analysis": self.analyze_performance_issues(metrics_collector, operation_logger),
             "operation_stats": operation_logger.get_operation_stats(),
             "resource_usage": asdict(resource_monitor.get_current_resources()),
@@ -704,10 +705,10 @@ class StatusMonitoringSystem:
         """Shutdown monitoring system."""
         self.resource_monitor.stop_monitoring()
     
-    def get_system_status(self) -> Dict[str, Any]:
+    async def get_system_status(self) -> Dict[str, Any]:
         """Get current system status overview."""
-        health_checks = self.diagnostic_tool.run_health_checks()
-        
+        health_checks = await self.diagnostic_tool.run_health_checks()
+
         # Overall system health
         health_statuses = [check.status for check in health_checks]
         if "unhealthy" in health_statuses:
@@ -716,7 +717,7 @@ class StatusMonitoringSystem:
             overall_status = "degraded"
         else:
             overall_status = "healthy"
-        
+
         return {
             "overall_status": overall_status,
             "timestamp": datetime.now().isoformat(),
@@ -763,9 +764,9 @@ class StatusMonitoringSystem:
         history = self.resource_monitor.get_resource_history(hours)
         return [asdict(resource) for resource in history]
     
-    def generate_full_report(self) -> Dict[str, Any]:
+    async def generate_full_report(self) -> Dict[str, Any]:
         """Generate comprehensive system report."""
-        return self.diagnostic_tool.generate_system_report(
+        return await self.diagnostic_tool.generate_system_report(
             self.metrics_collector,
             self.operation_logger,
             self.resource_monitor
