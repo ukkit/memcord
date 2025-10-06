@@ -1,0 +1,11 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, fix-storage-health-coroutine-error ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  checks:
+    uses: ./.github/workflows/shared.yml
