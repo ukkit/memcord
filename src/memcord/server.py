@@ -29,14 +29,10 @@ from .errors import (
     MemcordError,
     OperationTimeoutError,
 )
-from .importer import ContentImporter
-from .merger import MemorySlotMerger
 from .models import SearchQuery
-from .query import SimpleQueryProcessor
 from .security import SecurityMiddleware
 from .status_monitoring import StatusMonitoringSystem
 from .storage import StorageManager
-from .summarizer import TextSummarizer
 
 
 def with_timeout_check(operation_id_key: str = "operation_id"):
@@ -66,14 +62,30 @@ def with_timeout_check(operation_id_key: str = "operation_id"):
 class ChatMemoryServer:
     """MCP server for chat memory management."""
 
+    # Error message constants (eliminate duplication)
+    ERROR_NO_SLOT_SELECTED = "Error: No memory slot selected. Use 'memname' first."
+    ERROR_EMPTY_CHAT_TEXT = "Error: Chat text cannot be empty"
+    ERROR_EMPTY_SLOT_NAME = "Error: Slot name cannot be empty"
+    ERROR_EMPTY_QUERY = "Error: Search query cannot be empty"
+    ERROR_EMPTY_QUESTION = "Error: Question cannot be empty"
+    ERROR_EMPTY_SOURCE = "Error: Source cannot be empty"
+    WARNING_ZERO_MODE = (
+        "⚠️ Zero mode active - content NOT saved.\n\n"
+        "💡 To save this content:\n"
+        "1. Use 'memcord_name [slot_name]' to select a memory slot\n"
+        "2. Then retry your save command"
+    )
+    WARNING_ZERO_MODE_PROGRESS = (
+        "⚠️ Zero mode active - progress NOT saved.\n\n"
+        "💡 To save this progress:\n"
+        "1. Use 'memcord_name [slot_name]' to select a memory slot\n"
+        "2. Then retry your save progress command"
+    )
+
     def __init__(
         self, memory_dir: str = "memory_slots", shared_dir: str = "shared_memories", enable_advanced_tools: bool = None
     ):
         self.storage = StorageManager(memory_dir, shared_dir)
-        self.summarizer = TextSummarizer()
-        self.query_processor = SimpleQueryProcessor(self.storage._search_engine)
-        self.importer = ContentImporter()
-        self.merger = MemorySlotMerger()
         self.app = Server("chat-memory")
 
         # Security and error handling
@@ -91,7 +103,48 @@ class ChatMemoryServer:
         # Status monitoring system
         self.status_monitor = StatusMonitoringSystem(storage_manager=self.storage, data_dir=memory_dir)
 
+        # Tool definition cache for performance
+        self._tool_cache: list[Tool] | None = None
+
+        # Lazy-loaded optional dependencies (initialized on first use)
+        self._summarizer = None
+        self._query_processor = None
+        self._importer = None
+        self._merger = None
+
         self._setup_handlers()
+
+    @property
+    def summarizer(self):
+        """Lazy-loaded TextSummarizer instance."""
+        if self._summarizer is None:
+            from .summarizer import TextSummarizer
+            self._summarizer = TextSummarizer()
+        return self._summarizer
+
+    @property
+    def query_processor(self):
+        """Lazy-loaded SimpleQueryProcessor instance."""
+        if self._query_processor is None:
+            from .query import SimpleQueryProcessor
+            self._query_processor = SimpleQueryProcessor(self.storage._search_engine)
+        return self._query_processor
+
+    @property
+    def importer(self):
+        """Lazy-loaded ContentImporter instance."""
+        if self._importer is None:
+            from .importer import ContentImporter
+            self._importer = ContentImporter()
+        return self._importer
+
+    @property
+    def merger(self):
+        """Lazy-loaded MemorySlotMerger instance."""
+        if self._merger is None:
+            from .merger import MemorySlotMerger
+            self._merger = MemorySlotMerger()
+        return self._merger
 
     async def call_tool_direct(self, name: str, arguments: dict[str, Any]) -> Sequence[TextContent]:
         """Direct tool calling method for testing purposes."""
@@ -178,10 +231,12 @@ class ChatMemoryServer:
 
     async def list_tools_direct(self) -> list[Tool]:
         """Direct tools listing method for testing purposes."""
-        tools = self._get_basic_tools()
-        if self.enable_advanced_tools:
-            tools.extend(self._get_advanced_tools())
-        return tools
+        if self._tool_cache is None:
+            tools = self._get_basic_tools()
+            if self.enable_advanced_tools:
+                tools.extend(self._get_advanced_tools())
+            self._tool_cache = tools
+        return self._tool_cache
 
     async def list_resources_direct(self) -> list[Resource]:
         """Direct resources listing method for testing purposes."""
@@ -725,10 +780,12 @@ class ChatMemoryServer:
 
             Tools are categorized as basic (always available) and advanced (configurable).
             """
-            tools = self._get_basic_tools()
-            if self.enable_advanced_tools:
-                tools.extend(self._get_advanced_tools())
-            return tools
+            if self._tool_cache is None:
+                tools = self._get_basic_tools()
+                if self.enable_advanced_tools:
+                    tools.extend(self._get_advanced_tools())
+                self._tool_cache = tools
+            return self._tool_cache
 
         @self.app.call_tool()
         async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextContent]:
@@ -846,8 +903,9 @@ class ChatMemoryServer:
             except Exception as e:
                 raise ValueError(f"Error reading resource '{uri}': {str(e)}") from e
 
+    @functools.lru_cache(maxsize=8)
     def _get_mime_type(self, format: str) -> str:
-        """Get MIME type for format."""
+        """Get MIME type for format (cached for performance)."""
         mime_types = {"md": "text/markdown", "txt": "text/plain", "json": "application/json"}
         return mime_types.get(format, "text/plain")
 
@@ -936,22 +994,14 @@ class ChatMemoryServer:
         slot_name = arguments.get("slot_name") or self.storage.get_current_slot()
 
         if not slot_name:
-            return [TextContent(type="text", text="Error: No memory slot selected. Use 'memname' first.")]
+            return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
 
         # Check for zero mode
         if self.storage._state.is_zero_mode():
-            return [
-                TextContent(
-                    type="text",
-                    text="⚠️ Zero mode active - content NOT saved.\n\n"
-                    "💡 To save this content:\n"
-                    "1. Use 'memcord_name [slot_name]' to select a memory slot\n"
-                    "2. Then retry your save command",
-                )
-            ]
+            return [TextContent(type="text", text=self.WARNING_ZERO_MODE)]
 
         if not chat_text.strip():
-            return [TextContent(type="text", text="Error: Chat text cannot be empty")]
+            return [TextContent(type="text", text=self.ERROR_EMPTY_CHAT_TEXT)]
 
         entry = await self.storage.save_memory(slot_name, chat_text.strip())
 
@@ -970,7 +1020,7 @@ class ChatMemoryServer:
         slot_name = arguments.get("slot_name") or self.storage.get_current_slot()
 
         if not slot_name:
-            return [TextContent(type="text", text="Error: No memory slot selected. Use 'memname' first.")]
+            return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
 
         slot = await self.storage.read_memory(slot_name)
         if not slot:
@@ -1011,22 +1061,14 @@ class ChatMemoryServer:
         compression_ratio = arguments.get("compression_ratio", 0.15)
 
         if not slot_name:
-            return [TextContent(type="text", text="Error: No memory slot selected. Use 'memname' first.")]
+            return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
 
         # Check for zero mode
         if self.storage._state.is_zero_mode():
-            return [
-                TextContent(
-                    type="text",
-                    text="⚠️ Zero mode active - progress NOT saved.\n\n"
-                    "💡 To save this progress:\n"
-                    "1. Use 'memcord_name [slot_name]' to select a memory slot\n"
-                    "2. Then retry your save progress command",
-                )
-            ]
+            return [TextContent(type="text", text=self.WARNING_ZERO_MODE_PROGRESS)]
 
         if not chat_text.strip():
-            return [TextContent(type="text", text="Error: Chat text cannot be empty")]
+            return [TextContent(type="text", text=self.ERROR_EMPTY_CHAT_TEXT)]
 
         # Generate summary
         summary = self.summarizer.summarize(chat_text.strip(), compression_ratio)
@@ -1380,7 +1422,7 @@ class ChatMemoryServer:
         tags = arguments.get("tags", [])
 
         if action in ["add", "remove"] and not slot_name:
-            return [TextContent(type="text", text="Error: No memory slot selected. Use 'memname' first.")]
+            return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
 
         try:
             if action == "add":
@@ -1450,7 +1492,7 @@ class ChatMemoryServer:
         if action in ["set", "remove"] and not slot_name:
             slot_name = self.storage.get_current_slot()
             if not slot_name:
-                return [TextContent(type="text", text="Error: No memory slot selected. Use 'memname' first.")]
+                return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
 
         try:
             if action == "set":
@@ -1517,7 +1559,7 @@ class ChatMemoryServer:
             return [TextContent(type="text", text="Error: Source cannot be empty")]
 
         if not slot_name:
-            return [TextContent(type="text", text="Error: No memory slot selected. Use 'memname' first.")]
+            return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
 
         try:
             # Import content using the importer

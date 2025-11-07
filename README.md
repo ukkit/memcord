@@ -4,7 +4,7 @@
       <img src="assets/image/memcord_1024.png" width="256">
     </td>
     <td>
-      <h3>MEMCORD v2.3.2 (mcp server)</h3>
+      <h3>MEMCORD v2.3.3 (mcp server)</h3>
       <p>
         This privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control.
       </p>
@@ -31,23 +31,16 @@ Transform your Claude conversations into a searchable, organized knowledge base 
 * **🎯 Effortless Organization** - Smart tags and folders that organize themselves around your workflow
 * **🔗 Intelligent Merging** - Automatically combines related conversations while eliminating duplicates
 
-## What's new in v2.3.2
+## What's new in v2.3.3
 
-### Issue:
+ ```text
+Optimizations to improve speed, reduce startup time, and improve code maintainability without breaking changes:
 
-Storage health reports as UNHEALTHY due to async/await issue.
-
-### Fix:
-
-Updated methods to async that were missed earliers
-
-```bash
-  - DiagnosticTool.run_health_checks()
-  - DiagnosticTool._check_storage_health()
-  - DiagnosticTool.generate_system_report()
-  - StatusMonitoringSystem.get_system_status()
-  - StatusMonitoringSystem.generate_full_report()
-```
+  - Tool definition caching to eliminate redundant list_tools() calls
+  - Lazy loading for heavy dependencies (TextSummarizer, SimpleQueryProcessor, ContentImporter, MemorySlotMerger) via @property decorators for faster startup
+  - Error message constants to eliminate 30+ duplicate string literals and improve maintainability
+  - LRU cache (@functools.lru_cache) to _get_mime_type() for faster repeated lookups
+  ```
 
 ## 🚀 Quick Start
 
