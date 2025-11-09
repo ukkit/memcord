@@ -104,6 +104,9 @@ class StorageManager:
         self._efficiency_initialized = False
         self._memory_management_initialized = False
 
+        # Track file modification times for search index staleness detection
+        self._index_mtime_snapshot: dict[str, float] = {}
+
     async def _ensure_cache_initialized(self):
         """Initialize cache manager if not already initialized."""
         if self.enable_caching and self._cache_manager and not self._cache_initialized:
@@ -236,6 +239,12 @@ class StorageManager:
             backup_path = slot_path.with_suffix(".json.bak")
             if backup_path.exists():
                 await aiofiles.os.remove(str(backup_path))
+
+            # Update mtime snapshot after successful save
+            try:
+                self._index_mtime_snapshot[slot.slot_name] = slot_path.stat().st_mtime
+            except Exception:
+                pass  # Snapshot update is best-effort
 
             # Update cache with new slot data
             if self._cache_manager:
@@ -546,6 +555,53 @@ class StorageManager:
 
         return json.dumps(export_data, indent=2, ensure_ascii=False)
 
+    async def _is_search_index_stale(self) -> bool:
+        """Check if search index needs refresh due to file modifications.
+
+        Returns True if any slot file has been added, modified, or deleted since
+        the last index snapshot.
+        """
+        try:
+            current_files = {}
+            for slot_file in self.memory_dir.glob("*.json"):
+                slot_name = slot_file.stem
+                try:
+                    current_files[slot_name] = slot_file.stat().st_mtime
+                except (OSError, FileNotFoundError):
+                    # File disappeared during iteration
+                    return True
+
+            # Check for new or modified files
+            for slot_name, mtime in current_files.items():
+                if slot_name not in self._index_mtime_snapshot:
+                    return True  # New file
+                if mtime > self._index_mtime_snapshot[slot_name]:
+                    return True  # Modified file
+
+            # Check for deleted files
+            for slot_name in self._index_mtime_snapshot:
+                if slot_name not in current_files:
+                    return True  # Deleted file
+
+            return False  # Index is fresh
+
+        except Exception:
+            # On any error, consider index stale to be safe
+            return True
+
+    def _update_mtime_snapshot(self) -> None:
+        """Update the modification time snapshot after indexing."""
+        self._index_mtime_snapshot.clear()
+        try:
+            for slot_file in self.memory_dir.glob("*.json"):
+                slot_name = slot_file.stem
+                try:
+                    self._index_mtime_snapshot[slot_name] = slot_file.stat().st_mtime
+                except (OSError, FileNotFoundError):
+                    pass  # Skip files that disappeared
+        except Exception:
+            pass  # Snapshot update is best-effort
+
     async def _initialize_search_index(self) -> None:
         """Initialize search index with existing memory slots."""
         try:
@@ -561,12 +617,26 @@ class StorageManager:
             print(f"Warning: Error initializing search index: {e}")
         finally:
             self._search_initialized = True
+            self._update_mtime_snapshot()  # Snapshot current state
 
     async def search_memory(self, query: SearchQuery) -> list[SearchResult]:
         """Search across all memory slots with caching support."""
         await self._ensure_cache_initialized()
 
-        # Try cache first if enabled
+        # Check if search index needs refresh due to file modifications
+        if not self._search_initialized or await self._is_search_index_stale():
+            await self._initialize_search_index()
+            self._search_initialized = True
+
+            # Invalidate search result cache when index refreshes
+            if self._cache_manager:
+                try:
+                    # Clear all cached search results since index changed
+                    await self._cache_manager.invalidate_pattern("search:*")
+                except Exception:
+                    pass  # Cache invalidation is best-effort
+
+        # Try cache after staleness check
         if self._cache_manager:
             cache_key = generate_search_cache_key(query)
             cached_results, hit = await self._cache_manager.get(cache_key, CacheLevel.DISK)
@@ -577,11 +647,6 @@ class StorageManager:
                 except Exception:
                     # Cache corruption, fall back to fresh search
                     await self._cache_manager.remove(cache_key)
-
-        # Initialize search index if needed
-        if not self._search_initialized:
-            await self._initialize_search_index()
-            self._search_initialized = True
 
         # Perform search
         results = self._search_engine.search(query)
