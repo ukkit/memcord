@@ -119,6 +119,7 @@ class ChatMemoryServer:
         """Lazy-loaded TextSummarizer instance."""
         if self._summarizer is None:
             from .summarizer import TextSummarizer
+
             self._summarizer = TextSummarizer()
         return self._summarizer
 
@@ -127,6 +128,7 @@ class ChatMemoryServer:
         """Lazy-loaded SimpleQueryProcessor instance."""
         if self._query_processor is None:
             from .query import SimpleQueryProcessor
+
             self._query_processor = SimpleQueryProcessor(self.storage._search_engine)
         return self._query_processor
 
@@ -135,6 +137,7 @@ class ChatMemoryServer:
         """Lazy-loaded ContentImporter instance."""
         if self._importer is None:
             from .importer import ContentImporter
+
             self._importer = ContentImporter()
         return self._importer
 
@@ -143,6 +146,7 @@ class ChatMemoryServer:
         """Lazy-loaded MemorySlotMerger instance."""
         if self._merger is None:
             from .merger import MemorySlotMerger
+
             self._merger = MemorySlotMerger()
         return self._merger
 
@@ -903,9 +907,9 @@ class ChatMemoryServer:
             except Exception as e:
                 raise ValueError(f"Error reading resource '{uri}': {str(e)}") from e
 
-    @functools.lru_cache(maxsize=8)
-    def _get_mime_type(self, format: str) -> str:
-        """Get MIME type for format (cached for performance)."""
+    @staticmethod
+    def _get_mime_type(format: str) -> str:
+        """Get MIME type for format."""
         mime_types = {"md": "text/markdown", "txt": "text/plain", "json": "application/json"}
         return mime_types.get(format, "text/plain")
 

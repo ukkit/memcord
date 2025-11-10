@@ -20,6 +20,7 @@ dependencies = [
     "requests>=2.31.0",
     "beautifulsoup4>=4.12.0",
     "pdfplumber>=0.10.0",
+    "pypdfium2>=5.0.0",  # Explicitly pin to avoid yanked 4.30.1
     "pandas>=2.0.0",
     "trafilatura>=1.8.0",
     "python-magic>=0.4.27",

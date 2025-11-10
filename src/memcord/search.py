@@ -139,7 +139,8 @@ class SearchIndex:
         # Extract words, removing punctuation
         words = re.findall(r"\b\w+\b", text)
 
-        # Filter out very short words and common stop words
+        # Filter out single-letter words and common stop words
+        # Changed from len > 2 to len > 1 to support common acronyms (CI, CD, UI, UX, DB, etc.)
         stop_words = {
             "the",
             "a",
@@ -174,7 +175,7 @@ class SearchIndex:
             "should",
         }
 
-        return [word for word in words if len(word) > 2 and word not in stop_words]
+        return [word for word in words if len(word) > 1 and word not in stop_words]
 
 
 class SearchEngine:
