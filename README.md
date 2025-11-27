@@ -4,7 +4,7 @@
       <img src="assets/image/memcord_1024.png" width="256">
     </td>
     <td>
-      <h3>MEMCORD v2.3.3 (mcp server)</h3>
+      <h3>MEMCORD v2.3.4 (mcp server)</h3>
       <p>
         This privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control.
       </p>
@@ -31,16 +31,14 @@ Transform your Claude conversations into a searchable, organized knowledge base 
 * **🎯 Effortless Organization** - Smart tags and folders that organize themselves around your workflow
 * **🔗 Intelligent Merging** - Automatically combines related conversations while eliminating duplicates
 
-## What's new in v2.3.3
+## What's new in v2.3.4
 
  ```text
-Optimizations to improve speed, reduce startup time, and improve code maintainability without breaking changes:
+Updated MCP SDK & MCP Protocol to latest:
 
-  - Tool definition caching to eliminate redundant list_tools() calls
-  - Lazy loading for heavy dependencies (TextSummarizer, SimpleQueryProcessor, ContentImporter, MemorySlotMerger) via @property decorators for faster startup
-  - Error message constants to eliminate 30+ duplicate string literals and improve maintainability
-  - LRU cache (@functools.lru_cache) to _get_mime_type() for faster repeated lookups
-  ```
+  - MCP SDK: 1.22.0 (released November 20, 2025)
+  - MCP Protocol: 2025-11-25 (released November 25, 2025)
+```
 
 ## 🚀 Quick Start
 
@@ -52,6 +50,13 @@ This will:
 - Download and setup **memcord**
 - Set Up Python Virtual Environment using uv
 - Update claude_desktop_config.json & README.md with Installation Path
+
+### Manually update existing setup
+
+```bash
+uv pip install -e .
+uv lock
+```
 
 ### Claude Desktop/VSCode
 

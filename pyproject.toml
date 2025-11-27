@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "memcord"
-version = "2.3.3"
+version = "2.3.4"
 description = "privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control."
 authors = [
     {name = "MemCord", email = "memcord@ultrafastidio.us"}
@@ -13,7 +13,7 @@ license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "mcp>=0.3.0",
+    "mcp>=1.22.0",
     "nltk>=3.8",
     "aiofiles>=23.0",
     "pydantic>=2.0.0",
