@@ -8,6 +8,7 @@ TESTING_METHODOLOGY_VALIDATION.md
 PR-DESCRIPTION*.md
 PR-READINESS*.md
 .claude/
+tmpclaude-*
 
 # Python
 __pycache__/

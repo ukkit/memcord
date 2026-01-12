@@ -1,0 +1,17 @@
+{
+  "servers": {
+    "memcord": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        ".",
+        "run",
+        "memcord"
+      ],
+      "env": {
+        "PYTHONPATH": "./src",
+        "MEMCORD_ENABLE_ADVANCED": "false"
+      }
+    }
+  }
+}

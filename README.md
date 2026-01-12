@@ -4,7 +4,7 @@
       <img src="assets/image/memcord_1024.png" width="256">
     </td>
     <td>
-      <h3>MEMCORD v2.3.4 (mcp server)</h3>
+      <h3>MEMCORD v2.3.5 (mcp server)</h3>
       <p>
         This privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control.
       </p>
@@ -31,13 +31,17 @@ Transform your Claude conversations into a searchable, organized knowledge base 
 * **🎯 Effortless Organization** - Smart tags and folders that organize themselves around your workflow
 * **🔗 Intelligent Merging** - Automatically combines related conversations while eliminating duplicates
 
-## What's new in v2.3.4
+## What's new in v2.3.5
 
  ```text
-Updated MCP SDK & MCP Protocol to latest:
+Enhanced VSCode and GitHub Copilot Integration:
 
-  - MCP SDK: 1.22.0 (released November 20, 2025)
-  - MCP Protocol: 2025-11-25 (released November 25, 2025)
+  - Added comprehensive VSCode configuration templates (.vscode/mcp.json.example)
+  - Implemented 16 reusable prompt templates for GitHub Copilot workflows
+  - Created automated verification script for VSCode setup validation
+  - Added MCP registry metadata (package.json) for marketplace discovery
+  - Full integration test suite for VSCode/Copilot compatibility
+  - Complete documentation for enterprise deployment, security, and workflows
 ```
 
 ## 🚀 Quick Start
@@ -58,7 +62,7 @@ uv pip install -e .
 uv lock
 ```
 
-### Claude Desktop/VSCode
+### Claude Desktop
 
 ```json
 {
@@ -78,6 +82,65 @@ uv lock
   }
 }
 ```
+
+### VSCode with GitHub Copilot
+
+**Prerequisites:**
+- VSCode 1.102+ (MCP support is GA)
+- GitHub Copilot subscription
+- Organization/Enterprise MCP policy enabled (if applicable)
+
+**Option 1: Workspace Configuration (Recommended)**
+
+Copy the example configuration to your workspace:
+
+```bash
+mkdir -p .vscode
+cp .vscode/mcp.json.example .vscode/mcp.json
+```
+
+Or create `.vscode/mcp.json` manually:
+
+```json
+{
+  "servers": {
+    "memcord": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "${workspaceFolder}",
+        "run",
+        "memcord"
+      ],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      }
+    }
+  }
+}
+```
+
+**Option 2: Global User Configuration**
+
+1. Open Command Palette (Ctrl+Shift+P / Cmd+Shift+P)
+2. Run: `MCP: Open User Configuration`
+3. Add memcord server configuration to `mcp.json`
+
+**Option 3: Source-Controlled Configuration**
+
+Copy root-level configuration (recommended for teams):
+
+```bash
+cp .mcp.json.example .mcp.json
+```
+
+**GitHub Copilot Agent Mode:**
+Once configured, memcord tools are available in Copilot agent mode. Use natural language:
+- "Create a memory slot for this project"
+- "Search my memories for API design decisions"
+- "Query past conversations about authentication"
+
+**[Complete VSCode Setup Guide](docs/vscode-setup.md)** - Detailed instructions for VSCode and GitHub Copilot integration.
 
 ### Claude Code MCP (🧪 BETA)
 

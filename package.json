@@ -1,0 +1,87 @@
+{
+  "name": "memcord",
+  "version": "2.3.5",
+  "description": "Privacy-first, self-hosted MCP server for organizing chat history, summarizing messages, and searching across past conversations with AI",
+  "main": "src/memcord/server.py",
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "memory",
+    "chat-history",
+    "conversation-memory",
+    "copilot",
+    "github-copilot",
+    "vscode",
+    "claude",
+    "ai-memory",
+    "knowledge-management",
+    "privacy-first",
+    "self-hosted",
+    "search",
+    "summarization"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ukkit/memcord.git"
+  },
+  "homepage": "https://github.com/ukkit/memcord",
+  "bugs": {
+    "url": "https://github.com/ukkit/memcord/issues"
+  },
+  "author": {
+    "name": "MemCord",
+    "email": "memcord@ultrafastidio.us"
+  },
+  "license": "MIT",
+  "mcp": {
+    "server": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        ".",
+        "run",
+        "memcord"
+      ],
+      "type": "stdio",
+      "env": {
+        "PYTHONPATH": "./src"
+      }
+    },
+    "tools": [
+      "memcord_name",
+      "memcord_use",
+      "memcord_save",
+      "memcord_save_progress",
+      "memcord_read",
+      "memcord_list",
+      "memcord_search",
+      "memcord_query",
+      "memcord_zero",
+      "memcord_select_entry",
+      "memcord_merge"
+    ],
+    "basicTools": 11,
+    "advancedTools": 19,
+    "features": [
+      "Infinite memory across conversations",
+      "AI-powered auto-summarization",
+      "Natural language search and queries",
+      "Intelligent conversation merging",
+      "Privacy-first local storage",
+      "Timeline navigation",
+      "Tag-based organization",
+      "Multi-format import (PDF, URL, etc)",
+      "Compression and archival",
+      "Team memory sharing"
+    ],
+    "requirements": {
+      "python": ">=3.10",
+      "vscode": ">=1.102"
+    }
+  },
+  "engines": {
+    "python": ">=3.10",
+    "vscode": "^1.102.0"
+  }
+}
