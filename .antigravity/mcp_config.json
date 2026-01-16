@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "memcord": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/absolute/path/to/memcord",
+        "run",
+        "memcord"
+      ],
+      "env": {
+        "PYTHONPATH": "/absolute/path/to/memcord/src",
+        "MEMCORD_ENABLE_ADVANCED": "false"
+      }
+    }
+  }
+}

@@ -802,5 +802,4 @@ tar -czf incident-backup-$(date +%Y%m%d).tar.gz memory_slots/
 ---
 
 **Last Updated:** January 2026
-**Memcord Version:** 2.3.5
 **Audience:** Security Engineers, Compliance Officers, System Administrators

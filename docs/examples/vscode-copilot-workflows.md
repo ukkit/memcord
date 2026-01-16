@@ -640,4 +640,3 @@ All data is stored as readable JSON.
 ---
 
 **Last Updated:** January 2026
-**Memcord Version:** 2.3.5

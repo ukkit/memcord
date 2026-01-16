@@ -681,5 +681,4 @@ Add to `.gitignore`:
 ---
 
 **Last Updated:** January 2026
-**Memcord Version:** 2.3.5
 **VSCode Compatibility:** 1.102+

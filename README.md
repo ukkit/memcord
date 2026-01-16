@@ -4,7 +4,7 @@
       <img src="assets/image/memcord_1024.png" width="256">
     </td>
     <td>
-      <h3>MEMCORD v2.3.5 (mcp server)</h3>
+      <h3>MEMCORD v2.3.6 (mcp server)</h3>
       <p>
         This privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control.
       </p>
@@ -16,6 +16,7 @@
   [![Claude Code](https://img.shields.io/badge/Claude-Code-purple)](https://docs.anthropic.com/claude/docs/claude-code)
   [![Claude Desktop](https://img.shields.io/badge/Claude-Desktop-orange)](https://claude.ai/desktop)
   [![VSCode](https://img.shields.io/badge/Visual_Studio-Code-orange)](https://code.visualstudio.com/)
+  [![Google Antigravity](https://img.shields.io/badge/Google-Antigravity-4285F4)](https://antigravity.google)
   [![Python](https://img.shields.io/badge/Python-3.10+-green)](https://python.org)
   [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
   [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20A-Coffee-white)](https://buymeacoffee.com/ukkit)
@@ -31,17 +32,13 @@ Transform your Claude conversations into a searchable, organized knowledge base 
 * **🎯 Effortless Organization** - Smart tags and folders that organize themselves around your workflow
 * **🔗 Intelligent Merging** - Automatically combines related conversations while eliminating duplicates
 
-## What's new in v2.3.5
+## What's new in v2.3.6
 
  ```text
-Enhanced VSCode and GitHub Copilot Integration:
+Google Antigravity IDE Support:
 
-  - Added comprehensive VSCode configuration templates (.vscode/mcp.json.example)
-  - Implemented 16 reusable prompt templates for GitHub Copilot workflows
-  - Created automated verification script for VSCode setup validation
-  - Added MCP registry metadata (package.json) for marketplace discovery
-  - Full integration test suite for VSCode/Copilot compatibility
-  - Complete documentation for enterprise deployment, security, and workflows
+  - Added Google Antigravity configuration template (.antigravity/mcp_config.json)
+  - Full compatibility with Antigravity's MCP server integration
 ```
 
 ## 🚀 Quick Start
@@ -141,6 +138,36 @@ Once configured, memcord tools are available in Copilot agent mode. Use natural 
 - "Query past conversations about authentication"
 
 **[Complete VSCode Setup Guide](docs/vscode-setup.md)** - Detailed instructions for VSCode and GitHub Copilot integration.
+
+### Google Antigravity IDE
+
+Add memcord to your `~/.gemini/antigravity/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "memcord": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "</path/to/memcord>",
+        "run",
+        "memcord"
+      ],
+      "env": {
+        "PYTHONPATH": "</path/to/memcord>/src",
+        "MEMCORD_ENABLE_ADVANCED": "false"
+      }
+    }
+  }
+}
+```
+
+> **Note:** Antigravity requires absolute paths. Replace `</path/to/memcord>` with your actual installation path.
+
+See `.antigravity/mcp_config.json` for a template.
+
+<img alt="Anti-Gravity screenshot with memcord" src="assets/image/anti-gravity.png">
 
 ### Claude Code MCP (🧪 BETA)
 

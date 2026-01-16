@@ -611,7 +611,7 @@ ecryptfs-mount /secure/classified/memories
 
 set -e
 
-MEMCORD_VERSION="2.3.4"
+MEMCORD_VERSION="2.3.6"
 INSTALL_DIR="/opt/memcord"
 
 echo "Installing memcord $MEMCORD_VERSION..."
@@ -710,5 +710,4 @@ For enterprise deployment assistance, contact:
 ---
 
 **Last Updated:** January 2026
-**Memcord Version:** 2.3.5
 **Target:** Enterprise Administrators
