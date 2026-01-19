@@ -17,8 +17,6 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Optional
-
 
 # Platform detection
 IS_WINDOWS = sys.platform == "win32"
@@ -29,6 +27,7 @@ IS_LINUX = sys.platform.startswith("linux")
 if IS_WINDOWS:
     try:
         import ctypes
+
         kernel32 = ctypes.windll.kernel32
         kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
         COLORS_ENABLED = True
@@ -52,7 +51,7 @@ def get_memcord_path() -> Path:
     return Path(__file__).parent.parent.resolve()
 
 
-def get_claude_desktop_config_path() -> Optional[Path]:
+def get_claude_desktop_config_path() -> Path | None:
     """Get the Claude Desktop config file path for current platform."""
     if IS_MACOS:
         return Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
@@ -67,14 +66,14 @@ def get_claude_desktop_config_path() -> Optional[Path]:
     return None
 
 
-def get_claude_code_config_path() -> Optional[Path]:
+def get_claude_code_config_path() -> Path | None:
     """Get the Claude Code .mcp.json path (project-level)."""
     return get_memcord_path() / ".mcp.json"
 
 
 def load_template(template_path: Path) -> dict:
     """Load a JSON template file."""
-    with open(template_path, "r", encoding="utf-8") as f:
+    with open(template_path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -126,11 +125,11 @@ def merge_mcp_servers(existing: dict, new_servers: dict) -> dict:
 
 def generate_configs(
     memcord_path: Path,
-    force_platform: Optional[str] = None,
+    force_platform: str | None = None,
     install_claude_desktop: bool = True,
     install_claude_code: bool = True,
     dry_run: bool = False,
-    verbose: bool = True
+    verbose: bool = True,
 ) -> bool:
     """Generate all configuration files."""
 
@@ -243,8 +242,8 @@ def generate_configs(
         print(f"\n{'=' * 40}")
         if success:
             print(f"{color('Configuration complete!', 'green')}")
-            print(f"\nNext steps:")
-            print(f"  1. Restart Claude Desktop (if using)")
+            print("\nNext steps:")
+            print("  1. Restart Claude Desktop (if using)")
             print(f"  2. Run: {color('claude mcp list', 'cyan')} to verify Claude Code sees memcord")
             print(f"  3. Test with: {color('/mcp', 'cyan')} command in Claude Code")
         else:
@@ -263,45 +262,22 @@ Examples:
   python scripts/generate-config.py --dry-run           # Preview changes
   python scripts/generate-config.py --platform windows  # Force Windows configs
   python scripts/generate-config.py --install-path /custom/path
-        """
+        """,
     )
 
-    parser.add_argument(
-        "--install-path",
-        type=str,
-        help="Override the memcord installation path"
-    )
+    parser.add_argument("--install-path", type=str, help="Override the memcord installation path")
 
     parser.add_argument(
-        "--platform",
-        choices=["windows", "unix", "auto"],
-        default="auto",
-        help="Force platform (default: auto-detect)"
+        "--platform", choices=["windows", "unix", "auto"], default="auto", help="Force platform (default: auto-detect)"
     )
 
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Show what would be done without making changes"
-    )
+    parser.add_argument("--dry-run", action="store_true", help="Show what would be done without making changes")
 
-    parser.add_argument(
-        "--quiet", "-q",
-        action="store_true",
-        help="Suppress output except errors"
-    )
+    parser.add_argument("--quiet", "-q", action="store_true", help="Suppress output except errors")
 
-    parser.add_argument(
-        "--no-claude-desktop",
-        action="store_true",
-        help="Skip Claude Desktop configuration"
-    )
+    parser.add_argument("--no-claude-desktop", action="store_true", help="Skip Claude Desktop configuration")
 
-    parser.add_argument(
-        "--no-claude-code",
-        action="store_true",
-        help="Skip Claude Code .mcp.json configuration"
-    )
+    parser.add_argument("--no-claude-code", action="store_true", help="Skip Claude Code .mcp.json configuration")
 
     args = parser.parse_args()
 
@@ -328,7 +304,7 @@ Examples:
         install_claude_desktop=not args.no_claude_desktop,
         install_claude_code=not args.no_claude_code,
         dry_run=args.dry_run,
-        verbose=not args.quiet
+        verbose=not args.quiet,
     )
 
     sys.exit(0 if success else 1)

@@ -8,15 +8,11 @@ These tests verify that:
 """
 
 import json
-import os
-import re
 import sys
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
-
 
 # =============================================================================
 # Test install.sh (Bash Installation Script) - 12 tests
@@ -34,7 +30,7 @@ class TestInstallShScript:
     @pytest.fixture
     def script_content(self, script_path):
         """Load the install.sh script content."""
-        with open(script_path, "r", encoding="utf-8") as f:
+        with open(script_path, encoding="utf-8") as f:
             return f.read()
 
     def test_script_exists(self, script_path):
@@ -43,78 +39,63 @@ class TestInstallShScript:
 
     def test_script_has_shebang(self, script_content):
         """Test that install.sh starts with proper bash shebang."""
-        assert script_content.startswith("#!/bin/bash"), \
-            "install.sh should start with #!/bin/bash shebang"
+        assert script_content.startswith("#!/bin/bash"), "install.sh should start with #!/bin/bash shebang"
 
     def test_script_uses_set_e(self, script_content):
         """Test that install.sh uses 'set -e' for error handling."""
-        assert "set -e" in script_content, \
-            "install.sh should use 'set -e' to exit on errors"
+        assert "set -e" in script_content, "install.sh should use 'set -e' to exit on errors"
 
     def test_script_clones_correct_repo(self, script_content):
         """Test that install.sh clones from the correct GitHub repository."""
-        assert "git clone https://github.com/ukkit/memcord.git" in script_content, \
+        assert "git clone https://github.com/ukkit/memcord.git" in script_content, (
             "install.sh should clone from correct GitHub URL"
+        )
 
     def test_script_checks_existing_data(self, script_content):
         """Test that install.sh checks for existing memory_slots data."""
-        assert "memory_slots" in script_content, \
-            "install.sh should check for existing memory_slots directory"
-        assert "EXISTING MEMORY DATA DETECTED" in script_content, \
-            "install.sh should warn about existing data"
+        assert "memory_slots" in script_content, "install.sh should check for existing memory_slots directory"
+        assert "EXISTING MEMORY DATA DETECTED" in script_content, "install.sh should warn about existing data"
 
     def test_script_runs_data_protection(self, script_content):
         """Test that install.sh runs data protection script when needed."""
-        assert "utilities/protect_data.py" in script_content, \
-            "install.sh should reference data protection script"
-        assert "python3 utilities/protect_data.py" in script_content, \
+        assert "utilities/protect_data.py" in script_content, "install.sh should reference data protection script"
+        assert "python3 utilities/protect_data.py" in script_content, (
             "install.sh should run data protection with python3"
+        )
 
     def test_script_creates_venv(self, script_content):
         """Test that install.sh creates virtual environment with uv."""
-        assert "uv venv" in script_content, \
-            "install.sh should create virtual environment with uv"
-        assert "source .venv/bin/activate" in script_content, \
-            "install.sh should activate the virtual environment"
+        assert "uv venv" in script_content, "install.sh should create virtual environment with uv"
+        assert "source .venv/bin/activate" in script_content, "install.sh should activate the virtual environment"
 
     def test_script_installs_package(self, script_content):
         """Test that install.sh installs the memcord package."""
-        assert "uv pip install -e ." in script_content, \
-            "install.sh should install memcord in editable mode"
+        assert "uv pip install -e ." in script_content, "install.sh should install memcord in editable mode"
 
     def test_script_calls_config_generator(self, script_content):
         """Test that install.sh calls the config generator script."""
-        assert "scripts/generate-config.py" in script_content, \
-            "install.sh should call generate-config.py"
-        assert "--install-path" in script_content, \
-            "install.sh should pass --install-path to config generator"
+        assert "scripts/generate-config.py" in script_content, "install.sh should call generate-config.py"
+        assert "--install-path" in script_content, "install.sh should pass --install-path to config generator"
 
     def test_script_updates_readme(self, script_content):
         """Test that install.sh updates README.md with installation path."""
-        assert "README.md" in script_content, \
-            "install.sh should reference README.md"
-        assert "{{MEMCORD_PATH}}" in script_content, \
-            "install.sh should replace {{MEMCORD_PATH}} placeholder"
+        assert "README.md" in script_content, "install.sh should reference README.md"
+        assert "{{MEMCORD_PATH}}" in script_content, "install.sh should replace {{MEMCORD_PATH}} placeholder"
 
     def test_script_shows_next_steps(self, script_content):
         """Test that install.sh displays next steps after installation."""
-        assert "Next steps:" in script_content, \
-            "install.sh should show next steps"
-        assert "Restart Claude Desktop" in script_content, \
-            "install.sh should mention restarting Claude Desktop"
-        assert "claude mcp list" in script_content, \
-            "install.sh should mention 'claude mcp list' command"
+        assert "Next steps:" in script_content, "install.sh should show next steps"
+        assert "Restart Claude Desktop" in script_content, "install.sh should mention restarting Claude Desktop"
+        assert "claude mcp list" in script_content, "install.sh should mention 'claude mcp list' command"
 
     def test_script_lists_generated_configs(self, script_content):
         """Test that install.sh lists all generated configuration files."""
-        assert ".mcp.json" in script_content, \
-            "install.sh should mention .mcp.json"
-        assert "claude_desktop_config.json" in script_content, \
-            "install.sh should mention claude_desktop_config.json"
-        assert ".vscode/mcp.json" in script_content, \
-            "install.sh should mention .vscode/mcp.json"
-        assert ".antigravity/mcp_config.json" in script_content, \
+        assert ".mcp.json" in script_content, "install.sh should mention .mcp.json"
+        assert "claude_desktop_config.json" in script_content, "install.sh should mention claude_desktop_config.json"
+        assert ".vscode/mcp.json" in script_content, "install.sh should mention .vscode/mcp.json"
+        assert ".antigravity/mcp_config.json" in script_content, (
             "install.sh should mention .antigravity/mcp_config.json"
+        )
 
 
 # =============================================================================
@@ -133,7 +114,7 @@ class TestInstallPs1Script:
     @pytest.fixture
     def script_content(self, script_path):
         """Load the install.ps1 script content."""
-        with open(script_path, "r", encoding="utf-8") as f:
+        with open(script_path, encoding="utf-8") as f:
             return f.read()
 
     def test_script_exists(self, script_path):
@@ -142,79 +123,66 @@ class TestInstallPs1Script:
 
     def test_script_uses_error_action_stop(self, script_content):
         """Test that install.ps1 uses ErrorActionPreference Stop."""
-        assert '$ErrorActionPreference = "Stop"' in script_content, \
+        assert '$ErrorActionPreference = "Stop"' in script_content, (
             "install.ps1 should set ErrorActionPreference to Stop"
+        )
 
     def test_script_clones_correct_repo(self, script_content):
         """Test that install.ps1 clones from the correct GitHub repository."""
-        assert "git clone https://github.com/ukkit/memcord.git" in script_content, \
+        assert "git clone https://github.com/ukkit/memcord.git" in script_content, (
             "install.ps1 should clone from correct GitHub URL"
+        )
 
     def test_script_checks_existing_data(self, script_content):
         """Test that install.ps1 checks for existing memory_slots data."""
-        assert "memory_slots" in script_content, \
-            "install.ps1 should check for existing memory_slots directory"
-        assert "EXISTING MEMORY DATA DETECTED" in script_content, \
-            "install.ps1 should warn about existing data"
+        assert "memory_slots" in script_content, "install.ps1 should check for existing memory_slots directory"
+        assert "EXISTING MEMORY DATA DETECTED" in script_content, "install.ps1 should warn about existing data"
 
     def test_script_runs_data_protection(self, script_content):
         """Test that install.ps1 runs data protection script when needed."""
-        assert "utilities/protect_data.py" in script_content, \
-            "install.ps1 should reference data protection script"
-        assert "python utilities/protect_data.py" in script_content, \
+        assert "utilities/protect_data.py" in script_content, "install.ps1 should reference data protection script"
+        assert "python utilities/protect_data.py" in script_content, (
             "install.ps1 should run data protection with python"
+        )
 
     def test_script_checks_uv_installed(self, script_content):
         """Test that install.ps1 checks if uv is installed."""
-        assert "uv --version" in script_content, \
-            "install.ps1 should check for uv installation"
-        assert "astral.sh/uv/install.ps1" in script_content, \
-            "install.ps1 should install uv if missing"
+        assert "uv --version" in script_content, "install.ps1 should check for uv installation"
+        assert "astral.sh/uv/install.ps1" in script_content, "install.ps1 should install uv if missing"
 
     def test_script_creates_venv(self, script_content):
         """Test that install.ps1 creates virtual environment with uv."""
-        assert "uv venv" in script_content, \
-            "install.ps1 should create virtual environment with uv"
-        assert ".venv\\Scripts\\Activate.ps1" in script_content, \
-            "install.ps1 should activate the virtual environment"
+        assert "uv venv" in script_content, "install.ps1 should create virtual environment with uv"
+        assert ".venv\\Scripts\\Activate.ps1" in script_content, "install.ps1 should activate the virtual environment"
 
     def test_script_installs_package(self, script_content):
         """Test that install.ps1 installs the memcord package."""
-        assert "uv pip install -e ." in script_content, \
-            "install.ps1 should install memcord in editable mode"
+        assert "uv pip install -e ." in script_content, "install.ps1 should install memcord in editable mode"
 
     def test_script_calls_config_generator_with_platform(self, script_content):
         """Test that install.ps1 calls config generator with Windows platform."""
-        assert "scripts/generate-config.py" in script_content, \
-            "install.ps1 should call generate-config.py"
-        assert "--platform windows" in script_content, \
-            "install.ps1 should pass --platform windows to config generator"
+        assert "scripts/generate-config.py" in script_content, "install.ps1 should call generate-config.py"
+        assert "--platform windows" in script_content, "install.ps1 should pass --platform windows to config generator"
 
     def test_script_updates_readme(self, script_content):
         """Test that install.ps1 updates README.md with installation path."""
-        assert "README.md" in script_content, \
-            "install.ps1 should reference README.md"
+        assert "README.md" in script_content, "install.ps1 should reference README.md"
         # PowerShell escapes braces in regex patterns, so check for the escaped version
-        assert "MEMCORD_PATH" in script_content, \
-            "install.ps1 should replace MEMCORD_PATH placeholder"
-        assert "-replace" in script_content, \
-            "install.ps1 should use -replace for substitution"
+        assert "MEMCORD_PATH" in script_content, "install.ps1 should replace MEMCORD_PATH placeholder"
+        assert "-replace" in script_content, "install.ps1 should use -replace for substitution"
 
     def test_script_shows_next_steps(self, script_content):
         """Test that install.ps1 displays next steps after installation."""
-        assert "Next steps:" in script_content, \
-            "install.ps1 should show next steps"
-        assert "Restart Claude Desktop" in script_content, \
-            "install.ps1 should mention restarting Claude Desktop"
-        assert "claude mcp list" in script_content, \
-            "install.ps1 should mention 'claude mcp list' command"
+        assert "Next steps:" in script_content, "install.ps1 should show next steps"
+        assert "Restart Claude Desktop" in script_content, "install.ps1 should mention restarting Claude Desktop"
+        assert "claude mcp list" in script_content, "install.ps1 should mention 'claude mcp list' command"
 
     def test_script_shows_claude_desktop_config_location(self, script_content):
         """Test that install.ps1 shows Claude Desktop config location."""
-        assert "APPDATA" in script_content, \
-            "install.ps1 should reference APPDATA for config location"
-        assert "Claude\\claude_desktop_config.json" in script_content, \
+        assert "APPDATA" in script_content, "install.ps1 should reference APPDATA for config location"
+        assert "Claude\\claude_desktop_config.json" in script_content, (
             "install.ps1 should show Claude Desktop config path"
+        )
 
 
 # =============================================================================
@@ -233,7 +201,7 @@ class TestGenerateConfigScript:
     @pytest.fixture
     def script_content(self, script_path):
         """Load the generate-config.py script content."""
-        with open(script_path, "r", encoding="utf-8") as f:
+        with open(script_path, encoding="utf-8") as f:
             return f.read()
 
     def test_script_exists(self, script_path):
@@ -242,18 +210,17 @@ class TestGenerateConfigScript:
 
     def test_script_has_shebang(self, script_content):
         """Test that generate-config.py has proper Python shebang."""
-        assert script_content.startswith("#!/usr/bin/env python3"), \
+        assert script_content.startswith("#!/usr/bin/env python3"), (
             "generate-config.py should start with #!/usr/bin/env python3"
+        )
 
     def test_script_can_be_imported(self):
         """Test that generate-config.py can be imported as a module."""
         sys.path.insert(0, str(Path("scripts")))
         try:
             import importlib
-            spec = importlib.util.spec_from_file_location(
-                "generate_config",
-                "scripts/generate-config.py"
-            )
+
+            spec = importlib.util.spec_from_file_location("generate_config", "scripts/generate-config.py")
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
 
@@ -269,10 +236,8 @@ class TestGenerateConfigScript:
         sys.path.insert(0, str(Path("scripts")))
         try:
             import importlib.util
-            spec = importlib.util.spec_from_file_location(
-                "generate_config",
-                "scripts/generate-config.py"
-            )
+
+            spec = importlib.util.spec_from_file_location("generate_config", "scripts/generate-config.py")
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
 
@@ -287,10 +252,8 @@ class TestGenerateConfigScript:
         sys.path.insert(0, str(Path("scripts")))
         try:
             import importlib.util
-            spec = importlib.util.spec_from_file_location(
-                "generate_config",
-                "scripts/generate-config.py"
-            )
+
+            spec = importlib.util.spec_from_file_location("generate_config", "scripts/generate-config.py")
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
 
@@ -305,10 +268,8 @@ class TestGenerateConfigScript:
         sys.path.insert(0, str(Path("scripts")))
         try:
             import importlib.util
-            spec = importlib.util.spec_from_file_location(
-                "generate_config",
-                "scripts/generate-config.py"
-            )
+
+            spec = importlib.util.spec_from_file_location("generate_config", "scripts/generate-config.py")
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
 
@@ -324,10 +285,8 @@ class TestGenerateConfigScript:
         sys.path.insert(0, str(Path("scripts")))
         try:
             import importlib.util
-            spec = importlib.util.spec_from_file_location(
-                "generate_config",
-                "scripts/generate-config.py"
-            )
+
+            spec = importlib.util.spec_from_file_location("generate_config", "scripts/generate-config.py")
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
 
@@ -344,23 +303,13 @@ class TestGenerateConfigScript:
         sys.path.insert(0, str(Path("scripts")))
         try:
             import importlib.util
-            spec = importlib.util.spec_from_file_location(
-                "generate_config",
-                "scripts/generate-config.py"
-            )
+
+            spec = importlib.util.spec_from_file_location("generate_config", "scripts/generate-config.py")
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
 
-            existing = {
-                "mcpServers": {
-                    "other-server": {"command": "other"}
-                }
-            }
-            new_servers = {
-                "mcpServers": {
-                    "memcord": {"command": "uv"}
-                }
-            }
+            existing = {"mcpServers": {"other-server": {"command": "other"}}}
+            new_servers = {"mcpServers": {"memcord": {"command": "uv"}}}
             result = module.merge_mcp_servers(existing, new_servers)
 
             assert "other-server" in result["mcpServers"]
@@ -373,10 +322,8 @@ class TestGenerateConfigScript:
         sys.path.insert(0, str(Path("scripts")))
         try:
             import importlib.util
-            spec = importlib.util.spec_from_file_location(
-                "generate_config",
-                "scripts/generate-config.py"
-            )
+
+            spec = importlib.util.spec_from_file_location("generate_config", "scripts/generate-config.py")
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
 
@@ -396,10 +343,8 @@ class TestGenerateConfigScript:
         sys.path.insert(0, str(Path("scripts")))
         try:
             import importlib.util
-            spec = importlib.util.spec_from_file_location(
-                "generate_config",
-                "scripts/generate-config.py"
-            )
+
+            spec = importlib.util.spec_from_file_location("generate_config", "scripts/generate-config.py")
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
 
@@ -514,8 +459,7 @@ class TestConfigTemplates:
         for template_path, servers_key in templates:
             with open(template_path) as f:
                 config = json.load(f)
-            assert "memcord" in config[servers_key], \
-                f"Template {template_path} should define memcord server"
+            assert "memcord" in config[servers_key], f"Template {template_path} should define memcord server"
 
     def test_templates_use_uv_command(self):
         """Test that all templates use uv as the command."""
@@ -528,8 +472,9 @@ class TestConfigTemplates:
         for template_path, servers_key in templates:
             with open(template_path) as f:
                 config = json.load(f)
-            assert config[servers_key]["memcord"]["command"] == "uv", \
+            assert config[servers_key]["memcord"]["command"] == "uv", (
                 f"Template {template_path} should use 'uv' command"
+            )
 
 
 if __name__ == "__main__":

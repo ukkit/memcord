@@ -15,17 +15,17 @@ import platform
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 
 class Colors:
     """ANSI color codes for terminal output."""
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    BLUE = '\033[94m'
-    RESET = '\033[0m'
-    BOLD = '\033[1m'
+
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    BLUE = "\033[94m"
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
 
 
 def print_header(text: str) -> None:
@@ -70,12 +70,7 @@ def check_python_version() -> bool:
 def check_uv_installed() -> bool:
     """Check if uv package manager is installed."""
     try:
-        result = subprocess.run(
-            ["uv", "--version"],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
+        result = subprocess.run(["uv", "--version"], capture_output=True, text=True, timeout=5)
         if result.returncode == 0:
             version = result.stdout.strip()
             print_success(f"uv package manager found: {version}")
@@ -92,7 +87,7 @@ def check_uv_installed() -> bool:
         return False
 
 
-def find_vscode_config_paths() -> List[Path]:
+def find_vscode_config_paths() -> list[Path]:
     """Find possible VSCode configuration paths based on platform."""
     system = platform.system()
     home = Path.home()
@@ -100,25 +95,31 @@ def find_vscode_config_paths() -> List[Path]:
     paths = []
 
     if system == "Windows":
-        paths.extend([
-            home / "AppData" / "Roaming" / "Code" / "User" / "mcp.json",
-            home / "AppData" / "Roaming" / "Code - Insiders" / "User" / "mcp.json",
-        ])
+        paths.extend(
+            [
+                home / "AppData" / "Roaming" / "Code" / "User" / "mcp.json",
+                home / "AppData" / "Roaming" / "Code - Insiders" / "User" / "mcp.json",
+            ]
+        )
     elif system == "Darwin":  # macOS
-        paths.extend([
-            home / "Library" / "Application Support" / "Code" / "User" / "mcp.json",
-            home / "Library" / "Application Support" / "Code - Insiders" / "User" / "mcp.json",
-        ])
+        paths.extend(
+            [
+                home / "Library" / "Application Support" / "Code" / "User" / "mcp.json",
+                home / "Library" / "Application Support" / "Code - Insiders" / "User" / "mcp.json",
+            ]
+        )
     else:  # Linux
-        paths.extend([
-            home / ".config" / "Code" / "User" / "mcp.json",
-            home / ".config" / "Code - Insiders" / "User" / "mcp.json",
-        ])
+        paths.extend(
+            [
+                home / ".config" / "Code" / "User" / "mcp.json",
+                home / ".config" / "Code - Insiders" / "User" / "mcp.json",
+            ]
+        )
 
     return paths
 
 
-def find_mcp_config() -> Optional[Tuple[Path, Dict]]:
+def find_mcp_config() -> tuple[Path, dict] | None:
     """Find and load MCP configuration file."""
     # Check workspace configurations first
     workspace_configs = [
@@ -129,7 +130,7 @@ def find_mcp_config() -> Optional[Tuple[Path, Dict]]:
     for config_path in workspace_configs:
         if config_path.exists():
             try:
-                with open(config_path, 'r') as f:
+                with open(config_path) as f:
                     config = json.load(f)
                 print_success(f"Found workspace configuration: {config_path}")
                 return (config_path, config)
@@ -146,7 +147,7 @@ def find_mcp_config() -> Optional[Tuple[Path, Dict]]:
     for config_path in user_configs:
         if config_path.exists():
             try:
-                with open(config_path, 'r') as f:
+                with open(config_path) as f:
                     config = json.load(f)
                 print_success(f"Found user configuration: {config_path}")
                 return (config_path, config)
@@ -167,7 +168,7 @@ def find_mcp_config() -> Optional[Tuple[Path, Dict]]:
     return None
 
 
-def check_memcord_config(config: Dict) -> bool:
+def check_memcord_config(config: dict) -> bool:
     """Check if memcord is configured in MCP config."""
     servers = config.get("servers", {})
 
@@ -213,12 +214,16 @@ def check_memcord_installation() -> bool:
     """Check if memcord is installed and can be imported."""
     try:
         # Try to import memcord
-        import memcord
+        import importlib.util
+
+        if importlib.util.find_spec("memcord") is None:
+            raise ImportError("memcord not found")
         print_success("memcord package is installed")
 
         # Try to get version
         try:
             from memcord import __version__
+
             print_success(f"memcord version: {__version__}")
         except ImportError:
             print_info("memcord version not available")
@@ -235,7 +240,8 @@ def check_memcord_server() -> bool:
     try:
         # Try to import and instantiate server
         from memcord.server import ChatMemoryServer
-        server = ChatMemoryServer()
+
+        ChatMemoryServer()  # Verify server can be instantiated
         print_success("memcord server can be instantiated")
         return True
     except Exception as e:
@@ -246,20 +252,15 @@ def check_memcord_server() -> bool:
 def check_vscode_version() -> bool:
     """Check VSCode version (if available)."""
     try:
-        result = subprocess.run(
-            ["code", "--version"],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
+        result = subprocess.run(["code", "--version"], capture_output=True, text=True, timeout=5)
         if result.returncode == 0:
-            lines = result.stdout.strip().split('\n')
+            lines = result.stdout.strip().split("\n")
             version = lines[0] if lines else "unknown"
             print_success(f"VSCode version: {version}")
 
             # Try to parse version and check if >= 1.102
             try:
-                major, minor, *_ = version.split('.')
+                major, minor, *_ = version.split(".")
                 if int(major) > 1 or (int(major) == 1 and int(minor) >= 102):
                     print_success("VSCode version supports MCP (1.102+)")
                     return True
@@ -305,7 +306,7 @@ def check_memory_directories() -> bool:
     return all_ok
 
 
-def print_summary(checks: Dict[str, bool]) -> None:
+def print_summary(checks: dict[str, bool]) -> None:
     """Print summary of all checks."""
     print_header("Verification Summary")
 

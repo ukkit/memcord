@@ -9,7 +9,6 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -19,7 +18,7 @@ class TestVSCodeConfiguration:
 
     def test_workspace_mcp_config_valid(self):
         """Test that workspace .vscode/mcp.json format is valid."""
-        with open("config-templates/vscode/mcp.json", "r") as f:
+        with open("config-templates/vscode/mcp.json") as f:
             config = json.load(f)
 
         assert "servers" in config
@@ -34,7 +33,7 @@ class TestVSCodeConfiguration:
 
     def test_root_mcp_config_valid(self):
         """Test that root .mcp.json format is valid."""
-        with open("config-templates/claude-code/mcp.json", "r") as f:
+        with open("config-templates/claude-code/mcp.json") as f:
             config = json.load(f)
 
         assert "mcpServers" in config
@@ -46,7 +45,7 @@ class TestVSCodeConfiguration:
 
     def test_vscode_extensions_config_valid(self):
         """Test that .vscode/extensions.json format is valid."""
-        with open(".vscode/extensions.json", "r") as f:
+        with open(".vscode/extensions.json") as f:
             config = json.load(f)
 
         assert "recommendations" in config
@@ -55,7 +54,7 @@ class TestVSCodeConfiguration:
 
     def test_package_json_valid(self):
         """Test that package.json format is valid."""
-        with open("package.json", "r") as f:
+        with open("package.json") as f:
             config = json.load(f)
 
         assert config["name"] == "memcord"
@@ -217,7 +216,7 @@ class TestToolFunctionality:
 
             # Verify content was saved
             slot_file = Path(tmpdir) / "test-project.json"
-            with open(slot_file, "r") as f:
+            with open(slot_file) as f:
                 data = json.load(f)
                 assert len(data["entries"]) > 0
                 assert content in data["entries"][0]["content"]
@@ -277,7 +276,7 @@ class TestCopilotAgentMode:
 
             # If tool has parameters, they should be documented
             if "properties" in tool.inputSchema:
-                for param_name, param_def in tool.inputSchema["properties"].items():
+                for _param_name, param_def in tool.inputSchema["properties"].items():
                     # Each parameter should have a description
                     assert "description" in param_def or "title" in param_def
 
@@ -288,8 +287,9 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_invalid_slot_name_handled(self):
         """Test that invalid slot names are handled gracefully."""
-        from memcord.server import ChatMemoryServer
         from pydantic_core import ValidationError
+
+        from memcord.server import ChatMemoryServer
 
         with tempfile.TemporaryDirectory() as tmpdir:
             server = ChatMemoryServer(memory_dir=tmpdir)
@@ -325,14 +325,14 @@ class TestVSCodeVariables:
 
     def test_workspace_folder_variable_in_config(self):
         """Test that ${workspaceFolder} variable is used in config."""
-        with open("config-templates/vscode/mcp.json", "r") as f:
+        with open("config-templates/vscode/mcp.json") as f:
             content = f.read()
 
         assert "${workspaceFolder}" in content
 
     def test_config_uses_relative_paths(self):
         """Test that root config uses relative paths."""
-        with open("config-templates/claude-code/mcp.json", "r") as f:
+        with open("config-templates/claude-code/mcp.json") as f:
             config = json.load(f)
 
         memcord_config = config["mcpServers"]["memcord"]
@@ -394,7 +394,7 @@ class TestVerificationScript:
         assert script_path.exists()
 
         # Check if file has shebang
-        with open(script_path, "r") as f:
+        with open(script_path) as f:
             first_line = f.readline()
             assert first_line.startswith("#!")
 
@@ -432,16 +432,16 @@ class TestEndToEndWorkflow:
             assert "vscode-project" in result[0].text
 
             # 2. Save initial context
-            result = await server._handle_savemem({
-                "chat_text": "Project: VSCode Extension\nStack: TypeScript, Node.js\nGoal: MCP integration"
-            })
+            result = await server._handle_savemem(
+                {"chat_text": "Project: VSCode Extension\nStack: TypeScript, Node.js\nGoal: MCP integration"}
+            )
             assert isinstance(result, list) and len(result) > 0
             assert "saved" in result[0].text.lower()
 
             # 3. Save progress with summary
-            result = await server._handle_saveprogress({
-                "chat_text": "Discussed MCP integration approach and API design"
-            })
+            result = await server._handle_saveprogress(
+                {"chat_text": "Discussed MCP integration approach and API design"}
+            )
             assert isinstance(result, list) and len(result) > 0
             assert "summary" in result[0].text.lower() or "saved" in result[0].text.lower()
 
@@ -460,7 +460,9 @@ class TestEndToEndWorkflow:
             result = await server._handle_readmem({})
             assert isinstance(result, list) and len(result) > 0
             result_text = result[0].text
-            assert "VSCode Extension" in result_text or "vscode-project" in result_text or "entries" in result_text.lower()
+            assert (
+                "VSCode Extension" in result_text or "vscode-project" in result_text or "entries" in result_text.lower()
+            )
 
 
 if __name__ == "__main__":

@@ -18,8 +18,6 @@ Usage:
 import logging
 import os
 import sys
-from typing import Optional
-
 
 # Default log level (can be overridden by MEMCORD_LOG_LEVEL env var)
 DEFAULT_LOG_LEVEL = "WARNING"
@@ -35,8 +33,8 @@ SUPPRESSED_LOGGERS = [
 
 
 def configure_logging(
-    level: Optional[str] = None,
-    format_string: Optional[str] = None,
+    level: str | None = None,
+    format_string: str | None = None,
 ) -> logging.Logger:
     """Configure logging to use stderr only.
 

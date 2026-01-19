@@ -5,8 +5,6 @@ This module defines preconfigured prompts for common memcord workflows that can 
 invoked in GitHub Copilot Chat or other MCP clients using slash commands.
 """
 
-from typing import Dict, List
-
 # MCP Prompt Definitions
 PROMPTS = {
     "project-memory": {
@@ -24,9 +22,8 @@ Steps:
    - Current development phase
 
 Use memcord_save_progress to automatically summarize and save the context.""",
-        "categories": ["setup", "project-management"]
+        "categories": ["setup", "project-management"],
     },
-
     "code-review-save": {
         "name": "code-review-save",
         "description": "Save code review decisions and feedback",
@@ -44,9 +41,8 @@ Steps:
 4. Suggest relevant tags (e.g., 'security', 'performance', 'architecture')
 
 Format the saved content for easy retrieval later.""",
-        "categories": ["code-review", "documentation"]
+        "categories": ["code-review", "documentation"],
     },
-
     "architecture-decision": {
         "name": "architecture-decision",
         "description": "Document an architecture decision record (ADR)",
@@ -69,9 +65,8 @@ Consequences: [Impact and implications]
 Date: [Today's date]
 
 Use memcord_save to store this structured decision for future reference.""",
-        "categories": ["architecture", "documentation", "decision-making"]
+        "categories": ["architecture", "documentation", "decision-making"],
     },
-
     "bug-investigation": {
         "name": "bug-investigation",
         "description": "Track bug investigation progress and findings",
@@ -86,9 +81,8 @@ Document:
 6. Related issues or patterns
 
 Use memcord_save_progress to automatically summarize the investigation as it progresses.""",
-        "categories": ["debugging", "troubleshooting"]
+        "categories": ["debugging", "troubleshooting"],
     },
-
     "meeting-notes": {
         "name": "meeting-notes",
         "description": "Save meeting notes and action items",
@@ -103,9 +97,8 @@ Create or use a meeting-specific memory slot and save:
 - Follow-up topics
 
 Use memcord_save_progress to create an AI-generated summary.""",
-        "categories": ["meetings", "collaboration"]
+        "categories": ["meetings", "collaboration"],
     },
-
     "search-past-decisions": {
         "name": "search-past-decisions",
         "description": "Search for past decisions and discussions",
@@ -119,9 +112,8 @@ Steps:
 5. Suggest related searches if relevant
 
 Focus on extracting actionable insights from past conversations.""",
-        "categories": ["search", "knowledge-retrieval"]
+        "categories": ["search", "knowledge-retrieval"],
     },
-
     "sprint-planning": {
         "name": "sprint-planning",
         "description": "Document sprint planning session",
@@ -137,9 +129,8 @@ Save:
 - Success criteria
 
 Use memcord_save_progress for automatic summarization.""",
-        "categories": ["agile", "planning", "project-management"]
+        "categories": ["agile", "planning", "project-management"],
     },
-
     "tech-debt": {
         "name": "tech-debt",
         "description": "Log technical debt items and decisions",
@@ -154,9 +145,8 @@ Document:
 - Priority level
 
 Tag appropriately for easy filtering (e.g., 'performance', 'security', 'maintainability').""",
-        "categories": ["tech-debt", "documentation"]
+        "categories": ["tech-debt", "documentation"],
     },
-
     "onboarding-docs": {
         "name": "onboarding-docs",
         "description": "Create onboarding documentation from project knowledge",
@@ -174,9 +164,8 @@ Steps:
 4. Save to a 'team-onboarding' memory slot
 
 Focus on practical, actionable information for new team members.""",
-        "categories": ["onboarding", "documentation", "knowledge-management"]
+        "categories": ["onboarding", "documentation", "knowledge-management"],
     },
-
     "incident-postmortem": {
         "name": "incident-postmortem",
         "description": "Document incident postmortem and learnings",
@@ -193,9 +182,8 @@ Structure:
 - Related incidents or patterns
 
 Use memcord_save for permanent record and future reference.""",
-        "categories": ["incidents", "postmortem", "learning"]
+        "categories": ["incidents", "postmortem", "learning"],
     },
-
     "api-design": {
         "name": "api-design",
         "description": "Document API design decisions and specifications",
@@ -210,9 +198,8 @@ Save:
 - Design rationale and trade-offs
 
 Use memcord_save_progress to summarize the design discussion.""",
-        "categories": ["api", "design", "documentation"]
+        "categories": ["api", "design", "documentation"],
     },
-
     "security-review": {
         "name": "security-review",
         "description": "Document security review findings and decisions",
@@ -227,9 +214,8 @@ Document:
 - Related security patterns or best practices
 
 Tag with 'security' and specific vulnerability type (e.g., 'xss', 'sql-injection').""",
-        "categories": ["security", "review", "compliance"]
+        "categories": ["security", "review", "compliance"],
     },
-
     "knowledge-export": {
         "name": "knowledge-export",
         "description": "Export project knowledge for sharing or archival",
@@ -242,9 +228,8 @@ Steps:
 4. Suggest organization structure for exported content
 
 Focus on creating shareable, readable documentation.""",
-        "categories": ["export", "documentation", "sharing"]
+        "categories": ["export", "documentation", "sharing"],
     },
-
     "retrospective": {
         "name": "retrospective",
         "description": "Document sprint or project retrospective",
@@ -259,9 +244,8 @@ Save:
 - Appreciation shoutouts
 
 Use memcord_save_progress for automatic summarization.""",
-        "categories": ["agile", "retrospective", "team"]
+        "categories": ["agile", "retrospective", "team"],
     },
-
     "merge-related": {
         "name": "merge-related",
         "description": "Merge related conversation memories intelligently",
@@ -275,9 +259,8 @@ Steps:
 5. Verify the merge with preview mode first
 
 This helps organize and consolidate project knowledge over time.""",
-        "categories": ["organization", "maintenance"]
+        "categories": ["organization", "maintenance"],
     },
-
     "context-resume": {
         "name": "context-resume",
         "description": "Resume work by loading project context from memory",
@@ -294,12 +277,12 @@ Steps:
    - Relevant context for current work
 
 Focus on getting the user quickly up to speed.""",
-        "categories": ["workflow", "context-switching"]
-    }
+        "categories": ["workflow", "context-switching"],
+    },
 }
 
 
-def get_prompt(name: str) -> Dict:
+def get_prompt(name: str) -> dict:
     """Get a specific prompt by name.
 
     Args:
@@ -314,7 +297,7 @@ def get_prompt(name: str) -> Dict:
     return PROMPTS[name]
 
 
-def list_prompts() -> List[str]:
+def list_prompts() -> list[str]:
     """List all available prompt names.
 
     Returns:
@@ -323,7 +306,7 @@ def list_prompts() -> List[str]:
     return list(PROMPTS.keys())
 
 
-def get_prompts_by_category(category: str) -> List[Dict]:
+def get_prompts_by_category(category: str) -> list[dict]:
     """Get all prompts in a specific category.
 
     Args:
@@ -332,13 +315,10 @@ def get_prompts_by_category(category: str) -> List[Dict]:
     Returns:
         List of prompt definitions matching the category
     """
-    return [
-        prompt for prompt in PROMPTS.values()
-        if category in prompt.get("categories", [])
-    ]
+    return [prompt for prompt in PROMPTS.values() if category in prompt.get("categories", [])]
 
 
-def list_categories() -> List[str]:
+def list_categories() -> list[str]:
     """List all unique categories across prompts.
 
     Returns:
@@ -381,7 +361,7 @@ ALIASES = {
     "export": "knowledge-export",
     "retro": "retrospective",
     "merge": "merge-related",
-    "resume": "context-resume"
+    "resume": "context-resume",
 }
 
 
