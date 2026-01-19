@@ -5,6 +5,8 @@ on:
     branches: [ main, fix-storage-health-coroutine-error ]
   pull_request:
     branches: [ main ]
+  schedule:
+    - cron: '0 12 * * *'  # Daily at 12:00 PM UTC
 
 jobs:
   checks:

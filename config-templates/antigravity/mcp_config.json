@@ -1,0 +1,30 @@
+{
+  "mcpServers": {
+    "memcord": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "{{MEMCORD_PATH}}",
+        "run",
+        "memcord"
+      ],
+      "env": {
+        "PYTHONPATH": "{{MEMCORD_PATH}}/src",
+        "MEMCORD_ENABLE_ADVANCED": "false"
+      }
+    },
+    "memcord-advanced": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "{{MEMCORD_PATH}}",
+        "run",
+        "memcord"
+      ],
+      "env": {
+        "PYTHONPATH": "{{MEMCORD_PATH}}/src",
+        "MEMCORD_ENABLE_ADVANCED": "true"
+      }
+    }
+  }
+}

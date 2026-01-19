@@ -4,7 +4,7 @@
       <img src="assets/image/memcord_1024.png" width="256">
     </td>
     <td>
-      <h3>MEMCORD v2.3.6 (mcp server)</h3>
+      <h3>MEMCORD v2.3.7 (mcp server)</h3>
       <p>
         This privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control.
       </p>
@@ -32,53 +32,89 @@ Transform your Claude conversations into a searchable, organized knowledge base 
 * **🎯 Effortless Organization** - Smart tags and folders that organize themselves around your workflow
 * **🔗 Intelligent Merging** - Automatically combines related conversations while eliminating duplicates
 
-## What's new in v2.3.6
+## What's new in v2.3.7
 
- ```text
-Google Antigravity IDE Support:
+```text
+Cross-Platform Support & MCP Compliance:
 
-  - Added Google Antigravity configuration template (.antigravity/mcp_config.json)
+  - Windows PowerShell installer (install.ps1) for one-line installation
+  - Centralized config-templates/ folder with platform-specific configs
+  - Cross-platform config generator (scripts/generate-config.py)
+  - Windows cmd /c wrapper support for proper process spawning
+  - Updated MCP SDK version constraint to v1.22-2.0 for stability
+  - Logging configuration to prevent stdout corruption in STDIO mode
+```
+
+<details>
+<summary>v2.3.6 - Google Antigravity IDE Support</summary>
+
+```text
+  - Added Google Antigravity IDE configuration template
   - Full compatibility with Antigravity's MCP server integration
 ```
+</details>
 
 ## 🚀 Quick Start
 
+**macOS / Linux:**
 ```bash
 curl -fsSL https://github.com/ukkit/memcord/raw/main/install.sh | bash
 ```
 
+**Windows (PowerShell):**
+```powershell
+irm https://github.com/ukkit/memcord/raw/main/install.ps1 | iex
+```
+
 This will:
 - Download and setup **memcord**
-- Set Up Python Virtual Environment using uv
-- Update claude_desktop_config.json & README.md with Installation Path
+- Set up Python virtual environment using uv
+- Generate platform-specific MCP configuration files
+- Configure Claude Desktop, Claude Code, VSCode, and Antigravity IDE
 
-### Manually update existing setup
+### Configuration Templates
+
+All MCP configuration templates are in `config-templates/`. After installation, run:
 
 ```bash
-uv pip install -e .
-uv lock
+# Regenerate configs (useful after updates or path changes)
+uv run python scripts/generate-config.py
+
+# Windows users
+uv run python scripts/generate-config.py --platform windows
+
+# Preview changes without writing
+uv run python scripts/generate-config.py --dry-run
 ```
 
 ### Claude Desktop
+
+Copy the generated `claude_desktop_config.json` to your Claude Desktop config location:
+
+| Platform | Config Location |
+|----------|-----------------|
+| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
+| Linux | `~/.config/Claude/claude_desktop_config.json` |
+
+Or use the template from `config-templates/claude-desktop/`:
 
 ```json
 {
   "mcpServers": {
     "memcord": {
       "command": "uv",
-      "args": [
-        "--directory",
-        "</path/to/memcord>",
-        "run",
-        "memcord"
-      ],
+      "args": ["--directory", "/path/to/memcord", "run", "memcord"],
       "env": {
-        "PYTHONPATH": "</path/to/memcord>/src"
+        "PYTHONPATH": "/path/to/memcord/src",
+        "MEMCORD_ENABLE_ADVANCED": "false"
       }
     }
   }
 }
 ```
+
+**Windows users:** Use `config-templates/claude-desktop/config.windows.json` which includes the required `cmd /c` wrapper.
 
 ### VSCode with GitHub Copilot
 
@@ -87,48 +123,29 @@ uv lock
 - GitHub Copilot subscription
 - Organization/Enterprise MCP policy enabled (if applicable)
 
-**Option 1: Workspace Configuration (Recommended)**
+**Setup:**
 
-Copy the example configuration to your workspace:
+The installer creates `.vscode/mcp.json` automatically. Or copy manually:
 
 ```bash
-mkdir -p .vscode
-cp .vscode/mcp.json.example .vscode/mcp.json
+cp config-templates/vscode/mcp.json .vscode/mcp.json
 ```
 
-Or create `.vscode/mcp.json` manually:
+The VSCode config uses `${workspaceFolder}` variables, so no path replacement needed:
 
 ```json
 {
   "servers": {
     "memcord": {
       "command": "uv",
-      "args": [
-        "--directory",
-        "${workspaceFolder}",
-        "run",
-        "memcord"
-      ],
+      "args": ["--directory", "${workspaceFolder}", "run", "memcord"],
       "env": {
-        "PYTHONPATH": "${workspaceFolder}/src"
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "MEMCORD_ENABLE_ADVANCED": "false"
       }
     }
   }
 }
-```
-
-**Option 2: Global User Configuration**
-
-1. Open Command Palette (Ctrl+Shift+P / Cmd+Shift+P)
-2. Run: `MCP: Open User Configuration`
-3. Add memcord server configuration to `mcp.json`
-
-**Option 3: Source-Controlled Configuration**
-
-Copy root-level configuration (recommended for teams):
-
-```bash
-cp .mcp.json.example .mcp.json
 ```
 
 **GitHub Copilot Agent Mode:**
@@ -141,21 +158,16 @@ Once configured, memcord tools are available in Copilot agent mode. Use natural 
 
 ### Google Antigravity IDE
 
-Add memcord to your `~/.gemini/antigravity/mcp_config.json`:
+The installer generates `.antigravity/mcp_config.json` automatically. Or configure manually:
 
 ```json
 {
   "mcpServers": {
     "memcord": {
       "command": "uv",
-      "args": [
-        "--directory",
-        "</path/to/memcord>",
-        "run",
-        "memcord"
-      ],
+      "args": ["--directory", "/absolute/path/to/memcord", "run", "memcord"],
       "env": {
-        "PYTHONPATH": "</path/to/memcord>/src",
+        "PYTHONPATH": "/absolute/path/to/memcord/src",
         "MEMCORD_ENABLE_ADVANCED": "false"
       }
     }
@@ -163,44 +175,56 @@ Add memcord to your `~/.gemini/antigravity/mcp_config.json`:
 }
 ```
 
-> **Note:** Antigravity requires absolute paths. Replace `</path/to/memcord>` with your actual installation path.
-
-See `.antigravity/mcp_config.json` for a template.
+> **Note:** Antigravity requires absolute paths.
 
 <img alt="Anti-Gravity screenshot with memcord" src="assets/image/anti-gravity.png">
 
-### Claude Code MCP (🧪 BETA)
+### Claude Code CLI
 
-Add MCP server for your project - check README.md for installation path
+The installer creates `.mcp.json` in the project root. Or add manually:
 
 ```bash
-claude mcp add-json memcord '{"type":"stdio","command":"uv","args":["--directory","</path/to/memcord>","run","memcord"],"env":{"PYTHONPATH":"</path/to/memcord>/src"}}'
+claude mcp add-json memcord '{"type":"stdio","command":"uv","args":["--directory","/path/to/memcord","run","memcord"],"env":{"PYTHONPATH":"/path/to/memcord/src"}}'
 ```
 
-Verify installation
+**Windows users:** Use `cmd` wrapper:
+```powershell
+claude mcp add-json memcord '{"type":"stdio","command":"cmd","args":["/c","uv","--directory","C:\\path\\to\\memcord","run","memcord"],"env":{"PYTHONPATH":"C:\\path\\to\\memcord\\src"}}'
+```
+
+Verify installation:
 
 ```bash
 claude mcp list
 claude mcp get memcord
 ```
 
-Add at top of your CLAUDE.md file
+Add at top of your CLAUDE.md file:
 
 ```bash
 memcord_name "NAME_OF_YOUR_PROJECT"
 ```
 
-### Manual Installaion
+### Manual Installation
 
 ```bash
-# Traditional installation method
 git clone https://github.com/ukkit/memcord.git
 cd memcord
 uv venv
-source .venv/bin/activate
+source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
 uv pip install -e .
 
-# Replace </path/to/memcord/> in claude_desktop_config.json to the path where you installed it manually
+# Generate configuration files
+uv run python scripts/generate-config.py
+```
+
+### Update Existing Installation
+
+```bash
+cd /path/to/memcord
+git pull
+uv pip install -e .
+uv run python scripts/generate-config.py  # Regenerate configs
 ```
 
 **[Complete Installation Guide](docs/installation.md)** - Detailed setup for Claude Code, Claude Desktop, and other MCP applications.

@@ -1,0 +1,36 @@
+{
+  "mcpServers": {
+    "memcord": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "uv",
+        "--directory",
+        "{{MEMCORD_PATH}}",
+        "run",
+        "memcord"
+      ],
+      "env": {
+        "PYTHONPATH": "{{MEMCORD_PATH}}\\src",
+        "MEMCORD_ENABLE_ADVANCED": "false"
+      }
+    },
+    "memcord-advanced": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "uv",
+        "--directory",
+        "{{MEMCORD_PATH}}",
+        "run",
+        "memcord"
+      ],
+      "env": {
+        "PYTHONPATH": "{{MEMCORD_PATH}}\\src",
+        "MEMCORD_ENABLE_ADVANCED": "true"
+      }
+    }
+  }
+}

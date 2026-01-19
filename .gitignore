@@ -60,11 +60,16 @@ env.bak/
 venv.bak/
 
 # IDEs and editors
-.vscode/
 .idea/
 *.swp
 *.swo
 *~
+
+# Generated MCP configuration files (templates are in config-templates/)
+.mcp.json
+claude_desktop_config.json
+.vscode/mcp.json
+.antigravity/
 
 # OS generated files
 .DS_Store
@@ -74,6 +79,7 @@ venv.bak/
 .Trashes
 ehthumbs.db
 Thumbs.db
+nul
 
 # Project specific
 memory_slots/

@@ -1,0 +1,30 @@
+{
+  "servers": {
+    "memcord": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "${workspaceFolder}",
+        "run",
+        "memcord"
+      ],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "MEMCORD_ENABLE_ADVANCED": "false"
+      }
+    },
+    "memcord-advanced": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "${workspaceFolder}",
+        "run",
+        "memcord"
+      ],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "MEMCORD_ENABLE_ADVANCED": "true"
+      }
+    }
+  }
+}

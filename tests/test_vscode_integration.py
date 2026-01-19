@@ -19,7 +19,7 @@ class TestVSCodeConfiguration:
 
     def test_workspace_mcp_config_valid(self):
         """Test that workspace .vscode/mcp.json format is valid."""
-        with open(".vscode/mcp.json.example", "r") as f:
+        with open("config-templates/vscode/mcp.json", "r") as f:
             config = json.load(f)
 
         assert "servers" in config
@@ -34,13 +34,13 @@ class TestVSCodeConfiguration:
 
     def test_root_mcp_config_valid(self):
         """Test that root .mcp.json format is valid."""
-        with open(".mcp.json.example", "r") as f:
+        with open("config-templates/claude-code/mcp.json", "r") as f:
             config = json.load(f)
 
-        assert "servers" in config
-        assert "memcord" in config["servers"]
+        assert "mcpServers" in config
+        assert "memcord" in config["mcpServers"]
 
-        memcord_config = config["servers"]["memcord"]
+        memcord_config = config["mcpServers"]["memcord"]
         assert "PYTHONPATH" in memcord_config["env"]
         assert "MEMCORD_ENABLE_ADVANCED" in memcord_config["env"]
 
@@ -325,24 +325,24 @@ class TestVSCodeVariables:
 
     def test_workspace_folder_variable_in_config(self):
         """Test that ${workspaceFolder} variable is used in config."""
-        with open(".vscode/mcp.json.example", "r") as f:
+        with open("config-templates/vscode/mcp.json", "r") as f:
             content = f.read()
 
         assert "${workspaceFolder}" in content
 
     def test_config_uses_relative_paths(self):
         """Test that root config uses relative paths."""
-        with open(".mcp.json.example", "r") as f:
+        with open("config-templates/claude-code/mcp.json", "r") as f:
             config = json.load(f)
 
-        memcord_config = config["servers"]["memcord"]
+        memcord_config = config["mcpServers"]["memcord"]
 
-        # Check that args use relative paths
+        # Check that args use relative paths (template variable or relative)
         args = memcord_config["args"]
         directory_idx = args.index("--directory")
         directory_path = args[directory_idx + 1]
 
-        assert directory_path == "." or not directory_path.startswith("/")
+        assert directory_path == "." or "{{" in directory_path or not directory_path.startswith("/")
 
 
 class TestPrompts:

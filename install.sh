@@ -49,26 +49,45 @@ source .venv/bin/activate
 echo "📋 Installing memcord package..."
 uv pip install -e .
 
-# Update claude_desktop_config.json with actual path
-echo "📝 Updating claude_desktop_config.json with installation path..."
-if [ -f "claude_desktop_config.json" ]; then
-    # Use sed to replace the placeholder path with actual path (cross-platform compatible)
-    sed "s|</path/to/memcord>|$MEMCORD_PATH|g" claude_desktop_config.json > claude_desktop_config.json.tmp && mv claude_desktop_config.json.tmp claude_desktop_config.json
-    echo "✅ Updated claude_desktop_config.json with path: $MEMCORD_PATH"
+# Generate MCP configuration files using Python script
+echo "📝 Generating MCP configuration files..."
+if [ -f "scripts/generate-config.py" ]; then
+    uv run python scripts/generate-config.py --install-path "$MEMCORD_PATH"
+    if [ $? -ne 0 ]; then
+        echo "⚠️  Config generation had issues, but installation can continue."
+    fi
 else
-    echo "⚠️  claude_desktop_config.json not found in repository"
+    echo "⚠️  Config generator script not found - falling back to manual update"
+    # Fallback: Update claude_desktop_config.json with actual path
+    if [ -f "claude_desktop_config.json" ]; then
+        sed "s|{{MEMCORD_PATH}}|$MEMCORD_PATH|g" claude_desktop_config.json > claude_desktop_config.json.tmp && mv claude_desktop_config.json.tmp claude_desktop_config.json
+        echo "✅ Updated claude_desktop_config.json"
+    fi
 fi
 
-# Update README.md with actual path
+# Update README.md with actual path (for documentation purposes)
 echo "📝 Updating README.md with installation path..."
 if [ -f "README.md" ]; then
-    # Use sed to replace the placeholder path with actual path (cross-platform compatible)
-    sed "s|</path/to/memcord>|$MEMCORD_PATH|g" README.md > README.md.tmp && mv README.md.tmp README.md
+    # Replace both old placeholder format and new placeholder format
+    sed -e "s|</path/to/memcord>|$MEMCORD_PATH|g" \
+        -e "s|{{MEMCORD_PATH}}|$MEMCORD_PATH|g" \
+        README.md > README.md.tmp && mv README.md.tmp README.md
     echo "✅ Updated README.md with path: $MEMCORD_PATH"
 else
     echo "⚠️  README.md not found in repository"
 fi
 
+echo ""
 echo "✨ Installation complete!"
 echo "📂 Memcord installed at: $MEMCORD_PATH"
-echo "🔧 To activate the virtual environment later, run: source $MEMCORD_PATH/.venv/bin/activate"
+echo ""
+echo "🔧 Next steps:"
+echo "   1. Activate the virtual environment: source $MEMCORD_PATH/.venv/bin/activate"
+echo "   2. Restart Claude Desktop to load the MCP server"
+echo "   3. In Claude Code, run: claude mcp list"
+echo ""
+echo "📚 Configuration files generated:"
+echo "   - .mcp.json (Claude Code)"
+echo "   - claude_desktop_config.json (Claude Desktop)"
+echo "   - .vscode/mcp.json (VSCode/GitHub Copilot)"
+echo "   - .antigravity/mcp_config.json (Google Antigravity IDE)"

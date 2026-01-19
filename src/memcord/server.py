@@ -2595,6 +2595,12 @@ class ChatMemoryServer:
 
 def main():
     """Main entry point."""
+    # Configure logging FIRST - before any other code runs
+    # This ensures all output goes to stderr, not stdout (critical for STDIO mode)
+    from .logging_config import configure_logging
+
+    configure_logging()
+
     server = ChatMemoryServer()
     asyncio.run(server.run())
 
