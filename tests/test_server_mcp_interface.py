@@ -251,10 +251,12 @@ class TestMCPErrorHandling:
         """Test handlers with malformed data - security validation."""
         server = test_server
 
-        # Test with invalid slot names (SQL injection protection)
+        # Test with invalid slot names (unsafe characters protection)
+        # Note: SQL keywords like "DROP TABLE" are now allowed since memcord
+        # uses file-based storage, not SQL. But unsafe characters are still blocked.
         # Should raise ValidationError due to security validation
         with pytest.raises((ValidationError, ValueError)):
-            await server._handle_savemem({"slot_name": "DROP TABLE users", "chat_text": "Malicious content"})
+            await server._handle_savemem({"slot_name": "test;injection", "chat_text": "Malicious content"})
         # Security validation working correctly
 
     @pytest.mark.asyncio

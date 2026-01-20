@@ -112,25 +112,6 @@ class MemorySlot(BaseModel):
         cleaned = "".join(char for char in cleaned if char != "\x00")
         cleaned = "".join(char for char in cleaned if ord(char) >= 32 or char in "\r\n\t")
 
-        # Check for SQL injection patterns and reject them
-        sql_patterns = [
-            "DROP",
-            "UNION",
-            "SELECT",
-            "DELETE",
-            "INSERT",
-            "UPDATE",
-            "CREATE",
-            "ALTER",
-            "--",
-            "/*",
-            "*/",
-            ";",
-        ]
-        for pattern in sql_patterns:
-            if pattern in cleaned.upper():
-                raise ValueError(f"Slot name contains SQL keyword or pattern: {pattern}")
-
         # Prevent path traversal
         if "../" in cleaned or "..\\" in cleaned:
             raise ValueError("Slot name cannot contain path traversal sequences")
@@ -442,15 +423,58 @@ class SearchQuery(BaseModel):
     @field_validator("query")
     @classmethod
     def validate_search_query(cls, v):
-        """Validate search query for security and performance."""
+        """Validate search query for security and performance.
+
+        Protects against:
+        - Regex injection (lookahead/lookbehind attacks)
+        - ReDoS (catastrophic backtracking)
+        - Excessive wildcards
+        - Deeply nested groups
+        """
+        import re
+
         if not v or not v.strip():
             raise ValueError("Search query cannot be empty")
 
-        # Prevent regex injection attacks
+        # Prevent regex injection attacks (lookahead/lookbehind)
         dangerous_regex_chars = ["(?", "(*", "(?=", "(?!", "(?<=", "(?<!"]
         for pattern in dangerous_regex_chars:
             if pattern in v:
                 raise ValueError(f"Search query contains potentially dangerous regex pattern: {pattern}")
+
+        # Prevent ReDoS: detect nested quantifiers like (a+)+, (a*)+, (a+)*, etc.
+        # These patterns cause exponential backtracking
+        redos_patterns = [
+            r"\([^)]*[+*]\)[+*]",  # (a+)+ or (a*)* patterns
+            r"\([^)]*[+*]\)\{",  # (a+){n} patterns
+            r"[+*]\{[0-9]+,\}",  # a+{10,} or a*{10,} patterns
+        ]
+        for redos_pattern in redos_patterns:
+            if re.search(redos_pattern, v):
+                raise ValueError("Search query contains potentially dangerous repetition pattern (ReDoS risk)")
+
+        # Limit repetition quantifier bounds to prevent performance issues
+        quantifier_match = re.search(r"\{(\d+)(?:,(\d*))?\}", v)
+        if quantifier_match:
+            min_rep = int(quantifier_match.group(1))
+            max_rep_str = quantifier_match.group(2)
+            max_rep = int(max_rep_str) if max_rep_str else min_rep
+
+            if min_rep > 100 or max_rep > 100:
+                raise ValueError("Search query repetition quantifier too large (max 100)")
+
+        # Limit nesting depth to prevent stack overflow
+        nesting_depth = 0
+        max_nesting = 0
+        for char in v:
+            if char == "(":
+                nesting_depth += 1
+                max_nesting = max(max_nesting, nesting_depth)
+            elif char == ")":
+                nesting_depth -= 1
+
+        if max_nesting > 5:
+            raise ValueError("Search query has too many nested groups (max 5 levels)")
 
         # Limit wildcards to prevent performance issues
         wildcard_count = v.count("*") + v.count("?") + v.count(".")

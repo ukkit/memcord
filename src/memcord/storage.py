@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -10,7 +11,10 @@ from typing import Any
 import aiofiles
 import aiofiles.os
 
+logger = logging.getLogger(__name__)
+
 from .archival import ArchivalManager
+from .errors import StorageError
 from .cache import (
     CacheLevel,
     CacheManager,
@@ -284,11 +288,29 @@ class StorageManager:
                     print(f"Warning: Could not update incremental index: {e}")
 
         except Exception as e:
-            # Restore backup if save failed
+            # Log the original error
+            logger.error(f"Failed to save slot '{slot.slot_name}': {e}", exc_info=True)
+
+            # Attempt to restore backup if save failed
             backup_path = slot_path.with_suffix(".json.bak")
+            backup_restored = False
             if backup_path.exists():
-                await aiofiles.os.rename(str(backup_path), str(slot_path))
-            raise ValueError(f"Error saving slot '{slot.slot_name}': {e}") from e
+                try:
+                    await aiofiles.os.rename(str(backup_path), str(slot_path))
+                    backup_restored = True
+                    logger.info(f"Backup restored for slot '{slot.slot_name}'")
+                except Exception as restore_error:
+                    logger.error(
+                        f"Failed to restore backup for slot '{slot.slot_name}': {restore_error}",
+                        exc_info=True,
+                    )
+
+            raise StorageError(
+                f"Error saving slot '{slot.slot_name}': {e}"
+                + ("" if backup_restored else " (backup restoration also failed)"),
+                slot_name=slot.slot_name,
+                context={"backup_restored": backup_restored, "original_error": str(e)},
+            ) from e
 
     async def _invalidate_search_caches(self, slot_name: str):
         """Invalidate search caches that might be affected by slot changes."""
@@ -325,6 +347,7 @@ class StorageManager:
 
         async with self._lock:
             slot = await self._load_slot(slot_name)
+            created_new = slot is None
 
             if slot is None:
                 slot = MemorySlot(slot_name=slot_name)
@@ -339,7 +362,14 @@ class StorageManager:
                     self._search_engine.add_slot(slot)
 
             self._state.set_current_slot(slot_name)
-            return slot
+
+        # Notify clients of resource list change (outside lock, best-effort)
+        if created_new:
+            from .notifications import send_resource_list_changed_safe
+
+            await send_resource_list_changed_safe()
+
+        return slot
 
     async def save_memory(self, slot_name: str, content: str, entry_type: str = "manual_save") -> MemoryEntry:
         """Save content to memory slot."""
@@ -349,6 +379,7 @@ class StorageManager:
 
         async with self._lock:
             slot = await self._load_slot(slot_name)
+            created_new = slot is None
 
             if slot is None:
                 slot = MemorySlot(slot_name=slot_name)
@@ -364,7 +395,14 @@ class StorageManager:
 
             await self._save_slot(slot)
             self._search_engine.add_slot(slot)  # Update search index
-            return entry
+
+        # Notify clients if a new slot was created (outside lock, best-effort)
+        if created_new:
+            from .notifications import send_resource_list_changed_safe
+
+            await send_resource_list_changed_safe()
+
+        return entry
 
     async def read_memory(self, slot_name: str) -> MemorySlot | None:
         """Read memory slot content."""
@@ -786,7 +824,15 @@ class StorageManager:
     async def delete_slot(self, slot_name: str) -> bool:
         """Delete a memory slot."""
         async with self._lock:
-            return await self._delete_slot_internal(slot_name)
+            deleted = await self._delete_slot_internal(slot_name)
+
+        # Notify clients of resource list change (outside lock, best-effort)
+        if deleted:
+            from .notifications import send_resource_list_changed_safe
+
+            await send_resource_list_changed_safe()
+
+        return deleted
 
     async def get_search_stats(self) -> dict[str, Any]:
         """Get search engine statistics."""
@@ -975,7 +1021,7 @@ class StorageManager:
             # Remove from active storage
             await self._delete_slot_internal(slot_name)
 
-            return {
+            result = {
                 "slot_name": slot_name,
                 "archived_at": archive_entry.archived_at.isoformat(),
                 "archive_reason": reason,
@@ -984,6 +1030,13 @@ class StorageManager:
                 "compression_ratio": archive_entry.compression_ratio,
                 "space_saved": archive_entry.original_size - archive_entry.archived_size,
             }
+
+        # Notify clients of resource list change (outside lock, best-effort)
+        from .notifications import send_resource_list_changed_safe
+
+        await send_resource_list_changed_safe()
+
+        return result
 
     async def restore_from_archive(self, slot_name: str) -> dict[str, Any]:
         """Restore a memory slot from archive."""
@@ -1002,12 +1055,19 @@ class StorageManager:
             # Remove from archive (optional - could keep for backup)
             # await self._archival_manager.delete_archive(slot_name)
 
-            return {
+            result = {
                 "slot_name": slot_name,
                 "restored_at": datetime.now().isoformat(),
                 "entry_count": len(slot.entries),
                 "total_size": slot.get_total_content_length(),
             }
+
+        # Notify clients of resource list change (outside lock, best-effort)
+        from .notifications import send_resource_list_changed_safe
+
+        await send_resource_list_changed_safe()
+
+        return result
 
     async def list_archives(self, include_stats: bool = False) -> list[dict[str, Any]]:
         """List all archived memory slots."""

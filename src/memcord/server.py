@@ -1553,11 +1553,17 @@ class ChatMemoryServer:
 
     async def _handle_importmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle importmem tool call."""
+        from .mcp_progress import MCPProgressReporter, get_progress_token
+
         source = arguments["source"]
         slot_name = arguments.get("slot_name") or self.storage.get_current_slot()
         description = arguments.get("description")
         tags = arguments.get("tags", [])
         group_path = arguments.get("group_path")
+
+        # Setup progress reporting
+        progress_token = get_progress_token(arguments)
+        progress = MCPProgressReporter(progress_token)
 
         if not source.strip():
             return [TextContent(type="text", text="Error: Source cannot be empty")]
@@ -1566,7 +1572,11 @@ class ChatMemoryServer:
             return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
 
         try:
+            total_steps = 3  # import + save + metadata
+            await progress.start(total_steps, f"Importing from {source[:50]}...")
+
             # Import content using the importer
+            await progress.report(1, total_steps, "Fetching and processing content...")
             import_result = await self.importer.import_content(source.strip())
 
             if not import_result.success:
@@ -1593,6 +1603,7 @@ class ChatMemoryServer:
             final_content = "".join(content_parts)
 
             # Save to memory slot
+            await progress.report(2, total_steps, "Saving to memory slot...")
             entry = await self.storage.save_memory(slot_name, final_content)
 
             # Apply metadata if provided
@@ -1646,6 +1657,7 @@ class ChatMemoryServer:
                 if "columns" in import_result.metadata:
                     response_parts.append(f"Columns: {import_result.metadata['columns']}")
 
+            await progress.complete("Import complete")
             return [TextContent(type="text", text="\n".join(response_parts))]
 
         except Exception as e:
@@ -1653,11 +1665,17 @@ class ChatMemoryServer:
 
     async def _handle_mergemem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle mergemem tool call."""
+        from .mcp_progress import MCPProgressReporter, get_progress_token
+
         source_slots = arguments["source_slots"]
         target_slot = arguments["target_slot"]
         action = arguments.get("action", "preview")
         similarity_threshold = arguments.get("similarity_threshold", 0.8)
         delete_sources = arguments.get("delete_sources", False)
+
+        # Setup progress reporting
+        progress_token = get_progress_token(arguments)
+        progress = MCPProgressReporter(progress_token)
 
         if not source_slots or len(source_slots) < 2:
             return [TextContent(type="text", text="Error: At least 2 source slots are required for merging")]
@@ -1673,11 +1691,19 @@ class ChatMemoryServer:
             return [TextContent(type="text", text="Error: At least 2 valid source slots are required")]
 
         try:
+            # Calculate total steps for progress (load slots + merge steps)
+            total_steps = len(source_slots) + 3  # load each slot + preview + merge + save
+            current_step = 0
+
+            await progress.start(total_steps, "Starting merge operation...")
+
             # Load source memory slots
             slots = []
             missing_slots = []
 
             for slot_name in source_slots:
+                current_step += 1
+                await progress.report(current_step, total_steps, f"Loading slot: {slot_name}")
                 slot = await self.storage.read_memory(slot_name)
                 if slot:
                     slots.append(slot)
@@ -1695,6 +1721,8 @@ class ChatMemoryServer:
 
             if action == "preview":
                 # Create merge preview with comprehensive error handling
+                current_step += 1
+                await progress.report(current_step, total_steps, "Creating merge preview...")
                 try:
                     preview = self.merger.create_merge_preview(slots, target_slot, similarity_threshold)
                 except Exception as e:
@@ -1770,10 +1798,13 @@ class ChatMemoryServer:
                     ]
                 )
 
+                await progress.complete("Preview complete")
                 return [TextContent(type="text", text="\n".join(response_parts))]
 
             elif action == "merge":
                 # Execute the merge
+                current_step += 1
+                await progress.report(current_step, total_steps, "Merging content...")
                 merge_result = self.merger.merge_slots(slots, target_slot, similarity_threshold)
 
                 if not merge_result.success:
@@ -1784,6 +1815,8 @@ class ChatMemoryServer:
                 merged_content = self.merger._merge_content(slots, similarity_threshold)
 
                 # Create or update the target slot
+                current_step += 1
+                await progress.report(current_step, total_steps, "Saving merged content...")
                 entry = await self.storage.save_memory(target_slot, merged_content)
 
                 # Apply merged metadata
@@ -1832,6 +1865,7 @@ class ChatMemoryServer:
                 if deleted_sources:
                     response_parts.extend(["", f"🗑️  Deleted source slots: {', '.join(deleted_sources)}"])
 
+                await progress.complete("Merge complete")
                 return [TextContent(type="text", text="\n".join(response_parts))]
 
             else:

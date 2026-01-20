@@ -180,15 +180,20 @@ class TestMemorySlotContracts:
             with pytest.raises(ValidationError):
                 MemorySlot(slot_name=dangerous_name)
 
-    def test_memory_slot_name_sql_injection_protection(self):
-        """Test SQL injection protection in slot names."""
-        # Test cases that should be REJECTED
+    def test_memory_slot_name_unsafe_characters_protection(self):
+        """Test unsafe character protection in slot names.
+
+        Note: SQL keyword validation was removed because memcord uses
+        file-based JSON storage, not a SQL database. SQL injection is
+        not a risk for file paths.
+        """
+        # Test cases that should be REJECTED (contain unsafe characters)
         rejected_cases = [
             ("test'; DROP TABLE slots; --", "unsafe characters"),  # Contains ; and '
-            ("test UNION SELECT * FROM users", "SQL keyword or pattern: UNION"),
             ("test; DELETE FROM slots", "unsafe characters"),  # Contains ;
-            ("test/* comment */", "SQL keyword or pattern"),  # Contains /*
-            ("test-- comment", "SQL keyword or pattern"),  # Contains --
+            ("test'name", "unsafe characters"),  # Contains '
+            ("test<script>", "unsafe characters"),  # Contains < >
+            ("test|pipe", "unsafe characters"),  # Contains |
         ]
 
         for case, expected_error in rejected_cases:
@@ -197,13 +202,19 @@ class TestMemorySlotContracts:
 
             assert expected_error in str(exc_info.value)
 
-        # Test cases that should be ALLOWED (actual behavior validation)
-        # Note: SQL keywords are checked with 'in' operator, so they're strict
+        # Test cases that should be ALLOWED
+        # SQL keywords are allowed since we use file storage, not SQL database
         allowed_cases = [
             "testword",  # Simple word
             "my_project",  # Underscore allowed
             "project-alpha",  # Dash allowed
             "notes2025",  # Numbers allowed
+            "project_update_notes",  # Contains "UPDATE" - should be allowed
+            "daily_insert_log",  # Contains "INSERT" - should be allowed
+            "select_best_items",  # Contains "SELECT" - should be allowed
+            "test UNION SELECT report",  # SQL-like but safe for file storage
+            "test/* comment */",  # Comment syntax safe for file names
+            "test-- comment",  # SQL comment syntax safe for file names
         ]
 
         for case in allowed_cases:

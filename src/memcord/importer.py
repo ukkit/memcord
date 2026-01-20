@@ -17,9 +17,23 @@ import trafilatura
 from bs4 import BeautifulSoup
 from pydantic import BaseModel
 
+from .security import InputValidator
+
 HAS_MAGIC = False
 
 logger = logging.getLogger(__name__)
+
+# Maximum file size for imports (50 MB)
+MAX_FILE_SIZE = 50 * 1024 * 1024
+
+
+def _format_size(size_bytes: int) -> str:
+    """Format file size in human-readable format."""
+    for unit in ["B", "KB", "MB", "GB"]:
+        if size_bytes < 1024:
+            return f"{size_bytes:.1f} {unit}"
+        size_bytes /= 1024
+    return f"{size_bytes:.1f} TB"
 
 
 class ImportResult(BaseModel):
@@ -79,12 +93,17 @@ class TextFileHandler(ImportHandler):
             if not path.exists():
                 return ImportResult(success=False, error=f"File not found: {source}")
 
+            # Check file size before reading
+            stat = path.stat()
+            if stat.st_size > MAX_FILE_SIZE:
+                return ImportResult(
+                    success=False,
+                    error=f"File too large: {_format_size(stat.st_size)} (max {_format_size(MAX_FILE_SIZE)})",
+                )
+
             # Read file content
             async with aiofiles.open(path, encoding="utf-8") as f:
                 content = await f.read()
-
-            # Get file stats
-            stat = path.stat()
 
             metadata = self._create_metadata(
                 source=str(path.absolute()),
@@ -125,6 +144,14 @@ class PDFHandler(ImportHandler):
 
             if not path.exists():
                 return ImportResult(success=False, error=f"PDF file not found: {source}")
+
+            # Check file size before processing
+            stat = path.stat()
+            if stat.st_size > MAX_FILE_SIZE:
+                return ImportResult(
+                    success=False,
+                    error=f"PDF file too large: {_format_size(stat.st_size)} (max {_format_size(MAX_FILE_SIZE)})",
+                )
 
             # Extract text from PDF
             text_content = []
@@ -180,14 +207,43 @@ class WebURLHandler(ImportHandler):
 
     async def import_content(self, source: str, **kwargs) -> ImportResult:
         """Import content from web URL."""
+        # Maximum response size (10 MB)
+        MAX_RESPONSE_SIZE = 10 * 1024 * 1024
+
         try:
+            # Validate URL for security (SSRF protection)
+            is_valid, error_msg = InputValidator.validate_url(source)
+            if not is_valid:
+                logger.warning(f"URL validation failed for '{source}': {error_msg}")
+                return ImportResult(success=False, error=f"URL validation failed: {error_msg}")
+
             # Use requests in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
 
             def fetch_url():
                 headers = {"User-Agent": "MemCord Content Importer 1.0"}
-                response = requests.get(source, headers=headers, timeout=30)
+                # Use streaming to check content-length before downloading
+                response = requests.get(source, headers=headers, timeout=30, stream=True)
                 response.raise_for_status()
+
+                # Check Content-Length header if available
+                content_length = response.headers.get("content-length")
+                if content_length and int(content_length) > MAX_RESPONSE_SIZE:
+                    response.close()
+                    raise ValueError(f"Response too large: {int(content_length)} bytes (max {MAX_RESPONSE_SIZE})")
+
+                # Read content with size limit
+                content_chunks = []
+                total_size = 0
+                for chunk in response.iter_content(chunk_size=8192):
+                    total_size += len(chunk)
+                    if total_size > MAX_RESPONSE_SIZE:
+                        response.close()
+                        raise ValueError(f"Response exceeded max size of {MAX_RESPONSE_SIZE} bytes")
+                    content_chunks.append(chunk)
+
+                # Reconstruct response content
+                response._content = b"".join(content_chunks)
                 return response
 
             response = await loop.run_in_executor(None, fetch_url)
@@ -264,6 +320,14 @@ class StructuredDataHandler(ImportHandler):
 
             if not path.exists():
                 return ImportResult(success=False, error=f"File not found: {source}")
+
+            # Check file size before processing
+            stat = path.stat()
+            if stat.st_size > MAX_FILE_SIZE:
+                return ImportResult(
+                    success=False,
+                    error=f"File too large: {_format_size(stat.st_size)} (max {_format_size(MAX_FILE_SIZE)})",
+                )
 
             extension = path.suffix.lower()
             content = None
