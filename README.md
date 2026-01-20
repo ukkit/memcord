@@ -281,3 +281,9 @@ Refer to **📖 [Complete Tools Reference](docs/tools-reference.md)** for Advanc
 ___
 
 **MIT License** - see LICENSE file for details.
+
+---
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=ukkit/memcord&type=date&legend=top-left)](https://www.star-history.com/#ukkit/memcord&type=date&legend=top-left)
