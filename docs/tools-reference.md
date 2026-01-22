@@ -1,20 +1,22 @@
 # Tools Reference
 
-Complete reference for all 19 tools available in the Chat Memory MCP Server.
+Complete reference for all 22 tools available in the Chat Memory MCP Server.
 
 ## Tool Availability
 
 MemCord offers **two modes** with different tool sets:
 
-### 🔧 Basic Mode (Default - 11 Tools)
+### 🔧 Basic Mode (Default - 14 Tools)
 Available without configuration:
 - Core: `memcord_name`, `memcord_use`, `memcord_save`, `memcord_read`, `memcord_save_progress`, `memcord_list`
 - Search: `memcord_search`, `memcord_query`
 - Privacy: `memcord_zero`
 - Selection: `memcord_select_entry`
 - Integration: `memcord_merge`
+- Project Binding: `memcord_bind`, `memcord_unbind`
+- Utility: `memcord_ping`
 
-### ⚡ Advanced Mode (All 19 Tools)
+### ⚡ Advanced Mode (All 22 Tools)
 Requires `MEMCORD_ENABLE_ADVANCED=true`:
 - **All Basic tools** plus:
 - Organization: `memcord_tag`, `memcord_list_tags`, `memcord_group`
@@ -56,6 +58,9 @@ Manually saves exact chat text to current memory slot (overwrites existing conte
 
 **Parameters:**
 - `chat_text`: The conversation text to save
+- `slot_name` (optional): Target memory slot. If not provided, uses current slot
+
+**Auto-detection:** When using Claude Code slash commands, if no slot name is provided, the command will automatically check for a `.memcord` file in the current working directory and use the slot name specified there.
 
 **Examples:**
 - "Save this conversation to memory"
@@ -67,6 +72,8 @@ Retrieves full content from memory slot.
 **Parameters:**
 - `slot_name` (optional): Name of slot to read. If not provided, uses current slot
 
+**Auto-detection:** When using Claude Code slash commands, if no slot name is provided, the command will automatically check for a `.memcord` file in the current working directory and use the slot name specified there.
+
 **Examples:**
 - "What did we discuss in the last session?"
 - "Read from slot 'project_alpha'"
@@ -76,7 +83,10 @@ Generates a summary and appends it to memory slot with timestamp.
 
 **Parameters:**
 - `chat_text`: Text to summarize
+- `slot_name` (optional): Target memory slot. If not provided, uses current slot
 - `compression_ratio` (optional): Target compression (0.05-0.5, default 0.15)
+
+**Auto-detection:** When using Claude Code slash commands, if no slot name is provided, the command will automatically check for a `.memcord` file in the current working directory and use the slot name specified there.
 
 **Examples:**
 - "Summarize our progress and save it"
@@ -91,7 +101,25 @@ Lists all available memory slots with metadata.
 - "Show me all my memory slots"
 - "List all available memories"
 
-### 7. `memcord_search <query> [options]`
+### 7. `memcord_ping`
+Lightweight health check for server warm-up. Returns minimal response to confirm server is running.
+
+**Parameters:** None
+
+**Returns:** "pong"
+
+**Use Cases:**
+- Warm up the server at session start to avoid cold start delays
+- Health check to verify server is responsive
+- Configure in Claude Code hooks for automatic warm-up
+
+**Examples:**
+- Call `memcord_ping` at the start of a session
+- Add to `UserPromptSubmit` hook for automatic warm-up
+
+See [Server Warm-up](claude-code-guide.md#server-warm-up-avoid-cold-start-delays) for hook configuration.
+
+### 8. `memcord_search <query> [options]`
 Search across all memory slots with advanced filtering.
 
 **Parameters:**
@@ -105,7 +133,7 @@ Search across all memory slots with advanced filtering.
 - "Search for 'API integration'"
 - "Search for 'database' excluding tag 'archived'"
 
-### 8. `memcord_query <question>`
+### 9. `memcord_query <question>`
 Ask natural language questions about your stored memories.
 
 **Parameters:**
@@ -118,7 +146,7 @@ Ask natural language questions about your stored memories.
 
 ### Privacy Control
 
-### 9. `memcord_zero`
+### 10. `memcord_zero`
 Activate zero mode - no memory will be saved until switched to another slot.
 
 **Parameters:**
@@ -145,7 +173,7 @@ Activate zero mode - no memory will be saved until switched to another slot.
 
 ### Entry Selection & Timeline Navigation
 
-### 10. `memcord_select_entry`
+### 11. `memcord_select_entry`
 Select and retrieve a specific memory entry by timestamp, relative time, or index within a memory slot.
 
 **Parameters:**
@@ -189,7 +217,7 @@ Select and retrieve a specific memory entry by timestamp, relative time, or inde
 
 ### Memory Integration
 
-### 11. `memcord_merge <source_slots> <target_slot> [options]`
+### 12. `memcord_merge <source_slots> <target_slot> [options]`
 Merge multiple memory slots into one with intelligent duplicate detection.
 
 **Parameters:**
@@ -222,13 +250,53 @@ Merge multiple memory slots into one with intelligent duplicate detection.
 - **Research Organization**: Consolidate scattered research into organized collection
 - **Content Cleanup**: Remove duplicates while preserving unique information
 
+### Project Binding
+
+### 13. `memcord_bind <project_path> [slot_name]`
+Bind a project directory to a memory slot by creating a `.memcord` file in the project root.
+
+**Parameters:**
+- `project_path`: Path to the project directory to bind
+- `slot_name` (optional): Memory slot name to bind. If not specified, uses directory name
+
+**Behavior:**
+- Creates a `.memcord` file in the project directory containing the slot name
+- Auto-generates slot name from directory name if not specified (spaces replaced with underscores)
+- Creates the memory slot if it doesn't exist
+- If `.memcord` file already exists, reads and uses the existing slot name (unless new slot_name is specified)
+
+**Examples:**
+- `memcord_bind project_path="/path/to/my-project"` - Binds to slot named "my-project"
+- `memcord_bind project_path="/path/to/project" slot_name="custom-slot"` - Binds to specified slot
+- `memcord_bind project_path="."` - Binds current directory
+
+**Use Cases:**
+- **Project-specific memory**: Each project automatically uses its own memory slot
+- **Team collaboration**: `.memcord` file can be committed to version control
+- **Auto-detection**: Claude Code slash commands automatically use the bound slot
+
+### 14. `memcord_unbind <project_path>`
+Remove the `.memcord` binding file from a project directory.
+
+**Parameters:**
+- `project_path`: Path to the project directory to unbind
+
+**Behavior:**
+- Removes the `.memcord` file from the project directory
+- Does NOT delete the memory slot itself (data is preserved)
+- Returns helpful message if no `.memcord` file exists
+
+**Examples:**
+- `memcord_unbind project_path="/path/to/my-project"` - Removes binding
+- `memcord_unbind project_path="."` - Unbinds current directory
+
 ---
 
 ## Advanced Tools (Requires MEMCORD_ENABLE_ADVANCED=true)
 
 ### Storage Optimization
 
-### 12. `memcord_compress`
+### 15. `memcord_compress`
 Compress memory slot content to save storage space with intelligent gzip compression.
 
 **Parameters:**
@@ -256,7 +324,7 @@ Compress memory slot content to save storage space with intelligent gzip compres
 
 ### Organization Tools
 
-### 13. `memcord_tag <action> [tags]`
+### 16. `memcord_tag <action> [tags]`
 Manage tags for memory slots.
 
 **Parameters:**
@@ -274,7 +342,7 @@ Manage tags for memory slots.
 - Hierarchical tags using dot notation (e.g., "project.alpha.backend")
 - Auto-completion suggestions
 
-### 14. `memcord_list_tags`
+### 17. `memcord_list_tags`
 List all tags used across all memory slots.
 
 **Parameters:** None
@@ -288,7 +356,7 @@ List all tags used across all memory slots.
 - Usage count
 - Associated memory slots
 
-### 15. `memcord_group <action> [group_path]`
+### 18. `memcord_group <action> [group_path]`
 Manage memory slot groups and folders.
 
 **Parameters:**
@@ -308,7 +376,7 @@ Manage memory slot groups and folders.
 
 ### Import & Integration
 
-### 16. `memcord_import <source> [options]`
+### 19. `memcord_import <source> [options]`
 Import content from various sources including files, PDFs, web URLs, and structured data.
 
 **Parameters:**
@@ -339,7 +407,7 @@ Import content from various sources including files, PDFs, web URLs, and structu
 
 ### Archival & Long-term Storage
 
-### 17. `memcord_archive <action> [options]`
+### 20. `memcord_archive <action> [options]`
 Archive or restore memory slots for long-term storage with automatic compression.
 
 **Parameters:**
@@ -371,7 +439,7 @@ Archive or restore memory slots for long-term storage with automatic compression
 
 ### Export & Sharing
 
-### 18. `memcord_export <slot_name> <format>`
+### 21. `memcord_export <slot_name> <format>`
 Exports memory slot as an MCP file resource.
 
 **Parameters:**
@@ -382,7 +450,7 @@ Exports memory slot as an MCP file resource.
 - "Export project_alpha as markdown"
 - "Export meeting_notes as JSON"
 
-### 19. `memcord_share <slot_name> [formats]`
+### 22. `memcord_share <slot_name> [formats]`
 Generates shareable files in multiple formats.
 
 **Parameters:**

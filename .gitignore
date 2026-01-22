@@ -71,6 +71,7 @@ venv.bak/
 claude_desktop_config.json
 .vscode/mcp.json
 .antigravity/
+.memcord
 
 # OS generated files
 .DS_Store
@@ -81,6 +82,7 @@ claude_desktop_config.json
 ehthumbs.db
 Thumbs.db
 nul
+*.txt
 
 # Project specific
 memory_slots/

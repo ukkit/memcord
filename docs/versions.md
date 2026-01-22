@@ -1,0 +1,61 @@
+
+## v2.3.7 - Cross-Platform Support
+
+```text
+  - Windows PowerShell installer (install.ps1) for one-line installation
+  - Centralized config-templates/ folder with platform-specific configs
+  - Cross-platform config generator (scripts/generate-config.py)
+  - Windows cmd /c wrapper support for proper process spawning
+  - Updated MCP SDK version constraint to v1.22-2.0 for stability
+  - Logging configuration to prevent stdout corruption in STDIO mode
+```
+
+## v2.3.6 - Google Antigravity IDE Support
+
+```text
+  - Added Google Antigravity IDE configuration template
+  - Full compatibility with Antigravity's MCP server integration
+```
+
+## v2.3.5 - Enhanced VSCode and GitHub Copilot Integration
+
+```text
+  - Added comprehensive VSCode configuration templates (.vscode/mcp.json.example)
+  - Implemented 16 reusable prompt templates for GitHub Copilot workflows
+  - Created automated verification script for VSCode setup validation
+  - Added MCP registry metadata (package.json) for marketplace discovery
+  - Full integration test suite for VSCode/Copilot compatibility
+  - Complete documentation for enterprise deployment, security, and workflows
+```
+
+## v2.3.4 - Updated MCP SDK & MCP Protocol to latest
+
+```text
+  - MCP SDK: 1.22.0 (released November 20, 2025)
+  - MCP Protocol: 2025-11-25 (released November 25, 2025)
+```
+
+## v2.3.3 - Optimizations to improve speed, reduce startup time, and improve code maintainability
+
+```text
+  - Tool definition caching to eliminate redundant list_tools() calls
+  - Lazy loading for heavy dependencies (TextSummarizer, SimpleQueryProcessor, ContentImporter, MemorySlotMerger) via u/property decorators for faster startup
+  - Error message constants to eliminate 30+ duplicate string literals and improve maintainability
+  - LRU cache (@functools.lru_cache) to _get_mime_type() for faster repeated lookups
+```
+
+## v2.3.0 - Enhanced Security
+
+```text
+  - Built-in protection that checks inputs, limits misuse, strengthens defenses, and handles errors safely
+  - High Speed: Uses 42% fewer tokens, loads slots 20x faster, and makes searches 7x quicker thanks to smart caching that hits 80% of the time—keeping response times under a millisecond.
+  - Better Documentation: Clearer documentation, intelligent default settings that adapt to your preferences.
+```
+
+### v2.2.0 - What's new
+
+```text
+  - Timeline Navigation - memcord_select_entry
+  - Simplified Slot Activation - memcord_use
+  - Memory Integration Promoted - memcord_merge
+```

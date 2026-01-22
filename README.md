@@ -4,7 +4,7 @@
       <img src="assets/image/memcord_1024.png" width="256">
     </td>
     <td>
-      <h3>MEMCORD v2.3.7 (mcp server)</h3>
+      <h3>MEMCORD v2.4.0 (mcp server)</h3>
       <p>
         This privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control.
       </p>
@@ -32,27 +32,20 @@ Transform your Claude conversations into a searchable, organized knowledge base 
 * **🎯 Effortless Organization** - Smart tags and folders that organize themselves around your workflow
 * **🔗 Intelligent Merging** - Automatically combines related conversations while eliminating duplicates
 
-## What's new in v2.3.7
+## What's new in v2.4.0
 
 ```text
-Cross-Platform Support & MCP Compliance:
+Project Memory Binding & Auto-Detection for ⭐claude code⭐:
 
-  - Windows PowerShell installer (install.ps1) for one-line installation
-  - Centralized config-templates/ folder with platform-specific configs
-  - Cross-platform config generator (scripts/generate-config.py)
-  - Windows cmd /c wrapper support for proper process spawning
-  - Updated MCP SDK version constraint to v1.22-2.0 for stability
-  - Logging configuration to prevent stdout corruption in STDIO mode
+  - New memcord_bind tool: Bind project directories to memory slots via .memcord file
+  - New memcord_unbind tool: Remove project bindings (preserves memory data)
+  - Auto-detection: Slash commands automatically use bound slot from .memcord file
+  - Zero-config workflow: Once bound, no need to specify slot names
+  - Updated tool count: 21 tools (13 basic + 8 advanced)
+  - Enhanced documentation for project binding workflows
 ```
 
-<details>
-<summary>v2.3.6 - Google Antigravity IDE Support</summary>
-
-```text
-  - Added Google Antigravity IDE configuration template
-  - Full compatibility with Antigravity's MCP server integration
-```
-</details>
+check out [🔗 Project Setup Workflow](#-project-setup-workflow) section for details
 
 ## 🚀 Quick Start
 
@@ -229,6 +222,40 @@ uv run python scripts/generate-config.py  # Regenerate configs
 
 **[Complete Installation Guide](docs/installation.md)** - Detailed setup for Claude Code, Claude Desktop, and other MCP applications.
 
+<a id="project-setup-workflow"></a>
+
+## 🔗 Project Setup Workflow
+
+### First-Time Setup (New Project)
+
+```bash
+# 1. Once you are in claude code, bind the project to a memory slot (one-time setup)
+memcord_bind "." "my-project-name"
+OR
+memcord_bin "my_project_name"
+# Creates .memcord file containing "my-project-name"
+
+# 2. Start saving your conversations
+/memcord-save-progress  # Auto-detects slot from .memcord file
+```
+
+### Subsequent Sessions (Returning to Project)
+
+```bash
+# Just use slash commands - no slot name needed!
+/memcord-read           # Reads from bound slot automatically
+
+/memcord-save           # Saves to bound slot automatically
+/memcord-save-progress  # Summarizes and saves automatically
+```
+
+### How Auto-Detection Works
+
+1. When you run `/memcord-read` (or save/save-progress) without arguments
+2. Claude checks for `.memcord` file in the current working directory
+3. If found, reads the slot name and uses it automatically
+4. No need to remember or type slot names!
+
 ## 💻 Basic Usage
 
 ```bash
@@ -251,17 +278,21 @@ memcord_search "API design decisions"
 memcord_query "What did we decide about authentication?"
 
 # Merge related conversations
-memcord_merge ["project_meeting", "api_notes"] "consolidated_project" 🆕
+memcord_merge ["project_meeting", "api_notes"] "consolidated_project"
+
+# Bind project directory to memory slot (auto-detection for slash commands)
+memcord_bind "." "my-project"  # Creates .memcord file 🆕
+memcord_unbind "."             # Removes binding 🆕
 
 ```
-Refer to **📖 [Complete Tools Reference](docs/tools-reference.md)** for Advanced Mode and detailed documentation for all 19 tools with examples and parameters.
+Refer to **📖 [Complete Tools Reference](docs/tools-reference.md)** for Advanced Mode and detailed documentation for all 21 tools with examples and parameters.
 
 ## 📚 Documentation
 <details><summary>⚠️ Documentation updates in progress </summary>
 
 - **📚 [Installation Guide](docs/installation.md)** - Complete setup instructions for all MCP applications
 - **📃 [Feature Guide](docs/features-guide.md)** - Complete list of features
-- **📖 [Tools Reference](docs/tools-reference.md)** - Detailed documentation for all 19 tools
+- **📖 [Tools Reference](docs/tools-reference.md)** - Detailed documentation for all 21 tools
 - **📥 [Import & Merge Guide](docs/import-and-merge.md)** - Comprehensive guide for Phase 3 features 🆕
 - **🔍 [Search & Query Guide](docs/search-and-query.md)** - Advanced search features and natural language queries
 - **🗂️ [Usage Examples](docs/examples.md)** - Real-world workflows and practical use cases

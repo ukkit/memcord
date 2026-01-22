@@ -44,7 +44,7 @@ claude mcp get memcord
 claude mcp test memcord
 ```
 
-You should see all 19 tools available (11 basic + 8 advanced).
+You should see all 21 tools available (13 basic + 8 advanced).
 
 ## Project Configuration
 
@@ -70,7 +70,7 @@ MemCord includes a comprehensive `.mcp.json` configuration:
 
 Key features:
 - **Relative paths** - Works from any project location
-- **Advanced tools enabled** - All 18 tools available by default
+- **Advanced tools enabled** - All 21 tools available by default
 - **Team sharing** - Configuration tracked in version control
 - **Environment isolation** - Uses project's virtual environment
 
@@ -91,6 +91,50 @@ claude mcp configure memcord -e MEMCORD_MEMORY_DIR=/custom/path
 # View current configuration
 claude mcp get memcord
 ```
+
+## Project Memory Binding
+
+### The .memcord File
+
+MemCord supports project-level memory binding through a `.memcord` file. This file associates a project directory with a specific memory slot, enabling automatic slot detection.
+
+### Setting Up Project Binding
+
+```bash
+# Bind current project to a memory slot
+memcord_bind project_path="." slot_name="my-project"
+
+# Or let it auto-generate the slot name from directory name
+memcord_bind project_path="."
+
+# Remove binding (preserves the memory slot)
+memcord_unbind project_path="."
+```
+
+### How It Works
+
+1. **Create binding**: `memcord_bind` creates a `.memcord` file in your project root
+2. **Auto-detection**: Slash commands (`/memcord-read`, `/memcord-save`, `/memcord-save-progress`) automatically detect the `.memcord` file
+3. **No slot name needed**: When the file exists, commands use the bound slot without requiring explicit slot names
+
+### Example Workflow
+
+```bash
+# One-time setup: bind project to memory
+memcord_bind project_path="/path/to/my-project" slot_name="my-project-memory"
+
+# Later, in Claude Code, just use slash commands without arguments:
+/memcord-read          # Automatically reads from "my-project-memory"
+/memcord-save          # Automatically saves to "my-project-memory"
+/memcord-save-progress # Automatically saves progress to "my-project-memory"
+```
+
+### Benefits
+
+- **Zero configuration**: Once bound, no need to specify slot names
+- **Team sharing**: Commit `.memcord` to version control for consistent team setup
+- **Project isolation**: Each project has its own dedicated memory slot
+- **Portable**: Works across different machines when `.memcord` is in version control
 
 ## Team Collaboration
 
@@ -348,6 +392,74 @@ claude mcp call memcord memcord_export '{"format": "json", "include_metadata": t
 claude mcp call memcord memcord_import '{"source": "team_memories.json", "merge_strategy": "append"}'
 ```
 
+## Server Warm-up (Avoid Cold Start Delays)
+
+MCP servers are lazily initialized - the first tool call triggers server startup, which can cause delays or timeouts. Use the `memcord_ping` tool to warm up the server.
+
+### Manual Warm-up
+
+Call `memcord_ping` at the start of a session to ensure the server is running:
+
+```bash
+# In Claude Code, just call the ping tool
+memcord_ping
+# Returns: "pong"
+```
+
+### Automatic Warm-up with Hooks
+
+Configure Claude Code hooks to automatically warm up the server when a session starts.
+
+**Option 1: Project-level hook (`.claude/settings.json`)**
+
+Create or edit `.claude/settings.json` in your project:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "mcp__memcord__memcord_ping",
+        "hooks": []
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": []
+      }
+    ]
+  }
+}
+```
+
+**Option 2: User-prompt-submit hook**
+
+Add a hook that warms up the server on the first user message:
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "type": "command",
+        "command": "claude mcp call memcord memcord_ping '{}'",
+        "timeout": 5000,
+        "onFailure": "ignore"
+      }
+    ]
+  }
+}
+```
+
+### Why Warm-up Matters
+
+1. **First call delay**: Without warm-up, the first MCP tool call may take 2-5 seconds
+2. **Timeout prevention**: Some tools may timeout on cold start
+3. **Better UX**: Pre-warmed server responds instantly
+
+The `memcord_ping` tool is extremely lightweight - it just returns "pong" with no database or file operations.
+
 ## Troubleshooting
 
 ### Common Issues
@@ -491,5 +603,5 @@ Many IDEs can run Claude Code commands directly:
 
 For more information, see:
 - [Installation Guide](installation.md) - Complete setup instructions
-- [Tools Reference](tools-reference.md) - Detailed documentation for all 18 tools
+- [Tools Reference](tools-reference.md) - Detailed documentation for all 21 tools
 - [Usage Examples](examples.md) - Real-world workflows and use cases

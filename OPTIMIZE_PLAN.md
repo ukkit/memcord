@@ -22,15 +22,35 @@ Refactor `server.py` (2,736 lines, 26 handlers) to ~1,400 lines while improving:
 
 ### Completed
 - **Phase 1**: Handler registry with O(1) dispatch - COMPLETE
-- **Phase 2**: Service modules created (infrastructure only)
+- **Phase 2**: Service modules created - COMPLETE
 - **Phase 3**: ResponseBuilder and error decorators created (infrastructure only)
+- **Phase 2 Integration**: ALL handlers now delegating to services ✅
 
 ### Current Metrics
-| Metric | Value |
-|--------|-------|
-| `server.py` | 2,684 lines |
-| New modules created | ~1,816 lines |
-| Tests passing | 429/429 |
+| Metric | Value | Change |
+|--------|-------|--------|
+| `server.py` | 2,354 lines | **-330 lines** |
+| New modules created | ~1,816 lines | |
+| Tests passing | 429/429 | ✅ |
+
+### Handlers Integrated with Services ✅ ALL COMPLETE
+| Handler | Service | Status |
+|---------|---------|--------|
+| `_handle_mergemem` | MergeService | ✅ |
+| `_handle_status` | MonitoringService | ✅ |
+| `_handle_metrics` | MonitoringService | ✅ |
+| `_handle_logs` | MonitoringService | ✅ |
+| `_handle_diagnostics` | MonitoringService | ✅ |
+| `_handle_compressmem` | CompressionService | ✅ |
+| `_handle_archivemem` | ArchiveService | ✅ |
+| `_handle_importmem` | ImportService | ✅ |
+
+### Service Properties Added to ChatMemoryServer
+- `merge_service` - MergeService(storage, merger)
+- `monitoring_service` - MonitoringService(status_monitor)
+- `compression_service` - CompressionService(storage)
+- `archive_service` - ArchiveService(storage)
+- `import_service` - ImportService(storage, importer)
 
 ### Files Created
 | File | Lines | Purpose |
@@ -44,11 +64,13 @@ Refactor `server.py` (2,736 lines, 26 handlers) to ~1,400 lines while improving:
 | `services/import_service.py` | 159 | Import business logic |
 | `services/monitoring_service.py` | 405 | Monitoring business logic |
 
-### Remaining Work
-To achieve the full ~1,300 line reduction:
-1. Update handlers to delegate to service modules (~800 lines saved)
-2. Apply `@handle_errors` decorator to handlers
-3. Move tool schemas into handler decorators (~200 lines saved)
+### Remaining Work (Optional)
+To achieve further line reduction:
+1. ~~Update compression handler to delegate to CompressionService~~ ✅
+2. ~~Update archive handler to delegate to ArchiveService~~ ✅
+3. ~~Update import handler to delegate to ImportService~~ ✅
+4. Apply `@handle_errors` decorator to handlers
+5. Move tool schemas into handler decorators (~200 lines saved)
 
 ---
 
