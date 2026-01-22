@@ -19,6 +19,7 @@ import os
 import secrets
 from collections.abc import Sequence
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from mcp.server import Server
@@ -114,6 +115,78 @@ class ChatMemoryServer:
 
         self._setup_handlers()
 
+        # Build handler dispatch map for O(1) lookup
+        self._handler_map = self._build_handler_map()
+
+    def _build_handler_map(self) -> dict[str, tuple[callable, bool]]:
+        """Build handler dispatch map.
+
+        Returns:
+            Dict mapping tool name to (handler_method, requires_advanced) tuple
+        """
+        return {
+            # Basic tools (always available)
+            "memcord_name": (self._handle_memname, False),
+            "memcord_use": (self._handle_memuse, False),
+            "memcord_save": (self._handle_savemem, False),
+            "memcord_read": (self._handle_readmem, False),
+            "memcord_save_progress": (self._handle_saveprogress, False),
+            "memcord_list": (self._handle_listmems, False),
+            "memcord_ping": (self._handle_ping, False),
+            "memcord_search": (self._handle_searchmem, False),
+            "memcord_query": (self._handle_querymem, False),
+            "memcord_zero": (self._handle_zeromem, False),
+            "memcord_select_entry": (self._handle_select_entry, False),
+            # Project Binding tools
+            "memcord_bind": (self._handle_bind, False),
+            "memcord_unbind": (self._handle_unbind, False),
+            # Status & Monitoring tools
+            "memcord_status": (self._handle_status, False),
+            "memcord_metrics": (self._handle_metrics, False),
+            "memcord_logs": (self._handle_logs, False),
+            "memcord_diagnostics": (self._handle_diagnostics, False),
+            # Advanced tools (require MEMCORD_ENABLE_ADVANCED=true)
+            "memcord_tag": (self._handle_tagmem, True),
+            "memcord_list_tags": (self._handle_listtags, True),
+            "memcord_group": (self._handle_groupmem, True),
+            "memcord_import": (self._handle_importmem, True),
+            "memcord_merge": (self._handle_mergemem, True),
+            "memcord_archive": (self._handle_archivemem, True),
+            "memcord_export": (self._handle_exportmem, True),
+            "memcord_share": (self._handle_sharemem, True),
+            "memcord_compress": (self._handle_compressmem, True),
+        }
+
+    async def _dispatch_handler(self, name: str, arguments: dict[str, Any]) -> Sequence[TextContent]:
+        """Dispatch to handler using O(1) lookup.
+
+        Args:
+            name: Tool name
+            arguments: Tool arguments
+
+        Returns:
+            Handler result or error message
+        """
+        handler_entry = self._handler_map.get(name)
+
+        if handler_entry is None:
+            return [TextContent(type="text", text=f"Error: Unknown tool: {name}")]
+
+        handler, requires_advanced = handler_entry
+
+        if requires_advanced and not self.enable_advanced_tools:
+            return [
+                TextContent(
+                    type="text",
+                    text=(
+                        f"Error: Advanced tool '{name}' is not enabled. "
+                        "Set MEMCORD_ENABLE_ADVANCED=true to enable advanced features."
+                    ),
+                )
+            ]
+
+        return await handler(arguments)
+
     @property
     def summarizer(self):
         """Lazy-loaded TextSummarizer instance."""
@@ -150,86 +223,36 @@ class ChatMemoryServer:
             self._merger = MemorySlotMerger()
         return self._merger
 
+    def _detect_project_slot(self) -> str | None:
+        """Check for .memcord file in current working directory.
+
+        Returns the slot name from the .memcord file if it exists,
+        otherwise returns None.
+        """
+        memcord_file = Path.cwd() / ".memcord"
+        if memcord_file.exists():
+            try:
+                slot_name = memcord_file.read_text().strip()
+                if slot_name:
+                    return slot_name
+            except (OSError, IOError):
+                pass
+        return None
+
+    def _resolve_slot(self, arguments: dict[str, Any], key: str = "slot_name") -> str | None:
+        """Resolve slot name from arguments, current slot, or project binding.
+
+        Priority order:
+        1. Explicit slot_name in arguments
+        2. Currently active slot (via memcord_use/memcord_name)
+        3. Project binding (.memcord file in cwd)
+        """
+        return arguments.get(key) or self.storage.get_current_slot() or self._detect_project_slot()
+
     async def call_tool_direct(self, name: str, arguments: dict[str, Any]) -> Sequence[TextContent]:
         """Direct tool calling method for testing purposes."""
         try:
-            # Basic tools (always available)
-            if name == "memcord_name":
-                return await self._handle_memname(arguments)
-            elif name == "memcord_use":
-                return await self._handle_memuse(arguments)
-            elif name == "memcord_save":
-                return await self._handle_savemem(arguments)
-            elif name == "memcord_read":
-                return await self._handle_readmem(arguments)
-            elif name == "memcord_save_progress":
-                return await self._handle_saveprogress(arguments)
-            elif name == "memcord_list":
-                return await self._handle_listmems(arguments)
-            elif name == "memcord_search":
-                return await self._handle_searchmem(arguments)
-            elif name == "memcord_query":
-                return await self._handle_querymem(arguments)
-            elif name == "memcord_zero":
-                return await self._handle_zeromem(arguments)
-            elif name == "memcord_select_entry":
-                return await self._handle_select_entry(arguments)
-
-            # Status & Monitoring tools
-            elif name == "memcord_status":
-                return await self._handle_status(arguments)
-            elif name == "memcord_metrics":
-                return await self._handle_metrics(arguments)
-            elif name == "memcord_logs":
-                return await self._handle_logs(arguments)
-            elif name == "memcord_diagnostics":
-                return await self._handle_diagnostics(arguments)
-
-            # Advanced tools (check if enabled)
-            elif name in [
-                "memcord_tag",
-                "memcord_list_tags",
-                "memcord_group",
-                "memcord_import",
-                "memcord_merge",
-                "memcord_archive",
-                "memcord_export",
-                "memcord_share",
-                "memcord_compress",
-            ]:
-                if not self.enable_advanced_tools:
-                    return [
-                        TextContent(
-                            type="text",
-                            text=(
-                                f"Error: Advanced tool '{name}' is not enabled. "
-                                "Set MEMCORD_ENABLE_ADVANCED=true to enable advanced features."
-                            ),
-                        )
-                    ]
-
-                if name == "memcord_tag":
-                    return await self._handle_tagmem(arguments)
-                elif name == "memcord_list_tags":
-                    return await self._handle_listtags(arguments)
-                elif name == "memcord_group":
-                    return await self._handle_groupmem(arguments)
-                elif name == "memcord_import":
-                    return await self._handle_importmem(arguments)
-                elif name == "memcord_merge":
-                    return await self._handle_mergemem(arguments)
-                elif name == "memcord_archive":
-                    return await self._handle_archivemem(arguments)
-                elif name == "memcord_export":
-                    return await self._handle_exportmem(arguments)
-                elif name == "memcord_share":
-                    return await self._handle_sharemem(arguments)
-                elif name == "memcord_compress":
-                    return await self._handle_compressmem(arguments)
-                else:
-                    return [TextContent(type="text", text=f"Error: Unknown advanced tool: {name}")]
-            else:
-                return [TextContent(type="text", text=f"Error: Unknown tool: {name}")]
+            return await self._dispatch_handler(name, arguments)
         except Exception as e:
             return [TextContent(type="text", text=f"Error: {str(e)}")]
 
@@ -371,6 +394,11 @@ class ChatMemoryServer:
             Tool(
                 name="memcord_list",
                 description="List all available memory slots with metadata",
+                inputSchema={"type": "object", "properties": {}},
+            ),
+            Tool(
+                name="memcord_ping",
+                description="Lightweight health check for server warm-up. Returns minimal response to confirm server is running.",
                 inputSchema={"type": "object", "properties": {}},
             ),
             # Search & Intelligence Tools
@@ -585,6 +613,39 @@ class ChatMemoryServer:
                             "default": "health",
                         }
                     },
+                },
+            ),
+            # Project Binding Tools
+            Tool(
+                name="memcord_bind",
+                description="Bind a project directory to a memory slot. Creates .memcord file in the project.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "project_path": {
+                            "type": "string",
+                            "description": "Path to the project directory to bind",
+                        },
+                        "slot_name": {
+                            "type": "string",
+                            "description": "Memory slot name to bind (optional, uses directory name if not specified)",
+                        },
+                    },
+                    "required": ["project_path"],
+                },
+            ),
+            Tool(
+                name="memcord_unbind",
+                description="Remove .memcord binding from a project directory",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "project_path": {
+                            "type": "string",
+                            "description": "Path to the project directory",
+                        },
+                    },
+                    "required": ["project_path"],
                 },
             ),
         ]
@@ -807,40 +868,8 @@ class ChatMemoryServer:
                 self.security.timeout_manager.start_operation(operation_id, name)
 
                 try:
-                    # Basic tools (always available)
-                    if name == "memcord_name":
-                        return await self._handle_memname(arguments)
-                    elif name == "memcord_use":
-                        return await self._handle_memuse(arguments)
-                    elif name == "memcord_save":
-                        return await self._handle_savemem(arguments)
-                    elif name == "memcord_read":
-                        return await self._handle_readmem(arguments)
-                    elif name == "memcord_save_progress":
-                        return await self._handle_saveprogress(arguments)
-                    elif name == "memcord_list":
-                        return await self._handle_listmems(arguments)
-                    elif name == "memcord_search":
-                        return await self._handle_searchmem(arguments)
-                    elif name == "memcord_query":
-                        return await self._handle_querymem(arguments)
-                    elif name == "memcord_zero":
-                        return await self._handle_zeromem(arguments)
-                    elif name == "memcord_select_entry":
-                        return await self._handle_select_entry(arguments)
-
-                    # Status & Monitoring tools
-                    elif name == "memcord_status":
-                        return await self._handle_status(arguments)
-                    elif name == "memcord_metrics":
-                        return await self._handle_metrics(arguments)
-                    elif name == "memcord_logs":
-                        return await self._handle_logs(arguments)
-                    elif name == "memcord_diagnostics":
-                        return await self._handle_diagnostics(arguments)
-
-                    else:
-                        return [TextContent(type="text", text=f"Error: Unknown tool: {name}")]
+                    # O(1) dispatch using handler map
+                    return await self._dispatch_handler(name, arguments)
 
                 finally:
                     # Clean up operation tracking
@@ -995,7 +1024,7 @@ class ChatMemoryServer:
     async def _handle_savemem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle savemem tool call."""
         chat_text = arguments["chat_text"]
-        slot_name = arguments.get("slot_name") or self.storage.get_current_slot()
+        slot_name = self._resolve_slot(arguments)
 
         if not slot_name:
             return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
@@ -1021,7 +1050,7 @@ class ChatMemoryServer:
 
     async def _handle_readmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle readmem tool call."""
-        slot_name = arguments.get("slot_name") or self.storage.get_current_slot()
+        slot_name = self._resolve_slot(arguments)
 
         if not slot_name:
             return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
@@ -1061,7 +1090,7 @@ class ChatMemoryServer:
     async def _handle_saveprogress(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle saveprogress tool call."""
         chat_text = arguments["chat_text"]
-        slot_name = arguments.get("slot_name") or self.storage.get_current_slot()
+        slot_name = self._resolve_slot(arguments)
         compression_ratio = arguments.get("compression_ratio", 0.15)
 
         if not slot_name:
@@ -1129,6 +1158,10 @@ class ChatMemoryServer:
 
         return [TextContent(type="text", text="\n".join(lines))]
 
+    async def _handle_ping(self, arguments: dict[str, Any]) -> list[TextContent]:
+        """Handle ping tool call - lightweight health check for server warm-up."""
+        return [TextContent(type="text", text="pong")]
+
     async def _handle_zeromem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle zeromem tool call - activate zero mode."""
         # Activate zero mode by setting current slot to special __ZERO__ slot
@@ -1149,8 +1182,8 @@ class ChatMemoryServer:
         """
         from .temporal_parser import TemporalParser
 
-        # Get slot name (use current if not specified)
-        slot_name = arguments.get("slot_name", self.storage.get_current_slot())
+        # Get slot name (use current if not specified, or project binding)
+        slot_name = self._resolve_slot(arguments)
         if not slot_name:
             return [
                 TextContent(
@@ -1422,7 +1455,7 @@ class ChatMemoryServer:
     async def _handle_tagmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle tagmem tool call."""
         action = arguments["action"]
-        slot_name = arguments.get("slot_name") or self.storage.get_current_slot()
+        slot_name = self._resolve_slot(arguments)
         tags = arguments.get("tags", [])
 
         if action in ["add", "remove"] and not slot_name:
@@ -1490,13 +1523,11 @@ class ChatMemoryServer:
     async def _handle_groupmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle groupmem tool call."""
         action = arguments["action"]
-        slot_name = arguments.get("slot_name")
+        slot_name = self._resolve_slot(arguments)
         group_path = arguments.get("group_path")
 
         if action in ["set", "remove"] and not slot_name:
-            slot_name = self.storage.get_current_slot()
-            if not slot_name:
-                return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
+            return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
 
         try:
             if action == "set":
@@ -1554,7 +1585,7 @@ class ChatMemoryServer:
     async def _handle_importmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle importmem tool call."""
         source = arguments["source"]
-        slot_name = arguments.get("slot_name") or self.storage.get_current_slot()
+        slot_name = self._resolve_slot(arguments)
         description = arguments.get("description")
         tags = arguments.get("tags", [])
         group_path = arguments.get("group_path")
@@ -1865,7 +1896,7 @@ class ChatMemoryServer:
     async def _handle_compressmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle compress tool call."""
         action = arguments.get("action", "analyze")
-        slot_name = arguments.get("slot_name")
+        slot_name = self._resolve_slot(arguments)  # Can be None for global stats
         force = arguments.get("force", False)
 
         try:
@@ -2043,7 +2074,7 @@ class ChatMemoryServer:
     async def _handle_archivemem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle archive tool call."""
         action = arguments.get("action")
-        slot_name = arguments.get("slot_name")
+        slot_name = self._resolve_slot(arguments)
         reason = arguments.get("reason", "manual")
         days_inactive = arguments.get("days_inactive", 30)
 
@@ -2584,6 +2615,50 @@ class ChatMemoryServer:
 
         except Exception as e:
             return [TextContent(type="text", text=f"Diagnostics failed: {str(e)}")]
+
+    async def _handle_bind(self, arguments: dict[str, Any]) -> list[TextContent]:
+        """Bind project directory to a memory slot."""
+        project_path = Path(arguments["project_path"]).expanduser().resolve()
+
+        if not project_path.is_dir():
+            return [TextContent(type="text", text=f"Error: '{project_path}' is not a valid directory")]
+
+        memcord_file = project_path / ".memcord"
+
+        # Determine slot name
+        slot_name = arguments.get("slot_name")
+        if not slot_name:
+            # Check if .memcord already exists
+            if memcord_file.exists():
+                slot_name = memcord_file.read_text().strip()
+            else:
+                # Use directory name as slot name
+                slot_name = project_path.name.replace(" ", "_")
+
+        # Create or get the slot (auto-creates if missing)
+        await self.storage.create_or_get_slot(slot_name)
+
+        # Write .memcord file
+        memcord_file.write_text(slot_name)
+
+        return [
+            TextContent(
+                type="text",
+                text=f"Bound '{project_path}' to memory slot '{slot_name}'. "
+                f".memcord file created. Slot is now active.",
+            )
+        ]
+
+    async def _handle_unbind(self, arguments: dict[str, Any]) -> list[TextContent]:
+        """Remove .memcord binding from project."""
+        project_path = Path(arguments["project_path"]).expanduser().resolve()
+        memcord_file = project_path / ".memcord"
+
+        if memcord_file.exists():
+            memcord_file.unlink()
+            return [TextContent(type="text", text=f"Removed .memcord binding from '{project_path}'")]
+        else:
+            return [TextContent(type="text", text=f"No .memcord file found in '{project_path}'")]
 
     async def run(self):
         """Run the MCP server."""
