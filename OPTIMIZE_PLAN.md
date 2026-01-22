@@ -11,8 +11,8 @@ Refactor `server.py` (2,736 lines, 26 handlers) to ~1,400 lines while improving:
 | Change | Impact | Lines Saved | Status |
 |--------|--------|-------------|--------|
 | Handler registry with dict dispatch | Eliminate routing duplication | ~150 | ✅ COMPLETE |
-| Extract 5 service modules | Move business logic out | ~800 | ⚡ Infrastructure Ready |
-| Standardize error handling | Use MemcordError consistently | ~100 | ⚡ Infrastructure Ready |
+| Extract 5 service modules | Move business logic out | ~800 | ✅ COMPLETE |
+| Standardize error handling | Use MemcordError consistently | ~100 | ✅ COMPLETE |
 | Co-locate tool schemas with handlers | Reduce tool definition boilerplate | ~200 | Pending |
 | **Total** | | **~1,250** | |
 
@@ -23,13 +23,13 @@ Refactor `server.py` (2,736 lines, 26 handlers) to ~1,400 lines while improving:
 ### Completed
 - **Phase 1**: Handler registry with O(1) dispatch - COMPLETE
 - **Phase 2**: Service modules created - COMPLETE
-- **Phase 3**: ResponseBuilder and error decorators created (infrastructure only)
 - **Phase 2 Integration**: ALL handlers now delegating to services ✅
+- **Phase 3**: `@handle_errors` decorator applied to 6 handlers ✅
 
 ### Current Metrics
 | Metric | Value | Change |
 |--------|-------|--------|
-| `server.py` | 2,354 lines | **-330 lines** |
+| `server.py` | 2,329 lines | **-355 lines** |
 | New modules created | ~1,816 lines | |
 | Tests passing | 429/429 | ✅ |
 
@@ -64,12 +64,22 @@ Refactor `server.py` (2,736 lines, 26 handlers) to ~1,400 lines while improving:
 | `services/import_service.py` | 159 | Import business logic |
 | `services/monitoring_service.py` | 405 | Monitoring business logic |
 
+### Handlers with @handle_errors Decorator ✅
+| Handler | Default Error Message | Status |
+|---------|----------------------|--------|
+| `_handle_searchmem` | "Search failed" | ✅ |
+| `_handle_tagmem` | "Tag operation failed" | ✅ |
+| `_handle_listtags` | "Failed to list tags" | ✅ |
+| `_handle_groupmem` | "Group operation failed" | ✅ |
+| `_handle_querymem` | "Query failed" | ✅ |
+| `_handle_select_entry` | "Error selecting entry" | ✅ |
+
 ### Remaining Work (Optional)
 To achieve further line reduction:
 1. ~~Update compression handler to delegate to CompressionService~~ ✅
 2. ~~Update archive handler to delegate to ArchiveService~~ ✅
 3. ~~Update import handler to delegate to ImportService~~ ✅
-4. Apply `@handle_errors` decorator to handlers
+4. ~~Apply `@handle_errors` decorator to handlers~~ ✅
 5. Move tool schemas into handler decorators (~200 lines saved)
 
 ---

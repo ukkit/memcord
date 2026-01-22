@@ -30,6 +30,7 @@ from .errors import (
     MemcordError,
     OperationTimeoutError,
 )
+from .response_builder import handle_errors
 from .models import SearchQuery
 from .security import SecurityMiddleware
 from .status_monitoring import StatusMonitoringSystem
@@ -1225,6 +1226,7 @@ class ChatMemoryServer:
             )
         ]
 
+    @handle_errors(default_error_message="Error selecting entry")
     async def _handle_select_entry(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle memcord_select_entry tool call.
 
@@ -1252,17 +1254,14 @@ class ChatMemoryServer:
             ]
 
         # Load the memory slot
-        try:
-            slot = await self.storage.read_memory(slot_name)
-            if not slot:
-                return [
-                    TextContent(
-                        type="text",
-                        text=f"❌ Memory slot '{slot_name}' not found. Use 'memcord_list' to see available slots.",
-                    )
-                ]
-        except Exception as e:
-            return [TextContent(type="text", text=f"❌ Error loading memory slot '{slot_name}': {str(e)}")]
+        slot = await self.storage.read_memory(slot_name)
+        if not slot:
+            return [
+                TextContent(
+                    type="text",
+                    text=f"❌ Memory slot '{slot_name}' not found. Use 'memcord_list' to see available slots.",
+                )
+            ]
 
         # Check if slot has entries
         if not slot.entries:
@@ -1296,118 +1295,109 @@ class ChatMemoryServer:
         selection_query = ""
         tolerance_applied = False
 
-        try:
-            if timestamp:
-                # Parse timestamp and find closest entry
-                parsed_time = TemporalParser.parse_timestamp(timestamp)
-                if not parsed_time:
-                    return [
-                        TextContent(
-                            type="text",
-                            text=f"❌ Invalid timestamp format: '{timestamp}'\n\n"
-                            f"Expected formats:\n"
-                            f"• ISO format: '2025-07-21T17:30:00'\n"
-                            f"• Date only: '2025-07-21'\n"
-                            f"• With timezone: '2025-07-21T17:30:00Z'",
-                        )
-                    ]
-
-                result = slot.get_entry_by_timestamp(parsed_time)
-                if result:
-                    selected_index, selected_entry = result
-                    selection_method = "timestamp_exact"
-                    selection_query = timestamp
-                    # Check if tolerance was needed (not exact match)
-                    if abs(selected_entry.timestamp - parsed_time).total_seconds() > 60:
-                        tolerance_applied = True
-
-            elif relative_time:
-                # Parse relative time expression
-                result = slot.get_entry_by_relative_time(relative_time)
-                if result:
-                    selected_index, selected_entry = result
-                    selection_method = "relative_time"
-                    selection_query = relative_time
-
-            elif entry_index is not None:
-                # Get entry by index
-                result = slot.get_entry_by_index(entry_index)
-                if result:
-                    selected_index, selected_entry = result
-                    selection_method = "index"
-                    selection_query = str(entry_index)
-
-            # Filter by entry type if specified
-            if selected_entry and entry_type and selected_entry.type != entry_type:
-                selected_entry = None
-                selected_index = -1
-
-            # Handle no match found
-            if not selected_entry:
-                available_timestamps = slot.get_available_timestamps()
-                available_info = f"\n\nAvailable entries in '{slot_name}':\n"
-                for i, ts in enumerate(available_timestamps):
-                    entry = slot.entries[i]
-                    time_desc = TemporalParser.format_time_description(entry.timestamp)
-                    available_info += f"• Index {i}: {ts} ({entry.type}) - {time_desc}\n"
-
+        if timestamp:
+            # Parse timestamp and find closest entry
+            parsed_time = TemporalParser.parse_timestamp(timestamp)
+            if not parsed_time:
                 return [
                     TextContent(
                         type="text",
-                        text=f"❌ No matching entry found for {selection_method.replace('_', ' ')}: '{selection_query}'"
-                        f"{available_info}",
+                        text=f"❌ Invalid timestamp format: '{timestamp}'\n\n"
+                        f"Expected formats:\n"
+                        f"• ISO format: '2025-07-21T17:30:00'\n"
+                        f"• Date only: '2025-07-21'\n"
+                        f"• With timezone: '2025-07-21T17:30:00Z'",
                     )
                 ]
 
-            # Build the response
-            response_lines = []
+            result = slot.get_entry_by_timestamp(parsed_time)
+            if result:
+                selected_index, selected_entry = result
+                selection_method = "timestamp_exact"
+                selection_query = timestamp
+                # Check if tolerance was needed (not exact match)
+                if abs(selected_entry.timestamp - parsed_time).total_seconds() > 60:
+                    tolerance_applied = True
 
-            # Selected entry info
-            response_lines.append(f"✅ Selected entry from '{slot_name}':")
-            response_lines.append(f"📅 **Timestamp:** {selected_entry.timestamp.isoformat()}")
-            response_lines.append(f"📝 **Type:** {selected_entry.type}")
-            response_lines.append(
-                f"🔍 **Selection method:** {selection_method.replace('_', ' ')} ('{selection_query}')"
-            )
-            if tolerance_applied:
-                response_lines.append("⚠️ **Note:** Closest match found (not exact timestamp)")
-            response_lines.append("")
+        elif relative_time:
+            # Parse relative time expression
+            result = slot.get_entry_by_relative_time(relative_time)
+            if result:
+                selected_index, selected_entry = result
+                selection_method = "relative_time"
+                selection_query = relative_time
 
-            # Entry content
-            response_lines.append("**Content:**")
-            response_lines.append(selected_entry.content)
-            response_lines.append("")
+        elif entry_index is not None:
+            # Get entry by index
+            result = slot.get_entry_by_index(entry_index)
+            if result:
+                selected_index, selected_entry = result
+                selection_method = "index"
+                selection_query = str(entry_index)
 
-            # Timeline context if requested
-            if show_context:
-                context = slot.get_timeline_context(selected_index)
-                if context:
-                    response_lines.append(f"📍 **Timeline Position:** {context['position']}")
+        # Filter by entry type if specified
+        if selected_entry and entry_type and selected_entry.type != entry_type:
+            selected_entry = None
+            selected_index = -1
 
-                    if "previous_entry" in context:
-                        prev = context["previous_entry"]
-                        response_lines.append(
-                            f"⬅️ **Previous:** {prev['timestamp']} ({prev['type']}) - {prev['time_description']}"
-                        )
-                        response_lines.append(f"   Preview: {prev['content_preview']}")
+        # Handle no match found
+        if not selected_entry:
+            available_timestamps = slot.get_available_timestamps()
+            available_info = f"\n\nAvailable entries in '{slot_name}':\n"
+            for i, ts in enumerate(available_timestamps):
+                entry = slot.entries[i]
+                time_desc = TemporalParser.format_time_description(entry.timestamp)
+                available_info += f"• Index {i}: {ts} ({entry.type}) - {time_desc}\n"
 
-                    if "next_entry" in context:
-                        next_entry = context["next_entry"]
-                        response_lines.append(
-                            f"➡️ **Next:** {next_entry['timestamp']} ({next_entry['type']}) - "
-                            f"{next_entry['time_description']}"
-                        )
-                        response_lines.append(f"   Preview: {next_entry['content_preview']}")
-
-            return [TextContent(type="text", text="\n".join(response_lines))]
-
-        except Exception as e:
             return [
                 TextContent(
                     type="text",
-                    text=f"❌ Error selecting entry: {str(e)}\n\nPlease check your selection parameters and try again.",
+                    text=f"❌ No matching entry found for {selection_method.replace('_', ' ')}: '{selection_query}'"
+                    f"{available_info}",
                 )
             ]
+
+        # Build the response
+        response_lines = []
+
+        # Selected entry info
+        response_lines.append(f"✅ Selected entry from '{slot_name}':")
+        response_lines.append(f"📅 **Timestamp:** {selected_entry.timestamp.isoformat()}")
+        response_lines.append(f"📝 **Type:** {selected_entry.type}")
+        response_lines.append(
+            f"🔍 **Selection method:** {selection_method.replace('_', ' ')} ('{selection_query}')"
+        )
+        if tolerance_applied:
+            response_lines.append("⚠️ **Note:** Closest match found (not exact timestamp)")
+        response_lines.append("")
+
+        # Entry content
+        response_lines.append("**Content:**")
+        response_lines.append(selected_entry.content)
+        response_lines.append("")
+
+        # Timeline context if requested
+        if show_context:
+            context = slot.get_timeline_context(selected_index)
+            if context:
+                response_lines.append(f"📍 **Timeline Position:** {context['position']}")
+
+                if "previous_entry" in context:
+                    prev = context["previous_entry"]
+                    response_lines.append(
+                        f"⬅️ **Previous:** {prev['timestamp']} ({prev['type']}) - {prev['time_description']}"
+                    )
+                    response_lines.append(f"   Preview: {prev['content_preview']}")
+
+                if "next_entry" in context:
+                    next_entry = context["next_entry"]
+                    response_lines.append(
+                        f"➡️ **Next:** {next_entry['timestamp']} ({next_entry['type']}) - "
+                        f"{next_entry['time_description']}"
+                    )
+                    response_lines.append(f"   Preview: {next_entry['content_preview']}")
+
+        return [TextContent(type="text", text="\n".join(response_lines))]
 
     async def _handle_exportmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle exportmem tool call."""
@@ -1451,6 +1441,7 @@ class ChatMemoryServer:
         except ValueError as e:
             return [TextContent(type="text", text=f"Error: {str(e)}")]
 
+    @handle_errors(default_error_message="Search failed")
     async def _handle_searchmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle searchmem tool call."""
         query_text = arguments["query"]
@@ -1462,46 +1453,43 @@ class ChatMemoryServer:
         if not query_text.strip():
             return [TextContent(type="text", text="Error: Search query cannot be empty")]
 
-        try:
-            # Create search query
-            search_query = SearchQuery(
-                query=query_text.strip(),
-                include_tags=include_tags,
-                exclude_tags=exclude_tags,
-                max_results=max_results,
-                case_sensitive=case_sensitive,
-            )
+        # Create search query
+        search_query = SearchQuery(
+            query=query_text.strip(),
+            include_tags=include_tags,
+            exclude_tags=exclude_tags,
+            max_results=max_results,
+            case_sensitive=case_sensitive,
+        )
 
-            # Perform search
-            results = await self.storage.search_memory(search_query)
+        # Perform search
+        results = await self.storage.search_memory(search_query)
 
-            if not results:
-                return [TextContent(type="text", text=f"No results found for: '{query_text}'")]
+        if not results:
+            return [TextContent(type="text", text=f"No results found for: '{query_text}'")]
 
-            # Format results
-            lines = [f"Search results for '{query_text}' ({len(results)} found):"]
+        # Format results
+        lines = [f"Search results for '{query_text}' ({len(results)} found):"]
+        lines.append("")
+
+        for i, result in enumerate(results[:max_results], 1):
+            match_indicator = {"slot": "📁", "entry": "📝", "tag": "🏷️", "group": "📂"}.get(result.match_type, "🔍")
+
+            lines.append(f"{i}. {match_indicator} {result.slot_name} (score: {result.relevance_score:.2f})")
+
+            if result.tags:
+                lines.append(f"   Tags: {', '.join(result.tags)}")
+
+            if result.group_path:
+                lines.append(f"   Group: {result.group_path}")
+
+            lines.append(f"   {result.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+            lines.append(f"   {result.snippet}")
             lines.append("")
 
-            for i, result in enumerate(results[:max_results], 1):
-                match_indicator = {"slot": "📁", "entry": "📝", "tag": "🏷️", "group": "📂"}.get(result.match_type, "🔍")
+        return [TextContent(type="text", text="\n".join(lines))]
 
-                lines.append(f"{i}. {match_indicator} {result.slot_name} (score: {result.relevance_score:.2f})")
-
-                if result.tags:
-                    lines.append(f"   Tags: {', '.join(result.tags)}")
-
-                if result.group_path:
-                    lines.append(f"   Group: {result.group_path}")
-
-                lines.append(f"   {result.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
-                lines.append(f"   {result.snippet}")
-                lines.append("")
-
-            return [TextContent(type="text", text="\n".join(lines))]
-
-        except Exception as e:
-            return [TextContent(type="text", text=f"Search failed: {str(e)}")]
-
+    @handle_errors(default_error_message="Tag operation failed")
     async def _handle_tagmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle tagmem tool call."""
         action = arguments["action"]
@@ -1511,65 +1499,59 @@ class ChatMemoryServer:
         if action in ["add", "remove"] and not slot_name:
             return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
 
-        try:
-            if action == "add":
-                if not tags:
-                    return [TextContent(type="text", text="Error: No tags specified to add")]
+        if action == "add":
+            if not tags:
+                return [TextContent(type="text", text="Error: No tags specified to add")]
 
-                results = []
-                for tag in tags:
-                    success = await self.storage.add_tag_to_slot(slot_name, tag)
-                    if success:
-                        results.append(f"Added tag '{tag}' to '{slot_name}'")
-                    else:
-                        results.append(f"Failed to add tag '{tag}' to '{slot_name}'")
+            results = []
+            for tag in tags:
+                success = await self.storage.add_tag_to_slot(slot_name, tag)
+                if success:
+                    results.append(f"Added tag '{tag}' to '{slot_name}'")
+                else:
+                    results.append(f"Failed to add tag '{tag}' to '{slot_name}'")
 
-                return [TextContent(type="text", text="\n".join(results))]
+            return [TextContent(type="text", text="\n".join(results))]
 
-            elif action == "remove":
-                if not tags:
-                    return [TextContent(type="text", text="Error: No tags specified to remove")]
+        elif action == "remove":
+            if not tags:
+                return [TextContent(type="text", text="Error: No tags specified to remove")]
 
-                results = []
-                for tag in tags:
-                    success = await self.storage.remove_tag_from_slot(slot_name, tag)
-                    if success:
-                        results.append(f"Removed tag '{tag}' from '{slot_name}'")
-                    else:
-                        results.append(f"Tag '{tag}' not found in '{slot_name}'")
+            results = []
+            for tag in tags:
+                success = await self.storage.remove_tag_from_slot(slot_name, tag)
+                if success:
+                    results.append(f"Removed tag '{tag}' from '{slot_name}'")
+                else:
+                    results.append(f"Tag '{tag}' not found in '{slot_name}'")
 
-                return [TextContent(type="text", text="\n".join(results))]
+            return [TextContent(type="text", text="\n".join(results))]
 
-            elif action == "list":
-                slot = await self.storage.read_memory(slot_name)
-                if not slot:
-                    return [TextContent(type="text", text=f"Memory slot '{slot_name}' not found")]
+        elif action == "list":
+            slot = await self.storage.read_memory(slot_name)
+            if not slot:
+                return [TextContent(type="text", text=f"Memory slot '{slot_name}' not found")]
 
-                if not slot.tags:
-                    return [TextContent(type="text", text=f"No tags found for memory slot '{slot_name}'")]
+            if not slot.tags:
+                return [TextContent(type="text", text=f"No tags found for memory slot '{slot_name}'")]
 
-                tag_list = sorted(slot.tags)
-                return [TextContent(type="text", text=f"Tags for '{slot_name}': {', '.join(tag_list)}")]
+            tag_list = sorted(slot.tags)
+            return [TextContent(type="text", text=f"Tags for '{slot_name}': {', '.join(tag_list)}")]
 
-            else:
-                return [TextContent(type="text", text=f"Error: Unknown action: {action}")]
+        else:
+            return [TextContent(type="text", text=f"Error: Unknown action: {action}")]
 
-        except Exception as e:
-            return [TextContent(type="text", text=f"Tag operation failed: {str(e)}")]
-
+    @handle_errors(default_error_message="Failed to list tags")
     async def _handle_listtags(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle listtags tool call."""
-        try:
-            all_tags = await self.storage.list_all_tags()
+        all_tags = await self.storage.list_all_tags()
 
-            if not all_tags:
-                return [TextContent(type="text", text="No tags found across memory slots")]
+        if not all_tags:
+            return [TextContent(type="text", text="No tags found across memory slots")]
 
-            return [TextContent(type="text", text=f"All tags ({len(all_tags)}): {', '.join(all_tags)}")]
+        return [TextContent(type="text", text=f"All tags ({len(all_tags)}): {', '.join(all_tags)}")]
 
-        except Exception as e:
-            return [TextContent(type="text", text=f"Failed to list tags: {str(e)}")]
-
+    @handle_errors(default_error_message="Group operation failed")
     async def _handle_groupmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle groupmem tool call."""
         action = arguments["action"]
@@ -1579,44 +1561,41 @@ class ChatMemoryServer:
         if action in ["set", "remove"] and not slot_name:
             return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
 
-        try:
-            if action == "set":
-                if not group_path:
-                    return [TextContent(type="text", text="Error: Group path is required for 'set' action")]
+        if action == "set":
+            if not group_path:
+                return [TextContent(type="text", text="Error: Group path is required for 'set' action")]
 
-                success = await self.storage.set_slot_group(slot_name, group_path)
-                if success:
-                    return [TextContent(type="text", text=f"Set group '{group_path}' for memory slot '{slot_name}'")]
-                else:
-                    return [TextContent(type="text", text=f"Failed to set group for '{slot_name}'")]
-
-            elif action == "remove":
-                success = await self.storage.set_slot_group(slot_name, None)
-                if success:
-                    return [TextContent(type="text", text=f"Removed group assignment from memory slot '{slot_name}'")]
-                else:
-                    return [TextContent(type="text", text=f"Failed to remove group from '{slot_name}'")]
-
-            elif action == "list":
-                groups = await self.storage.list_groups()
-
-                if not groups:
-                    return [TextContent(type="text", text="No memory groups found")]
-
-                lines = [f"Memory groups ({len(groups)}):"]
-                for group in sorted(groups, key=lambda g: g.path):
-                    lines.append(f"• {group.path} ({group.member_count} slots)")
-                    if group.description:
-                        lines.append(f"  Description: {group.description}")
-
-                return [TextContent(type="text", text="\n".join(lines))]
-
+            success = await self.storage.set_slot_group(slot_name, group_path)
+            if success:
+                return [TextContent(type="text", text=f"Set group '{group_path}' for memory slot '{slot_name}'")]
             else:
-                return [TextContent(type="text", text=f"Error: Unknown action: {action}")]
+                return [TextContent(type="text", text=f"Failed to set group for '{slot_name}'")]
 
-        except Exception as e:
-            return [TextContent(type="text", text=f"Group operation failed: {str(e)}")]
+        elif action == "remove":
+            success = await self.storage.set_slot_group(slot_name, None)
+            if success:
+                return [TextContent(type="text", text=f"Removed group assignment from memory slot '{slot_name}'")]
+            else:
+                return [TextContent(type="text", text=f"Failed to remove group from '{slot_name}'")]
 
+        elif action == "list":
+            groups = await self.storage.list_groups()
+
+            if not groups:
+                return [TextContent(type="text", text="No memory groups found")]
+
+            lines = [f"Memory groups ({len(groups)}):"]
+            for group in sorted(groups, key=lambda g: g.path):
+                lines.append(f"• {group.path} ({group.member_count} slots)")
+                if group.description:
+                    lines.append(f"  Description: {group.description}")
+
+            return [TextContent(type="text", text="\n".join(lines))]
+
+        else:
+            return [TextContent(type="text", text=f"Error: Unknown action: {action}")]
+
+    @handle_errors(default_error_message="Query failed")
     async def _handle_querymem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle querymem tool call."""
         question = arguments["question"]
@@ -1625,12 +1604,8 @@ class ChatMemoryServer:
         if not question.strip():
             return [TextContent(type="text", text="Error: Question cannot be empty")]
 
-        try:
-            answer = await self.query_processor.answer_question(question.strip(), max_results)
-            return [TextContent(type="text", text=answer)]
-
-        except Exception as e:
-            return [TextContent(type="text", text=f"Query failed: {str(e)}")]
+        answer = await self.query_processor.answer_question(question.strip(), max_results)
+        return [TextContent(type="text", text=answer)]
 
     async def _handle_importmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle importmem tool call - delegates to ImportService."""
