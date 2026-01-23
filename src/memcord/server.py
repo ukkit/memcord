@@ -30,6 +30,7 @@ from .errors import (
     MemcordError,
     OperationTimeoutError,
 )
+from .handler_registry import handler_registry
 from .response_builder import handle_errors
 from .models import SearchQuery
 from .security import SecurityMiddleware
@@ -121,50 +122,8 @@ class ChatMemoryServer:
 
         self._setup_handlers()
 
-        # Build handler dispatch map for O(1) lookup
-        self._handler_map = self._build_handler_map()
-
-    def _build_handler_map(self) -> dict[str, tuple[callable, bool]]:
-        """Build handler dispatch map.
-
-        Returns:
-            Dict mapping tool name to (handler_method, requires_advanced) tuple
-        """
-        return {
-            # Basic tools (always available)
-            "memcord_name": (self._handle_memname, False),
-            "memcord_use": (self._handle_memuse, False),
-            "memcord_save": (self._handle_savemem, False),
-            "memcord_read": (self._handle_readmem, False),
-            "memcord_save_progress": (self._handle_saveprogress, False),
-            "memcord_list": (self._handle_listmems, False),
-            "memcord_ping": (self._handle_ping, False),
-            "memcord_search": (self._handle_searchmem, False),
-            "memcord_query": (self._handle_querymem, False),
-            "memcord_zero": (self._handle_zeromem, False),
-            "memcord_select_entry": (self._handle_select_entry, False),
-            # Project Binding tools
-            "memcord_bind": (self._handle_bind, False),
-            "memcord_unbind": (self._handle_unbind, False),
-            # Status & Monitoring tools
-            "memcord_status": (self._handle_status, False),
-            "memcord_metrics": (self._handle_metrics, False),
-            "memcord_logs": (self._handle_logs, False),
-            "memcord_diagnostics": (self._handle_diagnostics, False),
-            # Advanced tools (require MEMCORD_ENABLE_ADVANCED=true)
-            "memcord_tag": (self._handle_tagmem, True),
-            "memcord_list_tags": (self._handle_listtags, True),
-            "memcord_group": (self._handle_groupmem, True),
-            "memcord_import": (self._handle_importmem, True),
-            "memcord_merge": (self._handle_mergemem, True),
-            "memcord_archive": (self._handle_archivemem, True),
-            "memcord_export": (self._handle_exportmem, True),
-            "memcord_share": (self._handle_sharemem, True),
-            "memcord_compress": (self._handle_compressmem, True),
-        }
-
     async def _dispatch_handler(self, name: str, arguments: dict[str, Any]) -> Sequence[TextContent]:
-        """Dispatch to handler using O(1) lookup.
+        """Dispatch to handler using O(1) registry lookup.
 
         Args:
             name: Tool name
@@ -173,14 +132,12 @@ class ChatMemoryServer:
         Returns:
             Handler result or error message
         """
-        handler_entry = self._handler_map.get(name)
+        handler_info = handler_registry.dispatch(name)
 
-        if handler_entry is None:
+        if handler_info is None:
             return [TextContent(type="text", text=f"Error: Unknown tool: {name}")]
 
-        handler, requires_advanced = handler_entry
-
-        if requires_advanced and not self.enable_advanced_tools:
+        if handler_info.requires_advanced and not self.enable_advanced_tools:
             return [
                 TextContent(
                     type="text",
@@ -191,7 +148,7 @@ class ChatMemoryServer:
                 )
             ]
 
-        return await handler(arguments)
+        return await handler_info.handler(self, arguments)
 
     @property
     def summarizer(self):
@@ -310,10 +267,7 @@ class ChatMemoryServer:
     async def list_tools_direct(self) -> list[Tool]:
         """Direct tools listing method for testing purposes."""
         if self._tool_cache is None:
-            tools = self._get_basic_tools()
-            if self.enable_advanced_tools:
-                tools.extend(self._get_advanced_tools())
-            self._tool_cache = tools
+            self._tool_cache = handler_registry.get_tools(include_advanced=self.enable_advanced_tools)
         return self._tool_cache
 
     async def list_resources_direct(self) -> list[Resource]:
@@ -366,541 +320,18 @@ class ChatMemoryServer:
         else:
             raise ValueError(f"Unsupported format: {format_ext}")
 
-    def _get_basic_tools(self) -> list[Tool]:
-        """Get the list of basic tools (always available)."""
-        return [
-            # Core Tools
-            Tool(
-                name="memcord_name",
-                description="Set or create a named memory slot",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "slot_name": {"type": "string", "description": "Name of the memory slot to create or select"}
-                    },
-                    "required": ["slot_name"],
-                },
-            ),
-            Tool(
-                name="memcord_use",
-                description="Activate an existing memory slot (does not create new slots)",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "slot_name": {"type": "string", "description": "Name of the existing memory slot to activate"}
-                    },
-                    "required": ["slot_name"],
-                },
-            ),
-            Tool(
-                name="memcord_save",
-                description="Save chat text to memory slot (overwrites existing content)",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "chat_text": {"type": "string", "description": "Chat text to save"},
-                        "slot_name": {
-                            "type": "string",
-                            "description": "Memory slot name (optional, uses current slot if not specified)",
-                        },
-                    },
-                    "required": ["chat_text"],
-                },
-            ),
-            Tool(
-                name="memcord_read",
-                description="Retrieve full content from memory slot",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "slot_name": {
-                            "type": "string",
-                            "description": "Memory slot name (optional, uses current slot if not specified)",
-                        }
-                    },
-                },
-            ),
-            Tool(
-                name="memcord_save_progress",
-                description="Generate summary and append to memory slot",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "chat_text": {"type": "string", "description": "Chat text to summarize and save"},
-                        "slot_name": {
-                            "type": "string",
-                            "description": "Memory slot name (optional, uses current slot if not specified)",
-                        },
-                        "compression_ratio": {
-                            "type": "number",
-                            "description": "Target compression ratio (0.1 = 10%, default 0.15)",
-                            "minimum": 0.05,
-                            "maximum": 0.5,
-                            "default": 0.15,
-                        },
-                    },
-                    "required": ["chat_text"],
-                },
-            ),
-            Tool(
-                name="memcord_list",
-                description="List all available memory slots with metadata",
-                inputSchema={"type": "object", "properties": {}},
-            ),
-            Tool(
-                name="memcord_ping",
-                description="Lightweight health check for server warm-up. Returns minimal response to confirm server is running.",
-                inputSchema={"type": "object", "properties": {}},
-            ),
-            # Search & Intelligence Tools
-            Tool(
-                name="memcord_search",
-                description="Search across all memory slots with advanced filtering",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "Search query with optional Boolean operators (AND, OR, NOT)",
-                        },
-                        "include_tags": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Include slots with these tags",
-                            "default": [],
-                        },
-                        "exclude_tags": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Exclude slots with these tags",
-                            "default": [],
-                        },
-                        "max_results": {
-                            "type": "integer",
-                            "description": "Maximum number of results",
-                            "default": 20,
-                            "minimum": 1,
-                            "maximum": 100,
-                        },
-                        "case_sensitive": {
-                            "type": "boolean",
-                            "description": "Whether search is case sensitive",
-                            "default": False,
-                        },
-                    },
-                    "required": ["query"],
-                },
-            ),
-            Tool(
-                name="memcord_query",
-                description="Ask natural language questions about your memory contents",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "question": {"type": "string", "description": "Natural language question about your memories"},
-                        "max_results": {
-                            "type": "integer",
-                            "description": "Maximum number of results to consider",
-                            "default": 5,
-                            "minimum": 1,
-                            "maximum": 20,
-                        },
-                    },
-                    "required": ["question"],
-                },
-            ),
-            Tool(
-                name="memcord_zero",
-                description="Activate zero mode - no memory will be saved until switched to another slot",
-                inputSchema={"type": "object", "properties": {}},
-            ),
-            Tool(
-                name="memcord_select_entry",
-                description=(
-                    "Select and retrieve a specific memory entry by timestamp, "
-                    "relative time, or index within a memory slot"
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "slot_name": {
-                            "type": "string",
-                            "description": "Target memory slot (optional, uses current if not specified)",
-                        },
-                        "timestamp": {
-                            "type": "string",
-                            "description": "Exact timestamp in ISO format (e.g., '2025-07-21T17:30:00')",
-                        },
-                        "relative_time": {
-                            "type": "string",
-                            "description": "Human descriptions like 'latest', 'oldest', '2 hours ago', 'yesterday'",
-                        },
-                        "entry_index": {
-                            "type": "integer",
-                            "description": "Direct numeric index (0-based, negative for reverse indexing)",
-                        },
-                        "entry_type": {
-                            "type": "string",
-                            "enum": ["manual_save", "auto_summary"],
-                            "description": "Filter by entry type",
-                        },
-                        "show_context": {
-                            "type": "boolean",
-                            "default": True,
-                            "description": "Include timeline position and adjacent entries info",
-                        },
-                    },
-                },
-            ),
-            Tool(
-                name="memcord_merge",
-                description="Merge multiple memory slots into one with duplicate detection",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "source_slots": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "List of memory slot names to merge",
-                            "minItems": 2,
-                        },
-                        "target_slot": {"type": "string", "description": "Name for the merged memory slot"},
-                        "action": {
-                            "type": "string",
-                            "enum": ["preview", "merge"],
-                            "description": "Action to perform: 'preview' to see merge preview, 'merge' to execute",
-                            "default": "preview",
-                        },
-                        "similarity_threshold": {
-                            "type": "number",
-                            "minimum": 0.0,
-                            "maximum": 1.0,
-                            "description": "Threshold for duplicate detection (0.0-1.0, default 0.8)",
-                            "default": 0.8,
-                        },
-                        "delete_sources": {
-                            "type": "boolean",
-                            "description": "Whether to delete source slots after successful merge",
-                            "default": False,
-                        },
-                    },
-                    "required": ["source_slots", "target_slot"],
-                },
-            ),
-            # Status & Monitoring Tools
-            Tool(
-                name="memcord_status",
-                description="Get current system health status and overview",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "include_details": {
-                            "type": "boolean",
-                            "description": "Include detailed health check results",
-                            "default": False,
-                        }
-                    },
-                },
-            ),
-            Tool(
-                name="memcord_metrics",
-                description="Get performance metrics and system statistics",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "metric_name": {
-                            "type": "string",
-                            "description": "Specific metric name to retrieve (optional, shows all if not specified)",
-                        },
-                        "hours": {
-                            "type": "integer",
-                            "description": "Number of hours of data to retrieve",
-                            "default": 1,
-                            "minimum": 1,
-                            "maximum": 168,
-                        },
-                    },
-                },
-            ),
-            Tool(
-                name="memcord_logs",
-                description="Get operation execution logs and history",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "tool_name": {"type": "string", "description": "Filter logs by specific tool name"},
-                        "status": {
-                            "type": "string",
-                            "description": "Filter logs by operation status",
-                            "enum": ["started", "completed", "failed", "timeout"],
-                        },
-                        "hours": {
-                            "type": "integer",
-                            "description": "Number of hours of logs to retrieve",
-                            "default": 1,
-                            "minimum": 1,
-                            "maximum": 168,
-                        },
-                        "limit": {
-                            "type": "integer",
-                            "description": "Maximum number of log entries to return",
-                            "default": 100,
-                            "minimum": 1,
-                            "maximum": 1000,
-                        },
-                    },
-                },
-            ),
-            Tool(
-                name="memcord_diagnostics",
-                description="Run comprehensive system diagnostics and generate health report",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "check_type": {
-                            "type": "string",
-                            "description": "Type of diagnostic check to run",
-                            "enum": ["health", "performance", "full_report"],
-                            "default": "health",
-                        }
-                    },
-                },
-            ),
-            # Project Binding Tools
-            Tool(
-                name="memcord_bind",
-                description="Bind a project directory to a memory slot. Creates .memcord file in the project.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "project_path": {
-                            "type": "string",
-                            "description": "Path to the project directory to bind",
-                        },
-                        "slot_name": {
-                            "type": "string",
-                            "description": "Memory slot name to bind (optional, uses directory name if not specified)",
-                        },
-                    },
-                    "required": ["project_path"],
-                },
-            ),
-            Tool(
-                name="memcord_unbind",
-                description="Remove .memcord binding from a project directory",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "project_path": {
-                            "type": "string",
-                            "description": "Path to the project directory",
-                        },
-                    },
-                    "required": ["project_path"],
-                },
-            ),
-        ]
-
-    def _get_advanced_tools(self) -> list[Tool]:
-        """Get the list of advanced tools (optional)."""
-        return [
-            # Organization Tools
-            Tool(
-                name="memcord_tag",
-                description="Add or remove tags from a memory slot",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "slot_name": {
-                            "type": "string",
-                            "description": "Memory slot name (optional, uses current slot if not specified)",
-                        },
-                        "action": {
-                            "type": "string",
-                            "enum": ["add", "remove", "list"],
-                            "description": "Action to perform with tags",
-                        },
-                        "tags": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Tags to add or remove",
-                            "default": [],
-                        },
-                    },
-                    "required": ["action"],
-                },
-            ),
-            Tool(
-                name="memcord_list_tags",
-                description="List all tags used across memory slots",
-                inputSchema={"type": "object", "properties": {}},
-            ),
-            Tool(
-                name="memcord_group",
-                description="Manage memory slot groups/folders",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "slot_name": {
-                            "type": "string",
-                            "description": "Memory slot name (optional, uses current slot if not specified)",
-                        },
-                        "action": {
-                            "type": "string",
-                            "enum": ["set", "remove", "list"],
-                            "description": "Action to perform with groups",
-                        },
-                        "group_path": {"type": "string", "description": "Group path (e.g., 'project/client/meetings')"},
-                    },
-                    "required": ["action"],
-                },
-            ),
-            # Import & Integration Tools
-            Tool(
-                name="memcord_import",
-                description="Import content from various sources into memory slots",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "source": {"type": "string", "description": "Source file path, URL, or '-' for clipboard"},
-                        "slot_name": {"type": "string", "description": "Target memory slot name"},
-                        "source_type": {
-                            "type": "string",
-                            "enum": ["auto", "text", "pdf", "url", "csv", "json"],
-                            "description": "Type of source content (auto-detect if not specified)",
-                            "default": "auto",
-                        },
-                        "tags": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Tags to add to imported content",
-                            "default": [],
-                        },
-                        "merge_mode": {
-                            "type": "string",
-                            "enum": ["replace", "append", "prepend"],
-                            "description": "How to handle existing content in slot",
-                            "default": "append",
-                        },
-                    },
-                    "required": ["source", "slot_name"],
-                },
-            ),
-            # Storage Optimization Tools
-            Tool(
-                name="memcord_compress",
-                description="Compress memory slot content to save storage space",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "slot_name": {
-                            "type": "string",
-                            "description": (
-                                "Memory slot name to compress (optional, processes all slots if not specified)"
-                            ),
-                        },
-                        "action": {
-                            "type": "string",
-                            "enum": ["analyze", "compress", "decompress", "stats"],
-                            "description": "Action to perform: analyze (preview), compress, decompress, or stats",
-                            "default": "analyze",
-                        },
-                        "force": {
-                            "type": "boolean",
-                            "description": "Force compression even for already compressed content",
-                            "default": False,
-                        },
-                    },
-                    "required": ["action"],
-                },
-            ),
-            Tool(
-                name="memcord_archive",
-                description="Archive or restore memory slots for long-term storage",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "slot_name": {"type": "string", "description": "Memory slot name to archive/restore"},
-                        "action": {
-                            "type": "string",
-                            "enum": ["archive", "restore", "list", "stats", "candidates"],
-                            "description": "Action to perform with archives",
-                        },
-                        "reason": {
-                            "type": "string",
-                            "description": "Reason for archiving (optional)",
-                            "default": "manual",
-                        },
-                        "days_inactive": {
-                            "type": "integer",
-                            "description": "Days of inactivity for finding archive candidates",
-                            "default": 30,
-                            "minimum": 1,
-                        },
-                    },
-                    "required": ["action"],
-                },
-            ),
-            # Export & Sharing Tools
-            Tool(
-                name="memcord_export",
-                description="Export memory slot as MCP file resource",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "slot_name": {"type": "string", "description": "Memory slot name to export"},
-                        "format": {"type": "string", "enum": ["md", "txt", "json"], "description": "Export format"},
-                        "include_metadata": {
-                            "type": "boolean",
-                            "default": True,
-                            "description": "Include metadata in export",
-                        },
-                    },
-                    "required": ["slot_name", "format"],
-                },
-            ),
-            Tool(
-                name="memcord_share",
-                description="Generate shareable memory files in multiple formats",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "slot_name": {"type": "string", "description": "Memory slot name to share"},
-                        "formats": {
-                            "type": "array",
-                            "items": {"type": "string", "enum": ["md", "txt", "json"]},
-                            "description": "List of formats to generate",
-                            "default": ["md", "txt"],
-                        },
-                        "include_metadata": {
-                            "type": "boolean",
-                            "default": True,
-                            "description": "Include metadata in shared files",
-                        },
-                    },
-                    "required": ["slot_name"],
-                },
-            ),
-        ]
-
     def _setup_handlers(self):
         """Set up MCP server handlers."""
 
         @self.app.list_tools()
         async def list_tools() -> list[Tool]:
-            """List available tools.
+            """List available tools from handler registry.
 
             IMPORTANT: All tool names must follow the "memcord_" prefix convention.
-            When adding new tools, ensure the name starts with "memcord_" followed
-            by the action in underscore_case format.
-
-            Tools are categorized as basic (always available) and advanced (configurable).
+            Tool schemas are co-located with handlers via @handler_registry.register().
             """
             if self._tool_cache is None:
-                tools = self._get_basic_tools()
-                if self.enable_advanced_tools:
-                    tools.extend(self._get_advanced_tools())
-                self._tool_cache = tools
+                self._tool_cache = handler_registry.get_tools(include_advanced=self.enable_advanced_tools)
             return self._tool_cache
 
         @self.app.call_tool()
@@ -993,6 +424,19 @@ class ChatMemoryServer:
         mime_types = {"md": "text/markdown", "txt": "text/plain", "json": "application/json"}
         return mime_types.get(format, "text/plain")
 
+    @handler_registry.register(
+        "memcord_name",
+        category="basic",
+        description="Set or create a named memory slot",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "slot_name": {"type": "string", "description": "Name of the memory slot to create or select"}
+            },
+            "required": ["slot_name"],
+        },
+    )
+    @handle_errors(default_error_message="Naming operation failed")
     async def _handle_memname(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle memname tool call."""
         import logging
@@ -1038,6 +482,19 @@ class ChatMemoryServer:
             )
         ]
 
+    @handler_registry.register(
+        "memcord_use",
+        category="basic",
+        description="Activate an existing memory slot (does not create new slots)",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "slot_name": {"type": "string", "description": "Name of the existing memory slot to activate"}
+            },
+            "required": ["slot_name"],
+        },
+    )
+    @handle_errors(default_error_message="Use operation failed")
     async def _handle_memuse(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle memuse tool call - activate existing memory slots only."""
         slot_name = arguments["slot_name"]
@@ -1072,6 +529,23 @@ class ChatMemoryServer:
                 )
             ]
 
+    @handler_registry.register(
+        "memcord_save",
+        category="basic",
+        description="Save chat text to memory slot (overwrites existing content)",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "chat_text": {"type": "string", "description": "Chat text to save"},
+                "slot_name": {
+                    "type": "string",
+                    "description": "Memory slot name (optional, uses current slot if not specified)",
+                },
+            },
+            "required": ["chat_text"],
+        },
+    )
+    @handle_errors(default_error_message="Save failed")
     async def _handle_savemem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle savemem tool call."""
         chat_text = arguments["chat_text"]
@@ -1099,6 +573,21 @@ class ChatMemoryServer:
             )
         ]
 
+    @handler_registry.register(
+        "memcord_read",
+        category="basic",
+        description="Retrieve full content from memory slot",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "slot_name": {
+                    "type": "string",
+                    "description": "Memory slot name (optional, uses current slot if not specified)",
+                }
+            },
+        },
+    )
+    @handle_errors(default_error_message="Read failed")
     async def _handle_readmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle readmem tool call."""
         slot_name = self._resolve_slot(arguments)
@@ -1138,6 +627,30 @@ class ChatMemoryServer:
             TextContent(type="text", text=f"Memory slot '{slot_name}' ({len(slot.entries)} entries):\n\n{full_content}")
         ]
 
+    @handler_registry.register(
+        "memcord_save_progress",
+        category="basic",
+        description="Generate summary and append to memory slot",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "chat_text": {"type": "string", "description": "Chat text to summarize and save"},
+                "slot_name": {
+                    "type": "string",
+                    "description": "Memory slot name (optional, uses current slot if not specified)",
+                },
+                "compression_ratio": {
+                    "type": "number",
+                    "description": "Target compression ratio (0.1 = 10%, default 0.15)",
+                    "minimum": 0.05,
+                    "maximum": 0.5,
+                    "default": 0.15,
+                },
+            },
+            "required": ["chat_text"],
+        },
+    )
+    @handle_errors(default_error_message="Save progress failed")
     async def _handle_saveprogress(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle saveprogress tool call."""
         chat_text = arguments["chat_text"]
@@ -1172,6 +685,13 @@ class ChatMemoryServer:
             )
         ]
 
+    @handler_registry.register(
+        "memcord_list",
+        category="basic",
+        description="List all available memory slots with metadata",
+        input_schema={"type": "object", "properties": {}},
+    )
+    @handle_errors(default_error_message="List operation failed")
     async def _handle_listmems(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle listmems tool call."""
         slots_info = await self.storage.list_memory_slots()
@@ -1209,10 +729,24 @@ class ChatMemoryServer:
 
         return [TextContent(type="text", text="\n".join(lines))]
 
+    @handler_registry.register(
+        "memcord_ping",
+        category="basic",
+        description="Lightweight health check for server warm-up. Returns minimal response to confirm server is running.",
+        input_schema={"type": "object", "properties": {}},
+    )
+    @handle_errors(default_error_message="Ping failed")
     async def _handle_ping(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle ping tool call - lightweight health check for server warm-up."""
         return [TextContent(type="text", text="pong")]
 
+    @handler_registry.register(
+        "memcord_zero",
+        category="basic",
+        description="Activate zero mode - no memory will be saved until switched to another slot",
+        input_schema={"type": "object", "properties": {}},
+    )
+    @handle_errors(default_error_message="Zero mode operation failed")
     async def _handle_zeromem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle zeromem tool call - activate zero mode."""
         # Activate zero mode by setting current slot to special __ZERO__ slot
@@ -1226,6 +760,45 @@ class ChatMemoryServer:
             )
         ]
 
+    @handler_registry.register(
+        "memcord_select_entry",
+        category="basic",
+        description=(
+            "Select and retrieve a specific memory entry by timestamp, "
+            "relative time, or index within a memory slot"
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "slot_name": {
+                    "type": "string",
+                    "description": "Target memory slot (optional, uses current if not specified)",
+                },
+                "timestamp": {
+                    "type": "string",
+                    "description": "Exact timestamp in ISO format (e.g., '2025-07-21T17:30:00')",
+                },
+                "relative_time": {
+                    "type": "string",
+                    "description": "Human descriptions like 'latest', 'oldest', '2 hours ago', 'yesterday'",
+                },
+                "entry_index": {
+                    "type": "integer",
+                    "description": "Direct numeric index (0-based, negative for reverse indexing)",
+                },
+                "entry_type": {
+                    "type": "string",
+                    "enum": ["manual_save", "auto_summary"],
+                    "description": "Filter by entry type",
+                },
+                "show_context": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Include timeline position and adjacent entries info",
+                },
+            },
+        },
+    )
     @handle_errors(default_error_message="Error selecting entry")
     async def _handle_select_entry(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle memcord_select_entry tool call.
@@ -1399,6 +972,26 @@ class ChatMemoryServer:
 
         return [TextContent(type="text", text="\n".join(response_lines))]
 
+    @handler_registry.register(
+        "memcord_export",
+        category="advanced",
+        description="Export memory slot as MCP file resource",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "slot_name": {"type": "string", "description": "Memory slot name to export"},
+                "format": {"type": "string", "enum": ["md", "txt", "json"], "description": "Export format"},
+                "include_metadata": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Include metadata in export",
+                },
+            },
+            "required": ["slot_name", "format"],
+        },
+        requires_advanced=True,
+    )
+    @handle_errors(default_error_message="Export failed")
     async def _handle_exportmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle exportmem tool call."""
         slot_name = arguments["slot_name"]
@@ -1417,6 +1010,31 @@ class ChatMemoryServer:
         except ValueError as e:
             return [TextContent(type="text", text=f"Error: {str(e)}")]
 
+    @handler_registry.register(
+        "memcord_share",
+        category="advanced",
+        description="Generate shareable memory files in multiple formats",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "slot_name": {"type": "string", "description": "Memory slot name to share"},
+                "formats": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": ["md", "txt", "json"]},
+                    "description": "List of formats to generate",
+                    "default": ["md", "txt"],
+                },
+                "include_metadata": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Include metadata in shared files",
+                },
+            },
+            "required": ["slot_name"],
+        },
+        requires_advanced=True,
+    )
+    @handle_errors(default_error_message="Share operation failed")
     async def _handle_sharemem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle sharemem tool call."""
         slot_name = arguments["slot_name"]
@@ -1441,6 +1059,45 @@ class ChatMemoryServer:
         except ValueError as e:
             return [TextContent(type="text", text=f"Error: {str(e)}")]
 
+    @handler_registry.register(
+        "memcord_search",
+        category="basic",
+        description="Search across all memory slots with advanced filtering",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query with optional Boolean operators (AND, OR, NOT)",
+                },
+                "include_tags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Include slots with these tags",
+                    "default": [],
+                },
+                "exclude_tags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Exclude slots with these tags",
+                    "default": [],
+                },
+                "max_results": {
+                    "type": "integer",
+                    "description": "Maximum number of results",
+                    "default": 20,
+                    "minimum": 1,
+                    "maximum": 100,
+                },
+                "case_sensitive": {
+                    "type": "boolean",
+                    "description": "Whether search is case sensitive",
+                    "default": False,
+                },
+            },
+            "required": ["query"],
+        },
+    )
     @handle_errors(default_error_message="Search failed")
     async def _handle_searchmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle searchmem tool call."""
@@ -1489,6 +1146,33 @@ class ChatMemoryServer:
 
         return [TextContent(type="text", text="\n".join(lines))]
 
+    @handler_registry.register(
+        "memcord_tag",
+        category="advanced",
+        description="Add or remove tags from a memory slot",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "slot_name": {
+                    "type": "string",
+                    "description": "Memory slot name (optional, uses current slot if not specified)",
+                },
+                "action": {
+                    "type": "string",
+                    "enum": ["add", "remove", "list"],
+                    "description": "Action to perform with tags",
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Tags to add or remove",
+                    "default": [],
+                },
+            },
+            "required": ["action"],
+        },
+        requires_advanced=True,
+    )
     @handle_errors(default_error_message="Tag operation failed")
     async def _handle_tagmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle tagmem tool call."""
@@ -1541,6 +1225,13 @@ class ChatMemoryServer:
         else:
             return [TextContent(type="text", text=f"Error: Unknown action: {action}")]
 
+    @handler_registry.register(
+        "memcord_list_tags",
+        category="advanced",
+        description="List all tags used across memory slots",
+        input_schema={"type": "object", "properties": {}},
+        requires_advanced=True,
+    )
     @handle_errors(default_error_message="Failed to list tags")
     async def _handle_listtags(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle listtags tool call."""
@@ -1551,6 +1242,28 @@ class ChatMemoryServer:
 
         return [TextContent(type="text", text=f"All tags ({len(all_tags)}): {', '.join(all_tags)}")]
 
+    @handler_registry.register(
+        "memcord_group",
+        category="advanced",
+        description="Manage memory slot groups/folders",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "slot_name": {
+                    "type": "string",
+                    "description": "Memory slot name (optional, uses current slot if not specified)",
+                },
+                "action": {
+                    "type": "string",
+                    "enum": ["set", "remove", "list"],
+                    "description": "Action to perform with groups",
+                },
+                "group_path": {"type": "string", "description": "Group path (e.g., 'project/client/meetings')"},
+            },
+            "required": ["action"],
+        },
+        requires_advanced=True,
+    )
     @handle_errors(default_error_message="Group operation failed")
     async def _handle_groupmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle groupmem tool call."""
@@ -1595,6 +1308,25 @@ class ChatMemoryServer:
         else:
             return [TextContent(type="text", text=f"Error: Unknown action: {action}")]
 
+    @handler_registry.register(
+        "memcord_query",
+        category="basic",
+        description="Ask natural language questions about your memory contents",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "question": {"type": "string", "description": "Natural language question about your memories"},
+                "max_results": {
+                    "type": "integer",
+                    "description": "Maximum number of results to consider",
+                    "default": 5,
+                    "minimum": 1,
+                    "maximum": 20,
+                },
+            },
+            "required": ["question"],
+        },
+    )
     @handle_errors(default_error_message="Query failed")
     async def _handle_querymem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle querymem tool call."""
@@ -1607,6 +1339,39 @@ class ChatMemoryServer:
         answer = await self.query_processor.answer_question(question.strip(), max_results)
         return [TextContent(type="text", text=answer)]
 
+    @handler_registry.register(
+        "memcord_import",
+        category="advanced",
+        description="Import content from various sources into memory slots",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "source": {"type": "string", "description": "Source file path, URL, or '-' for clipboard"},
+                "slot_name": {"type": "string", "description": "Target memory slot name"},
+                "source_type": {
+                    "type": "string",
+                    "enum": ["auto", "text", "pdf", "url", "csv", "json"],
+                    "description": "Type of source content (auto-detect if not specified)",
+                    "default": "auto",
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Tags to add to imported content",
+                    "default": [],
+                },
+                "merge_mode": {
+                    "type": "string",
+                    "enum": ["replace", "append", "prepend"],
+                    "description": "How to handle existing content in slot",
+                    "default": "append",
+                },
+            },
+            "required": ["source", "slot_name"],
+        },
+        requires_advanced=True,
+    )
+    @handle_errors(default_error_message="Import failed")
     async def _handle_importmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle importmem tool call - delegates to ImportService."""
         source = arguments["source"]
@@ -1653,6 +1418,43 @@ class ChatMemoryServer:
 
         return [TextContent(type="text", text="\n".join(response_parts))]
 
+    @handler_registry.register(
+        "memcord_merge",
+        category="basic",
+        description="Merge multiple memory slots into one with duplicate detection",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "source_slots": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of memory slot names to merge",
+                    "minItems": 2,
+                },
+                "target_slot": {"type": "string", "description": "Name for the merged memory slot"},
+                "action": {
+                    "type": "string",
+                    "enum": ["preview", "merge"],
+                    "description": "Action to perform: 'preview' to see merge preview, 'merge' to execute",
+                    "default": "preview",
+                },
+                "similarity_threshold": {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "description": "Threshold for duplicate detection (0.0-1.0, default 0.8)",
+                    "default": 0.8,
+                },
+                "delete_sources": {
+                    "type": "boolean",
+                    "description": "Whether to delete source slots after successful merge",
+                    "default": False,
+                },
+            },
+            "required": ["source_slots", "target_slot"],
+        },
+    )
+    @handle_errors(default_error_message="Merge operation failed")
     async def _handle_mergemem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle mergemem tool call - delegates to MergeService."""
         source_slots = arguments["source_slots"]
@@ -1752,6 +1554,36 @@ class ChatMemoryServer:
 
         return [TextContent(type="text", text="\n".join(response_parts))]
 
+    @handler_registry.register(
+        "memcord_compress",
+        category="advanced",
+        description="Compress memory slot content to save storage space",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "slot_name": {
+                    "type": "string",
+                    "description": (
+                        "Memory slot name to compress (optional, processes all slots if not specified)"
+                    ),
+                },
+                "action": {
+                    "type": "string",
+                    "enum": ["analyze", "compress", "decompress", "stats"],
+                    "description": "Action to perform: analyze (preview), compress, decompress, or stats",
+                    "default": "analyze",
+                },
+                "force": {
+                    "type": "boolean",
+                    "description": "Force compression even for already compressed content",
+                    "default": False,
+                },
+            },
+            "required": ["action"],
+        },
+        requires_advanced=True,
+    )
+    @handle_errors(default_error_message="Compression operation failed")
     async def _handle_compressmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle compress tool call - delegates to CompressionService."""
         action = arguments.get("action", "analyze")
@@ -1862,6 +1694,36 @@ class ChatMemoryServer:
         ]
         return [TextContent(type="text", text="\n".join(response))]
 
+    @handler_registry.register(
+        "memcord_archive",
+        category="advanced",
+        description="Archive or restore memory slots for long-term storage",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "slot_name": {"type": "string", "description": "Memory slot name to archive/restore"},
+                "action": {
+                    "type": "string",
+                    "enum": ["archive", "restore", "list", "stats", "candidates"],
+                    "description": "Action to perform with archives",
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Reason for archiving (optional)",
+                    "default": "manual",
+                },
+                "days_inactive": {
+                    "type": "integer",
+                    "description": "Days of inactivity for finding archive candidates",
+                    "default": 30,
+                    "minimum": 1,
+                },
+            },
+            "required": ["action"],
+        },
+        requires_advanced=True,
+    )
+    @handle_errors(default_error_message="Archive operation failed")
     async def _handle_archivemem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle archive tool call - delegates to ArchiveService."""
         action = arguments.get("action")
@@ -2001,6 +1863,22 @@ class ChatMemoryServer:
         ])
         return [TextContent(type="text", text="\n".join(response))]
 
+    @handler_registry.register(
+        "memcord_status",
+        category="monitoring",
+        description="Get current system health status and overview",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "include_details": {
+                    "type": "boolean",
+                    "description": "Include detailed health check results",
+                    "default": False,
+                }
+            },
+        },
+    )
+    @handle_errors(default_error_message="Status check failed")
     async def _handle_status(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle system status check - delegates to MonitoringService."""
         include_details = arguments.get("include_details", False)
@@ -2055,6 +1933,28 @@ class ChatMemoryServer:
         response.append("💡 Use `memcord_diagnostics` for detailed analysis or `memcord_metrics` for performance data.")
         return [TextContent(type="text", text="\n".join(response))]
 
+    @handler_registry.register(
+        "memcord_metrics",
+        category="monitoring",
+        description="Get performance metrics and system statistics",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "metric_name": {
+                    "type": "string",
+                    "description": "Specific metric name to retrieve (optional, shows all if not specified)",
+                },
+                "hours": {
+                    "type": "integer",
+                    "description": "Number of hours of data to retrieve",
+                    "default": 1,
+                    "minimum": 1,
+                    "maximum": 168,
+                },
+            },
+        },
+    )
+    @handle_errors(default_error_message="Metrics retrieval failed")
     async def _handle_metrics(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle performance metrics request - delegates to MonitoringService."""
         metric_name = arguments.get("metric_name")
@@ -2115,6 +2015,37 @@ class ChatMemoryServer:
 
         return [TextContent(type="text", text="\n".join(response))]
 
+    @handler_registry.register(
+        "memcord_logs",
+        category="monitoring",
+        description="Get operation execution logs and history",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "tool_name": {"type": "string", "description": "Filter logs by specific tool name"},
+                "status": {
+                    "type": "string",
+                    "description": "Filter logs by operation status",
+                    "enum": ["started", "completed", "failed", "timeout"],
+                },
+                "hours": {
+                    "type": "integer",
+                    "description": "Number of hours of logs to retrieve",
+                    "default": 1,
+                    "minimum": 1,
+                    "maximum": 168,
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of log entries to return",
+                    "default": 100,
+                    "minimum": 1,
+                    "maximum": 1000,
+                },
+            },
+        },
+    )
+    @handle_errors(default_error_message="Log retrieval failed")
     async def _handle_logs(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle operation logs request - delegates to MonitoringService."""
         tool_name = arguments.get("tool_name")
@@ -2165,6 +2096,23 @@ class ChatMemoryServer:
         response.extend(["", '💡 Use `memcord_diagnostics check_type="performance"` for detailed analysis.'])
         return [TextContent(type="text", text="\n".join(response))]
 
+    @handler_registry.register(
+        "memcord_diagnostics",
+        category="monitoring",
+        description="Run comprehensive system diagnostics and generate health report",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "check_type": {
+                    "type": "string",
+                    "description": "Type of diagnostic check to run",
+                    "enum": ["health", "performance", "full_report"],
+                    "default": "health",
+                }
+            },
+        },
+    )
+    @handle_errors(default_error_message="Diagnostics failed")
     async def _handle_diagnostics(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle system diagnostics request - delegates to MonitoringService."""
         check_type = arguments.get("check_type", "health")
@@ -2261,6 +2209,26 @@ class ChatMemoryServer:
 
         return [TextContent(type="text", text="\n".join(response))]
 
+    @handler_registry.register(
+        "memcord_bind",
+        category="basic",
+        description="Bind a project directory to a memory slot. Creates .memcord file in the project.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "project_path": {
+                    "type": "string",
+                    "description": "Path to the project directory to bind",
+                },
+                "slot_name": {
+                    "type": "string",
+                    "description": "Memory slot name to bind (optional, uses directory name if not specified)",
+                },
+            },
+            "required": ["project_path"],
+        },
+    )
+    @handle_errors(default_error_message="Bind operation failed")
     async def _handle_bind(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Bind project directory to a memory slot."""
         project_path = Path(arguments["project_path"]).expanduser().resolve()
@@ -2294,6 +2262,22 @@ class ChatMemoryServer:
             )
         ]
 
+    @handler_registry.register(
+        "memcord_unbind",
+        category="basic",
+        description="Remove .memcord binding from a project directory",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "project_path": {
+                    "type": "string",
+                    "description": "Path to the project directory",
+                },
+            },
+            "required": ["project_path"],
+        },
+    )
+    @handle_errors(default_error_message="Unbind failed")
     async def _handle_unbind(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Remove .memcord binding from project."""
         project_path = Path(arguments["project_path"]).expanduser().resolve()
