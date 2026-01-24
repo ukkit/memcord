@@ -105,11 +105,14 @@ class ChatMemoryServer:
         # Status monitoring system
         self.status_monitor = StatusMonitoringSystem(storage_manager=self.storage, data_dir=memory_dir)
 
-        # Tool definition cache for performance
-        self._tool_cache: list[Tool] | None = None
+        # Pre-populate tool cache for faster first list_tools() call
+        self._tool_cache = self._get_basic_tools()
+        if self.enable_advanced_tools:
+            self._tool_cache.extend(self._get_advanced_tools())
 
-        # Lazy-loaded optional dependencies (initialized on first use)
-        self._summarizer = None
+        # Pre-load summarizer for faster first save_progress call
+        from .summarizer import TextSummarizer
+        self._summarizer = TextSummarizer()
         self._query_processor = None
         self._importer = None
         self._merger = None
@@ -118,6 +121,7 @@ class ChatMemoryServer:
         self._compression_service = None
         self._archive_service = None
         self._import_service = None
+        self._select_entry_service = None
 
         self._setup_handlers()
 
@@ -273,6 +277,15 @@ class ChatMemoryServer:
 
             self._import_service = ImportService(self.storage, self.importer)
         return self._import_service
+
+    @property
+    def select_entry_service(self):
+        """Lazy-loaded SelectEntryService instance."""
+        if self._select_entry_service is None:
+            from .services import SelectEntryService
+
+            self._select_entry_service = SelectEntryService(self.storage)
+        return self._select_entry_service
 
     def _detect_project_slot(self) -> str | None:
         """Check for .memcord file in current working directory.
@@ -993,6 +1006,7 @@ class ChatMemoryServer:
         mime_types = {"md": "text/markdown", "txt": "text/plain", "json": "application/json"}
         return mime_types.get(format, "text/plain")
 
+    @handle_errors(default_error_message="Naming operation failed")
     async def _handle_memname(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle memname tool call."""
         import logging
@@ -1038,6 +1052,7 @@ class ChatMemoryServer:
             )
         ]
 
+    @handle_errors(default_error_message="Use operation failed")
     async def _handle_memuse(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle memuse tool call - activate existing memory slots only."""
         slot_name = arguments["slot_name"]
@@ -1072,6 +1087,7 @@ class ChatMemoryServer:
                 )
             ]
 
+    @handle_errors(default_error_message="Save failed")
     async def _handle_savemem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle savemem tool call."""
         chat_text = arguments["chat_text"]
@@ -1099,6 +1115,7 @@ class ChatMemoryServer:
             )
         ]
 
+    @handle_errors(default_error_message="Read failed")
     async def _handle_readmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle readmem tool call."""
         slot_name = self._resolve_slot(arguments)
@@ -1138,6 +1155,7 @@ class ChatMemoryServer:
             TextContent(type="text", text=f"Memory slot '{slot_name}' ({len(slot.entries)} entries):\n\n{full_content}")
         ]
 
+    @handle_errors(default_error_message="Save progress failed")
     async def _handle_saveprogress(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle saveprogress tool call."""
         chat_text = arguments["chat_text"]
@@ -1172,6 +1190,7 @@ class ChatMemoryServer:
             )
         ]
 
+    @handle_errors(default_error_message="List operation failed")
     async def _handle_listmems(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle listmems tool call."""
         slots_info = await self.storage.list_memory_slots()
@@ -1209,10 +1228,12 @@ class ChatMemoryServer:
 
         return [TextContent(type="text", text="\n".join(lines))]
 
+    @handle_errors(default_error_message="Ping failed")
     async def _handle_ping(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle ping tool call - lightweight health check for server warm-up."""
         return [TextContent(type="text", text="pong")]
 
+    @handle_errors(default_error_message="Zero mode operation failed")
     async def _handle_zeromem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle zeromem tool call - activate zero mode."""
         # Activate zero mode by setting current slot to special __ZERO__ slot
@@ -1228,177 +1249,65 @@ class ChatMemoryServer:
 
     @handle_errors(default_error_message="Error selecting entry")
     async def _handle_select_entry(self, arguments: dict[str, Any]) -> list[TextContent]:
-        """Handle memcord_select_entry tool call.
-
-        Select specific memory entry by timestamp, relative time, or index.
-        """
-        from .temporal_parser import TemporalParser
+        """Handle memcord_select_entry tool call - delegates to SelectEntryService."""
+        from .services import SelectionRequest
 
         # Get slot name (use current if not specified, or project binding)
         slot_name = self._resolve_slot(arguments)
         if not slot_name:
-            return [
-                TextContent(
-                    type="text",
-                    text="❌ No memory slot selected. Use 'memcord_name [slot_name]' to select a slot first.",
-                )
-            ]
+            return [TextContent(type="text", text="❌ No memory slot selected. Use 'memcord_name [slot_name]' to select a slot first.")]
 
         # Check if in zero mode
         if self.storage._state.is_zero_mode():
-            return [
-                TextContent(
-                    type="text",
-                    text="🚫 Zero mode is active. Use 'memcord_name [slot_name]' to select a memory slot first.",
-                )
-            ]
+            return [TextContent(type="text", text="🚫 Zero mode is active. Use 'memcord_name [slot_name]' to select a memory slot first.")]
 
-        # Load the memory slot
-        slot = await self.storage.read_memory(slot_name)
-        if not slot:
-            return [
-                TextContent(
-                    type="text",
-                    text=f"❌ Memory slot '{slot_name}' not found. Use 'memcord_list' to see available slots.",
-                )
-            ]
-
-        # Check if slot has entries
-        if not slot.entries:
-            return [TextContent(type="text", text=f"📭 Memory slot '{slot_name}' is empty. No entries to select.")]
-
-        # Extract and validate selection parameters
-        timestamp = arguments.get("timestamp")
-        relative_time = arguments.get("relative_time")
-        entry_index = arguments.get("entry_index")
-        entry_type = arguments.get("entry_type")
-        show_context = arguments.get("show_context", True)
-
-        # Validate that exactly one selection method is provided
-        is_valid, error_msg = TemporalParser.validate_selection_input(timestamp, relative_time, entry_index)
-        if not is_valid:
-            return [
-                TextContent(
-                    type="text",
-                    text=f"❌ {error_msg}\n\n"
-                    f"Available selection methods:\n"
-                    f"• timestamp: '2025-07-21T17:30:00'\n"
-                    f"• relative_time: 'latest', 'oldest', '2 hours ago', 'yesterday'\n"
-                    f"• entry_index: 0 (oldest), -1 (latest), etc.",
-                )
-            ]
-
-        # Find the entry based on selection method
-        selected_entry = None
-        selected_index = -1
-        selection_method = ""
-        selection_query = ""
-        tolerance_applied = False
-
-        if timestamp:
-            # Parse timestamp and find closest entry
-            parsed_time = TemporalParser.parse_timestamp(timestamp)
-            if not parsed_time:
-                return [
-                    TextContent(
-                        type="text",
-                        text=f"❌ Invalid timestamp format: '{timestamp}'\n\n"
-                        f"Expected formats:\n"
-                        f"• ISO format: '2025-07-21T17:30:00'\n"
-                        f"• Date only: '2025-07-21'\n"
-                        f"• With timezone: '2025-07-21T17:30:00Z'",
-                    )
-                ]
-
-            result = slot.get_entry_by_timestamp(parsed_time)
-            if result:
-                selected_index, selected_entry = result
-                selection_method = "timestamp_exact"
-                selection_query = timestamp
-                # Check if tolerance was needed (not exact match)
-                if abs(selected_entry.timestamp - parsed_time).total_seconds() > 60:
-                    tolerance_applied = True
-
-        elif relative_time:
-            # Parse relative time expression
-            result = slot.get_entry_by_relative_time(relative_time)
-            if result:
-                selected_index, selected_entry = result
-                selection_method = "relative_time"
-                selection_query = relative_time
-
-        elif entry_index is not None:
-            # Get entry by index
-            result = slot.get_entry_by_index(entry_index)
-            if result:
-                selected_index, selected_entry = result
-                selection_method = "index"
-                selection_query = str(entry_index)
-
-        # Filter by entry type if specified
-        if selected_entry and entry_type and selected_entry.type != entry_type:
-            selected_entry = None
-            selected_index = -1
-
-        # Handle no match found
-        if not selected_entry:
-            available_timestamps = slot.get_available_timestamps()
-            available_info = f"\n\nAvailable entries in '{slot_name}':\n"
-            for i, ts in enumerate(available_timestamps):
-                entry = slot.entries[i]
-                time_desc = TemporalParser.format_time_description(entry.timestamp)
-                available_info += f"• Index {i}: {ts} ({entry.type}) - {time_desc}\n"
-
-            return [
-                TextContent(
-                    type="text",
-                    text=f"❌ No matching entry found for {selection_method.replace('_', ' ')}: '{selection_query}'"
-                    f"{available_info}",
-                )
-            ]
-
-        # Build the response
-        response_lines = []
-
-        # Selected entry info
-        response_lines.append(f"✅ Selected entry from '{slot_name}':")
-        response_lines.append(f"📅 **Timestamp:** {selected_entry.timestamp.isoformat()}")
-        response_lines.append(f"📝 **Type:** {selected_entry.type}")
-        response_lines.append(
-            f"🔍 **Selection method:** {selection_method.replace('_', ' ')} ('{selection_query}')"
+        # Build request and delegate to service
+        request = SelectionRequest(
+            slot_name=slot_name,
+            timestamp=arguments.get("timestamp"),
+            relative_time=arguments.get("relative_time"),
+            entry_index=arguments.get("entry_index"),
+            entry_type=arguments.get("entry_type"),
+            show_context=arguments.get("show_context", True),
         )
-        if tolerance_applied:
-            response_lines.append("⚠️ **Note:** Closest match found (not exact timestamp)")
-        response_lines.append("")
+        result = await self.select_entry_service.select_entry(request)
+        return self._format_select_entry_result(result)
 
-        # Entry content
-        response_lines.append("**Content:**")
-        response_lines.append(selected_entry.content)
-        response_lines.append("")
+    def _format_select_entry_result(self, result) -> list[TextContent]:
+        """Format select entry result for display."""
+        if not result.success:
+            error_msg = f"❌ {result.error}"
+            if result.available_entries:
+                error_msg += f"\n\nAvailable entries in '{result.slot_name}':\n"
+                for entry in result.available_entries:
+                    error_msg += f"• Index {entry['index']}: {entry['timestamp']} ({entry['type']}) - {entry['time_description']}\n"
+            return [TextContent(type="text", text=error_msg)]
 
-        # Timeline context if requested
-        if show_context:
-            context = slot.get_timeline_context(selected_index)
-            if context:
-                response_lines.append(f"📍 **Timeline Position:** {context['position']}")
+        lines = [
+            f"✅ Selected entry from '{result.slot_name}':",
+            f"📅 **Timestamp:** {result.timestamp.isoformat()}",
+            f"📝 **Type:** {result.entry_type}",
+            f"🔍 **Selection method:** {result.selection_method.replace('_', ' ')} ('{result.selection_query}')",
+        ]
+        if result.tolerance_applied:
+            lines.append("⚠️ **Note:** Closest match found (not exact timestamp)")
+        lines.extend(["", "**Content:**", result.content, ""])
 
-                if "previous_entry" in context:
-                    prev = context["previous_entry"]
-                    response_lines.append(
-                        f"⬅️ **Previous:** {prev['timestamp']} ({prev['type']}) - {prev['time_description']}"
-                    )
-                    response_lines.append(f"   Preview: {prev['content_preview']}")
+        # Timeline context
+        if result.context:
+            lines.append(f"📍 **Timeline Position:** {result.context.get('position', '')}")
+            if "previous_entry" in result.context:
+                prev = result.context["previous_entry"]
+                lines.append(f"⬅️ **Previous:** {prev['timestamp']} ({prev['type']}) - {prev['time_description']}")
+                lines.append(f"   Preview: {prev['content_preview']}")
+            if "next_entry" in result.context:
+                next_entry = result.context["next_entry"]
+                lines.append(f"➡️ **Next:** {next_entry['timestamp']} ({next_entry['type']}) - {next_entry['time_description']}")
+                lines.append(f"   Preview: {next_entry['content_preview']}")
 
-                if "next_entry" in context:
-                    next_entry = context["next_entry"]
-                    response_lines.append(
-                        f"➡️ **Next:** {next_entry['timestamp']} ({next_entry['type']}) - "
-                        f"{next_entry['time_description']}"
-                    )
-                    response_lines.append(f"   Preview: {next_entry['content_preview']}")
+        return [TextContent(type="text", text="\n".join(lines))]
 
-        return [TextContent(type="text", text="\n".join(response_lines))]
-
+    @handle_errors(default_error_message="Export failed")
     async def _handle_exportmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle exportmem tool call."""
         slot_name = arguments["slot_name"]
@@ -1417,6 +1326,7 @@ class ChatMemoryServer:
         except ValueError as e:
             return [TextContent(type="text", text=f"Error: {str(e)}")]
 
+    @handle_errors(default_error_message="Share operation failed")
     async def _handle_sharemem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle sharemem tool call."""
         slot_name = arguments["slot_name"]
@@ -1607,6 +1517,7 @@ class ChatMemoryServer:
         answer = await self.query_processor.answer_question(question.strip(), max_results)
         return [TextContent(type="text", text=answer)]
 
+    @handle_errors(default_error_message="Import failed")
     async def _handle_importmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle importmem tool call - delegates to ImportService."""
         source = arguments["source"]
@@ -1653,6 +1564,7 @@ class ChatMemoryServer:
 
         return [TextContent(type="text", text="\n".join(response_parts))]
 
+    @handle_errors(default_error_message="Merge operation failed")
     async def _handle_mergemem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle mergemem tool call - delegates to MergeService."""
         source_slots = arguments["source_slots"]
@@ -1752,6 +1664,7 @@ class ChatMemoryServer:
 
         return [TextContent(type="text", text="\n".join(response_parts))]
 
+    @handle_errors(default_error_message="Compression operation failed")
     async def _handle_compressmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle compress tool call - delegates to CompressionService."""
         action = arguments.get("action", "analyze")
@@ -1862,6 +1775,7 @@ class ChatMemoryServer:
         ]
         return [TextContent(type="text", text="\n".join(response))]
 
+    @handle_errors(default_error_message="Archive operation failed")
     async def _handle_archivemem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle archive tool call - delegates to ArchiveService."""
         action = arguments.get("action")
@@ -2001,6 +1915,7 @@ class ChatMemoryServer:
         ])
         return [TextContent(type="text", text="\n".join(response))]
 
+    @handle_errors(default_error_message="Status check failed")
     async def _handle_status(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle system status check - delegates to MonitoringService."""
         include_details = arguments.get("include_details", False)
@@ -2055,6 +1970,7 @@ class ChatMemoryServer:
         response.append("💡 Use `memcord_diagnostics` for detailed analysis or `memcord_metrics` for performance data.")
         return [TextContent(type="text", text="\n".join(response))]
 
+    @handle_errors(default_error_message="Metrics retrieval failed")
     async def _handle_metrics(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle performance metrics request - delegates to MonitoringService."""
         metric_name = arguments.get("metric_name")
@@ -2115,6 +2031,7 @@ class ChatMemoryServer:
 
         return [TextContent(type="text", text="\n".join(response))]
 
+    @handle_errors(default_error_message="Log retrieval failed")
     async def _handle_logs(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle operation logs request - delegates to MonitoringService."""
         tool_name = arguments.get("tool_name")
@@ -2165,6 +2082,7 @@ class ChatMemoryServer:
         response.extend(["", '💡 Use `memcord_diagnostics check_type="performance"` for detailed analysis.'])
         return [TextContent(type="text", text="\n".join(response))]
 
+    @handle_errors(default_error_message="Diagnostics failed")
     async def _handle_diagnostics(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle system diagnostics request - delegates to MonitoringService."""
         check_type = arguments.get("check_type", "health")
@@ -2261,6 +2179,7 @@ class ChatMemoryServer:
 
         return [TextContent(type="text", text="\n".join(response))]
 
+    @handle_errors(default_error_message="Bind operation failed")
     async def _handle_bind(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Bind project directory to a memory slot."""
         project_path = Path(arguments["project_path"]).expanduser().resolve()
@@ -2294,6 +2213,7 @@ class ChatMemoryServer:
             )
         ]
 
+    @handle_errors(default_error_message="Unbind failed")
     async def _handle_unbind(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Remove .memcord binding from project."""
         project_path = Path(arguments["project_path"]).expanduser().resolve()

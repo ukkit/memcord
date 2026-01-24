@@ -16,10 +16,10 @@ Refactor `server.py` (2,736 lines, 26 handlers) to ~1,850 lines while improving:
 | Standardize error handling | Use MemcordError consistently | ~100 | ✅ COMPLETE |
 | Co-locate tool schemas with handlers | Single source of truth for schemas | ~36 | ✅ COMPLETE |
 | **Phase 1-4 Total** | | **~443 actual** | ✅ COMPLETE |
-| Extend @handle_errors to 20 handlers | Consistent error handling | ~100 | ⏳ PENDING |
-| Extract large handler sub-actions | Simplify multi-action handlers | ~200 | ⏳ PENDING |
-| Consolidate utility patterns | DRY timestamp/slot/response | ~50 | ⏳ PENDING |
-| Preloading optimizations | Faster startup & first call | - | ⏳ PENDING |
+| Extend @handle_errors to 20 handlers | Consistent error handling | +20 lines | ✅ COMPLETE |
+| Extract large handler sub-actions | Simplify multi-action handlers | -103 | ✅ COMPLETE |
+| Consolidate utility patterns | DRY timestamp/slot/response | minimal | ⚠️ SKIPPED - already clean |
+| Preloading optimizations | Faster startup & first call | - | ✅ COMPLETE |
 | **Phase 5-6 Total** | | **~350** | ⏳ PENDING |
 | **Grand Total** | | **~793** | |
 
@@ -41,7 +41,7 @@ Refactor `server.py` (2,736 lines, 26 handlers) to ~1,850 lines while improving:
 ### Current Metrics
 | Metric | Value | Change |
 |--------|-------|--------|
-| `server.py` | 2,293 lines | **-443 lines** from original 2,736 |
+| `server.py` | 2,246 lines | **-490 lines** from original 2,736 |
 | New modules created | ~1,816 lines | |
 | Tests passing | 616/616 | ✅ Re-verified 2026-01-24 |
 | New optimization tests | 187 | ✅ Added 2026-01-24 |
@@ -97,15 +97,50 @@ Full test suite re-verified with new optimization module tests:
 | `services/import_service.py` | 159 | Import business logic |
 | `services/monitoring_service.py` | 405 | Monitoring business logic |
 
-### Handlers with @handle_errors Decorator ✅
-| Handler | Default Error Message | Status |
-|---------|----------------------|--------|
-| `_handle_searchmem` | "Search failed" | ✅ |
-| `_handle_tagmem` | "Tag operation failed" | ✅ |
-| `_handle_listtags` | "Failed to list tags" | ✅ |
-| `_handle_groupmem` | "Group operation failed" | ✅ |
-| `_handle_querymem` | "Query failed" | ✅ |
-| `_handle_select_entry` | "Error selecting entry" | ✅ |
+### Handlers with @handle_errors Decorator ✅ ALL 26 COMPLETE
+All 26 handlers now have `@handle_errors` decorator for consistent error handling.
+
+**Priority 1 (Large handlers - added 2026-01-24):**
+| Handler | Default Error Message |
+|---------|----------------------|
+| `_handle_importmem` | "Import failed" |
+| `_handle_mergemem` | "Merge operation failed" |
+| `_handle_compressmem` | "Compression operation failed" |
+| `_handle_archivemem` | "Archive operation failed" |
+| `_handle_metrics` | "Metrics retrieval failed" |
+| `_handle_diagnostics` | "Diagnostics failed" |
+
+**Priority 2 (Medium handlers - added 2026-01-24):**
+| Handler | Default Error Message |
+|---------|----------------------|
+| `_handle_memname` | "Naming operation failed" |
+| `_handle_memuse` | "Use operation failed" |
+| `_handle_savemem` | "Save failed" |
+| `_handle_readmem` | "Read failed" |
+| `_handle_saveprogress` | "Save progress failed" |
+| `_handle_listmems` | "List operation failed" |
+| `_handle_zeromem` | "Zero mode operation failed" |
+| `_handle_exportmem` | "Export failed" |
+| `_handle_sharemem` | "Share operation failed" |
+| `_handle_status` | "Status check failed" |
+| `_handle_logs` | "Log retrieval failed" |
+| `_handle_bind` | "Bind operation failed" |
+
+**Priority 3 (Small handlers - added 2026-01-24):**
+| Handler | Default Error Message |
+|---------|----------------------|
+| `_handle_ping` | "Ping failed" |
+| `_handle_unbind` | "Unbind failed" |
+
+**Previously completed (Phase 3):**
+| Handler | Default Error Message |
+|---------|----------------------|
+| `_handle_searchmem` | "Search failed" |
+| `_handle_tagmem` | "Tag operation failed" |
+| `_handle_listtags` | "Failed to list tags" |
+| `_handle_groupmem` | "Group operation failed" |
+| `_handle_querymem` | "Query failed" |
+| `_handle_select_entry` | "Error selecting entry" |
 
 ### Remaining Work
 Phases 1-4 complete. Phases 5-6 pending for additional optimization.
@@ -115,10 +150,10 @@ Phases 1-4 complete. Phases 5-6 pending for additional optimization.
 3. ~~Update import handler to delegate to ImportService~~ ✅
 4. ~~Apply `@handle_errors` decorator to 6 handlers~~ ✅
 5. ~~Move tool schemas into handler decorators~~ ✅
-6. Apply `@handle_errors` to remaining 20 handlers ⏳
-7. Extract large handler sub-actions ⏳
-8. Consolidate utility patterns (timestamp, slot validation) ⏳
-9. Implement preloading optimizations ⏳
+6. ~~Apply `@handle_errors` to remaining 20 handlers~~ ✅ (2026-01-24)
+7. ~~Extract large handler sub-actions~~ ✅ (2026-01-24) - SelectEntryService created
+8. ~~Consolidate utility patterns~~ ⚠️ SKIPPED - analysis showed minimal impact
+9. ~~Implement preloading optimizations~~ ✅ (2026-01-24) - Tool cache + TextSummarizer pre-loaded
 
 ---
 
@@ -268,9 +303,9 @@ Single source of truth - tool schemas are now co-located directly with their han
 
 ## Phase 5: Extended Handler Refactoring (Medium Risk) ⏳ PENDING
 
-### 5.1 Apply @handle_errors to Remaining 20 Handlers
+### 5.1 Apply @handle_errors to Remaining 20 Handlers ✅ COMPLETE (2026-01-24)
 
-Only 6 of 26 handlers currently have the `@handle_errors` decorator. The remaining 20 need it:
+All 26 handlers now have the `@handle_errors` decorator:
 
 **Priority 1 - Large handlers (>100 lines):**
 | Handler | Lines | Range | Error Message |
@@ -306,38 +341,18 @@ Only 6 of 26 handlers currently have the `@handle_errors` decorator. The remaini
 
 **Estimated savings:** ~100 lines (error handling boilerplate removal)
 
-### 5.2 Extract Large Handler Sub-Actions
+### 5.2 Extract Large Handler Sub-Actions ✅ COMPLETE (2026-01-24)
 
-Five handlers use multi-action dispatch patterns that can be extracted:
+Analysis showed most handlers were already well-refactored:
+- `_handle_mergemem` (~20 lines) - Already delegates to MergeService
+- `_handle_compressmem` (~24 lines) - Already delegates to CompressionService
+- `_handle_archivemem` (~24 lines) - Already delegates to ArchiveService
+- `_handle_diagnostics` (~5 lines) - Already delegates to MonitoringService
 
-**5.2.1 `_handle_select_entry` (191 lines) → SelectEntryService**
-```python
-# Current: All logic inline
-# Extract to:
-class SelectEntryService:
-    def parse_temporal_query(self, arguments) -> TemporalQuery
-    def find_entry(self, slot, query) -> MemoryEntry
-    def build_context(self, slot, entry, show_context) -> EntryContext
-    def format_response(self, entry, context) -> str
-```
-
-**5.2.2 `_handle_archivemem` (154 lines) → Already has ArchiveService**
-- Move remaining inline action dispatch to service
-- Extract: archive/restore/list/stats/candidates sub-handlers
-
-**5.2.3 `_handle_compressmem` (139 lines) → Already has CompressionService**
-- Move remaining inline action dispatch to service
-- Extract: compress/decompress/analyze/stats sub-handlers
-
-**5.2.4 `_handle_mergemem` (128 lines) → Already has MergeService**
-- Move remaining inline action dispatch to service
-- Handler should be ~20 lines after extraction
-
-**5.2.5 `_handle_diagnostics` (115 lines) → Already has MonitoringService**
-- Move remaining inline action dispatch to service
-- Extract: health/performance/full_report sub-handlers
-
-**Estimated savings:** ~200-300 lines
+**Extracted: `_handle_select_entry` (170 lines) → SelectEntryService**
+- Created `services/select_entry_service.py` (~200 lines)
+- Handler reduced from 170 → 55 lines (handler + formatter)
+- **Net savings: 103 lines in server.py**
 
 ### 5.3 Consolidate Utility Patterns
 
@@ -403,7 +418,7 @@ return ResponseBuilder.from_lines(lines)
 
 ---
 
-## Phase 6: Preloading Optimizations (Low Risk) ⏳ PENDING
+## Phase 6: Preloading Optimizations (Low Risk) ✅ COMPLETE (2026-01-24)
 
 ### 6.1 Current Initialization Analysis
 
@@ -418,38 +433,17 @@ return ResponseBuilder.from_lines(lines)
 | **SimpleQueryProcessor** | Lazy | 40-60ms | Keep lazy |
 | **Services (5x)** | Lazy | 20-50ms ea | Keep lazy |
 
-### 6.2 Pre-load TextSummarizer (Quick Win)
+### 6.2 Pre-load TextSummarizer ✅ COMPLETE
 
 **Reason:** `memcord_save_progress` is a common first operation
-**Current:** Lazy-loaded on first use
+**Implementation:** Changed from lazy-load to eager-load in `__init__`
 **Impact:** Eliminates 5-10ms delay on first summary
 
-```python
-# In ChatMemoryServer.__init__()
-def __init__(self, memory_dir: str | Path = DEFAULT_MEMORY_DIR, ...):
-    # ... existing initialization ...
-
-    # NEW: Pre-load summarizer (used for basic save_progress operation)
-    from .summarizer import TextSummarizer
-    self._summarizer = TextSummarizer()
-```
-
-### 6.3 Pre-populate Tool Cache (Quick Win)
+### 6.3 Pre-populate Tool Cache ✅ COMPLETE
 
 **Reason:** `list_tools()` is called on every MCP connection
-**Current:** Built on first invocation
+**Implementation:** Pre-populated in `__init__` with `_get_basic_tools()` + optional advanced tools
 **Impact:** Eliminates 10-20ms delay on first list_tools()
-
-```python
-# In ChatMemoryServer.__init__()
-def __init__(self, memory_dir: str | Path = DEFAULT_MEMORY_DIR, ...):
-    # ... existing initialization ...
-
-    # NEW: Pre-populate tool cache
-    self._tool_cache = handler_registry.get_tools(
-        include_advanced=self.enable_advanced_tools
-    )
-```
 
 ### 6.4 Lazy-load StatusMonitoringSystem (Medium)
 
@@ -532,6 +526,7 @@ For users who do use monitoring, first monitoring call has a one-time 30-50ms de
 | `src/memcord/services/compression_service.py` | 299 | ✅ Created |
 | `src/memcord/services/archive_service.py` | 296 | ✅ Created |
 | `src/memcord/services/monitoring_service.py` | 405 | ✅ Created |
+| `src/memcord/services/select_entry_service.py` | 200 | ✅ Created (2026-01-24) |
 
 ### Test Files (Added 2026-01-24)
 | File | Lines | Status |

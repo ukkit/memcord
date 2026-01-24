@@ -35,6 +35,7 @@ from .monitoring_service import (
     PerformanceIssue,
     StatusReport,
 )
+from .select_entry_service import SelectedEntry, SelectEntryService, SelectionRequest
 
 __all__ = [
     # Archive
@@ -70,4 +71,8 @@ __all__ = [
     "MetricSummary",
     "LogEntry",
     "PerformanceIssue",
+    # Select Entry
+    "SelectEntryService",
+    "SelectedEntry",
+    "SelectionRequest",
 ]
