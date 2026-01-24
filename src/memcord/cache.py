@@ -641,10 +641,20 @@ class CacheManager:
         """Shutdown the cache manager."""
         self._running = False
 
+        # Cancel and await background tasks to prevent "Task was destroyed" warnings
         if self._cleanup_task:
             self._cleanup_task.cancel()
+            try:
+                await self._cleanup_task
+            except asyncio.CancelledError:
+                pass
+
         if self._warming_task:
             self._warming_task.cancel()
+            try:
+                await self._warming_task
+            except asyncio.CancelledError:
+                pass
 
     async def get(self, key: str, cache_level: CacheLevel = CacheLevel.MEMORY) -> tuple[Any | None, bool]:
         """Get value from cache with fallback strategy."""

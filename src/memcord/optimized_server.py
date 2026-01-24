@@ -35,11 +35,13 @@ class OptimizedChatMemoryServer(ChatMemoryServer):
             enable_advanced_tools: Enable advanced tools
             enable_response_optimization: Enable response optimization
         """
-        super().__init__(memory_dir, shared_dir, enable_advanced_tools)
-
-        # Initialize optimizers
+        # Initialize optimizers BEFORE super().__init__() because the parent
+        # calls _get_basic_tools() and _get_advanced_tools() which we override
+        # to use schema_optimizer
         self.schema_optimizer = OptimizedSchemas()
         self.response_optimizer = ResponseOptimizer() if enable_response_optimization else None
+
+        super().__init__(memory_dir, shared_dir, enable_advanced_tools)
 
         # Override setup to use optimized schemas
         self._setup_optimized_handlers()
