@@ -37,7 +37,7 @@ Transform your Claude conversations into a searchable, organized knowledge base 
 ```text
 Project Memory Binding & Auto-Detection for ⭐claude code⭐:
 
-  - New memcord_bind tool: Bind project directories to memory slots via .memcord file
+  - New memcord_init tool: Initialize project directories with memory slots via .memcord file
   - New memcord_unbind tool: Remove project bindings (preserves memory data)
   - Auto-detection: Slash commands automatically use bound slot from .memcord file
   - Zero-config workflow: Once bound, no need to specify slot names
@@ -229,10 +229,10 @@ uv run python scripts/generate-config.py  # Regenerate configs
 ### First-Time Setup (New Project)
 
 ```bash
-# 1. Once you are in claude code, bind the project to a memory slot (one-time setup)
-memcord_bind "." "my-project-name"
+# 1. Once you are in claude code, initialize the project with a memory slot (one-time setup)
+memcord_init "." "my-project-name"
 OR
-memcord_bin "my_project_name"
+memcord_init "my_project_name"
 # Creates .memcord file containing "my-project-name"
 
 # 2. Start saving your conversations
@@ -280,8 +280,8 @@ memcord_query "What did we decide about authentication?"
 # Merge related conversations
 memcord_merge ["project_meeting", "api_notes"] "consolidated_project"
 
-# Bind project directory to memory slot (auto-detection for slash commands)
-memcord_bind "." "my-project"  # Creates .memcord file 🆕
+# Initialize project directory with memory slot (auto-detection for slash commands)
+memcord_init "." "my-project"  # Creates .memcord file 🆕
 memcord_unbind "."             # Removes binding 🆕
 
 ```

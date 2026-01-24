@@ -13,7 +13,7 @@ Available without configuration:
 - Privacy: `memcord_zero`
 - Selection: `memcord_select_entry`
 - Integration: `memcord_merge`
-- Project Binding: `memcord_bind`, `memcord_unbind`
+- Project Binding: `memcord_init`, `memcord_unbind`
 - Utility: `memcord_ping`
 
 ### ⚡ Advanced Mode (All 22 Tools)
@@ -252,11 +252,11 @@ Merge multiple memory slots into one with intelligent duplicate detection.
 
 ### Project Binding
 
-### 13. `memcord_bind <project_path> [slot_name]`
-Bind a project directory to a memory slot by creating a `.memcord` file in the project root.
+### 13. `memcord_init <project_path> [slot_name]`
+Initialize memcord for a project directory by binding it to a memory slot. Creates a `.memcord` file in the project root.
 
 **Parameters:**
-- `project_path`: Path to the project directory to bind
+- `project_path`: Path to the project directory to initialize
 - `slot_name` (optional): Memory slot name to bind. If not specified, uses directory name
 
 **Behavior:**
@@ -266,9 +266,9 @@ Bind a project directory to a memory slot by creating a `.memcord` file in the p
 - If `.memcord` file already exists, reads and uses the existing slot name (unless new slot_name is specified)
 
 **Examples:**
-- `memcord_bind project_path="/path/to/my-project"` - Binds to slot named "my-project"
-- `memcord_bind project_path="/path/to/project" slot_name="custom-slot"` - Binds to specified slot
-- `memcord_bind project_path="."` - Binds current directory
+- `memcord_init project_path="/path/to/my-project"` - Initializes with slot named "my-project"
+- `memcord_init project_path="/path/to/project" slot_name="custom-slot"` - Initializes with specified slot
+- `memcord_init project_path="."` - Initializes current directory
 
 **Use Cases:**
 - **Project-specific memory**: Each project automatically uses its own memory slot

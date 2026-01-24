@@ -148,7 +148,7 @@ class ChatMemoryServer:
             "memcord_zero": (self._handle_zeromem, False),
             "memcord_select_entry": (self._handle_select_entry, False),
             # Project Binding tools
-            "memcord_bind": (self._handle_bind, False),
+            "memcord_init": (self._handle_bind, False),
             "memcord_unbind": (self._handle_unbind, False),
             # Status & Monitoring tools
             "memcord_status": (self._handle_status, False),
@@ -681,8 +681,8 @@ class ChatMemoryServer:
             ),
             # Project Binding Tools
             Tool(
-                name="memcord_bind",
-                description="Bind a project directory to a memory slot. Creates .memcord file in the project.",
+                name="memcord_init",
+                description="Initialize memcord for a project directory by binding it to a memory slot. Creates .memcord file in the project.",
                 inputSchema={
                     "type": "object",
                     "properties": {

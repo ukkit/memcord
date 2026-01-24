@@ -101,11 +101,11 @@ MemCord supports project-level memory binding through a `.memcord` file. This fi
 ### Setting Up Project Binding
 
 ```bash
-# Bind current project to a memory slot
-memcord_bind project_path="." slot_name="my-project"
+# Initialize current project with a memory slot
+memcord_init project_path="." slot_name="my-project"
 
 # Or let it auto-generate the slot name from directory name
-memcord_bind project_path="."
+memcord_init project_path="."
 
 # Remove binding (preserves the memory slot)
 memcord_unbind project_path="."
@@ -113,15 +113,15 @@ memcord_unbind project_path="."
 
 ### How It Works
 
-1. **Create binding**: `memcord_bind` creates a `.memcord` file in your project root
+1. **Initialize project**: `memcord_init` creates a `.memcord` file in your project root
 2. **Auto-detection**: Slash commands (`/memcord-read`, `/memcord-save`, `/memcord-save-progress`) automatically detect the `.memcord` file
 3. **No slot name needed**: When the file exists, commands use the bound slot without requiring explicit slot names
 
 ### Example Workflow
 
 ```bash
-# One-time setup: bind project to memory
-memcord_bind project_path="/path/to/my-project" slot_name="my-project-memory"
+# One-time setup: initialize project with memory
+memcord_init project_path="/path/to/my-project" slot_name="my-project-memory"
 
 # Later, in Claude Code, just use slash commands without arguments:
 /memcord-read          # Automatically reads from "my-project-memory"

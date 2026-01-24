@@ -90,7 +90,7 @@ class TestSlotResolutionPriority:
         server = test_server
 
         # Bind project to a slot
-        await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir, "slot_name": "bound-slot"})
+        await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir, "slot_name": "bound-slot"})
         await server.call_tool_direct("memcord_save", {"slot_name": "bound-slot", "chat_text": "Bound slot content"})
 
         # Set a different active slot
@@ -234,7 +234,7 @@ class TestActiveSlotState:
         assert server.storage.get_current_slot() is None
 
         # Bind project
-        result = await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir, "slot_name": "bound-activated"})
+        result = await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir, "slot_name": "bound-activated"})
 
         assert "active" in result[0].text.lower()
         assert server.storage.get_current_slot() == "bound-activated"
@@ -496,7 +496,7 @@ class TestBindingStateTransitions:
         server = test_server
 
         # Bind project
-        await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir, "slot_name": "bound-slot"})
+        await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir, "slot_name": "bound-slot"})
         assert server.storage.get_current_slot() == "bound-slot"
 
         # Set different active slot
@@ -517,11 +517,11 @@ class TestBindingStateTransitions:
         with tempfile.TemporaryDirectory() as project1:
             with tempfile.TemporaryDirectory() as project2:
                 # Bind first project
-                await server.call_tool_direct("memcord_bind", {"project_path": project1, "slot_name": "slot-1"})
+                await server.call_tool_direct("memcord_init", {"project_path": project1, "slot_name": "slot-1"})
                 assert server.storage.get_current_slot() == "slot-1"
 
                 # Bind second project
-                await server.call_tool_direct("memcord_bind", {"project_path": project2, "slot_name": "slot-2"})
+                await server.call_tool_direct("memcord_init", {"project_path": project2, "slot_name": "slot-2"})
                 assert server.storage.get_current_slot() == "slot-2"
 
     @pytest.mark.asyncio
@@ -530,14 +530,14 @@ class TestBindingStateTransitions:
         server = test_server
 
         # Initial bind
-        await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir, "slot_name": "rebind-slot"})
+        await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir, "slot_name": "rebind-slot"})
 
         # Switch to different slot
         await server.call_tool_direct("memcord_name", {"slot_name": "other-slot"})
         assert server.storage.get_current_slot() == "other-slot"
 
         # Rebind (without slot_name, should read from .memcord)
-        await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir})
+        await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir})
 
         # Should reactivate the bound slot
         assert server.storage.get_current_slot() == "rebind-slot"

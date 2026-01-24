@@ -1,10 +1,10 @@
-"""Tests for project binding functionality (memcord_bind and memcord_unbind).
+"""Tests for project binding functionality (memcord_init and memcord_unbind).
 
 Tests the project directory binding feature that associates directories
 with memory slots via .memcord files.
 
 Coverage:
-- memcord_bind tool handler
+- memcord_init tool handler
 - memcord_unbind tool handler
 - .memcord file creation and management
 - Auto-slot naming from directory names
@@ -45,14 +45,14 @@ def temp_project_dir():
 
 
 class TestMemcordBindBasicFunctionality:
-    """Test basic memcord_bind functionality."""
+    """Test basic memcord_init functionality."""
 
     @pytest.mark.asyncio
     async def test_bind_creates_memcord_file(self, test_server, temp_project_dir):
         """Test that binding a project creates a .memcord file."""
         server = test_server
 
-        result = await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir})
+        result = await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir})
 
         assert isinstance(result, list)
         assert len(result) == 1
@@ -68,7 +68,7 @@ class TestMemcordBindBasicFunctionality:
         """Test that binding without slot_name uses directory name."""
         server = test_server
 
-        result = await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir})
+        result = await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir})
 
         # Read the .memcord file content
         memcord_file = Path(temp_project_dir) / ".memcord"
@@ -86,7 +86,7 @@ class TestMemcordBindBasicFunctionality:
         custom_name = "my-custom-project-slot"
 
         result = await server.call_tool_direct(
-            "memcord_bind", {"project_path": temp_project_dir, "slot_name": custom_name}
+            "memcord_init", {"project_path": temp_project_dir, "slot_name": custom_name}
         )
 
         assert isinstance(result, list)
@@ -102,7 +102,7 @@ class TestMemcordBindBasicFunctionality:
         server = test_server
         slot_name = "new-slot-for-binding"
 
-        await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir, "slot_name": slot_name})
+        await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir, "slot_name": slot_name})
 
         # Verify slot was created
         slot = await server.storage.read_memory(slot_name)
@@ -115,7 +115,7 @@ class TestMemcordBindBasicFunctionality:
         slot_name = "activated-slot"
 
         result = await server.call_tool_direct(
-            "memcord_bind", {"project_path": temp_project_dir, "slot_name": slot_name}
+            "memcord_init", {"project_path": temp_project_dir, "slot_name": slot_name}
         )
 
         assert "active" in result[0].text.lower()
@@ -132,11 +132,11 @@ class TestMemcordBindRebinding:
 
         # First binding with custom name
         await server.call_tool_direct(
-            "memcord_bind", {"project_path": temp_project_dir, "slot_name": original_slot_name}
+            "memcord_init", {"project_path": temp_project_dir, "slot_name": original_slot_name}
         )
 
         # Re-bind without specifying slot_name (should read from .memcord)
-        result = await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir})
+        result = await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir})
 
         # Should use the existing slot name from .memcord
         assert original_slot_name in result[0].text
@@ -153,10 +153,10 @@ class TestMemcordBindRebinding:
         new_name = "new-name"
 
         # First binding
-        await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir, "slot_name": original_name})
+        await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir, "slot_name": original_name})
 
         # Re-bind with new name
-        result = await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir, "slot_name": new_name})
+        result = await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir, "slot_name": new_name})
 
         # Should use the new name
         assert new_name in result[0].text
@@ -175,7 +175,7 @@ class TestMemcordUnbindFunctionality:
         server = test_server
 
         # First bind
-        await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir})
+        await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir})
 
         memcord_file = Path(temp_project_dir) / ".memcord"
         assert memcord_file.exists()
@@ -204,7 +204,7 @@ class TestMemcordUnbindFunctionality:
         slot_name = "persistent-slot"
 
         # Bind and save some content
-        await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir, "slot_name": slot_name})
+        await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir, "slot_name": slot_name})
         await server.call_tool_direct("memcord_save", {"slot_name": slot_name, "chat_text": "Important content"})
 
         # Unbind
@@ -225,7 +225,7 @@ class TestMemcordBindErrorHandling:
         server = test_server
         invalid_path = "/nonexistent/path/to/project"
 
-        result = await server.call_tool_direct("memcord_bind", {"project_path": invalid_path})
+        result = await server.call_tool_direct("memcord_init", {"project_path": invalid_path})
 
         assert isinstance(result, list)
         assert "Error" in result[0].text
@@ -240,7 +240,7 @@ class TestMemcordBindErrorHandling:
         file_path = Path(temp_project_dir) / "some_file.txt"
         file_path.write_text("content")
 
-        result = await server.call_tool_direct("memcord_bind", {"project_path": str(file_path)})
+        result = await server.call_tool_direct("memcord_init", {"project_path": str(file_path)})
 
         assert isinstance(result, list)
         assert "Error" in result[0].text
@@ -268,7 +268,7 @@ class TestMemcordBindEdgeCases:
         with tempfile.TemporaryDirectory(prefix="project with spaces ") as temp_dir:
             server = test_server
 
-            result = await server.call_tool_direct("memcord_bind", {"project_path": temp_dir})
+            result = await server.call_tool_direct("memcord_init", {"project_path": temp_dir})
 
             assert isinstance(result, list)
             assert "Bound" in result[0].text
@@ -288,7 +288,7 @@ class TestMemcordBindEdgeCases:
 
             server = test_server
 
-            result = await server.call_tool_direct("memcord_bind", {"project_path": str(unicode_dir)})
+            result = await server.call_tool_direct("memcord_init", {"project_path": str(unicode_dir)})
 
             assert isinstance(result, list)
             assert "Bound" in result[0].text
@@ -301,7 +301,7 @@ class TestMemcordBindEdgeCases:
         # This test verifies the path expansion works
         # We'll use a temporary directory and verify expansion happens
         with tempfile.TemporaryDirectory() as temp_dir:
-            result = await server.call_tool_direct("memcord_bind", {"project_path": temp_dir})
+            result = await server.call_tool_direct("memcord_init", {"project_path": temp_dir})
 
             assert isinstance(result, list)
             # Path should be resolved and expanded in the result
@@ -314,7 +314,7 @@ class TestMemcordBindEdgeCases:
         """Test that empty slot_name falls back to directory name."""
         server = test_server
 
-        result = await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir, "slot_name": ""})
+        result = await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir, "slot_name": ""})
 
         # Should still work, using directory name
         assert isinstance(result, list)
@@ -334,7 +334,7 @@ class TestMemcordBindIntegration:
         slot_name = "integration-test-slot"
 
         # Bind project
-        await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir, "slot_name": slot_name})
+        await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir, "slot_name": slot_name})
 
         # Save content to the bound slot
         await server.call_tool_direct("memcord_save", {"slot_name": slot_name, "chat_text": "Integration test content"})
@@ -353,10 +353,10 @@ class TestMemcordBindIntegration:
         with tempfile.TemporaryDirectory() as project1:
             with tempfile.TemporaryDirectory() as project2:
                 # Bind first project
-                await server.call_tool_direct("memcord_bind", {"project_path": project1, "slot_name": "project-one"})
+                await server.call_tool_direct("memcord_init", {"project_path": project1, "slot_name": "project-one"})
 
                 # Bind second project
-                await server.call_tool_direct("memcord_bind", {"project_path": project2, "slot_name": "project-two"})
+                await server.call_tool_direct("memcord_init", {"project_path": project2, "slot_name": "project-two"})
 
                 # Verify both bindings exist
                 memcord1 = Path(project1) / ".memcord"
@@ -374,13 +374,13 @@ class TestMemcordBindIntegration:
         slot_name = "persistent-binding"
 
         # Initial binding
-        await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir, "slot_name": slot_name})
+        await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir, "slot_name": slot_name})
 
         # Save some content
         await server.call_tool_direct("memcord_save", {"slot_name": slot_name, "chat_text": "Persisted content"})
 
         # Simulate restart by re-binding (without slot_name - should read from .memcord)
-        result = await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir})
+        result = await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir})
 
         # Should activate the same slot
         assert slot_name in result[0].text
@@ -407,7 +407,7 @@ class TestMemcordBindConcurrency:
 
             # Concurrent bind operations
             tasks = [
-                server.call_tool_direct("memcord_bind", {"project_path": temp_dir, "slot_name": f"concurrent-slot-{i}"})
+                server.call_tool_direct("memcord_init", {"project_path": temp_dir, "slot_name": f"concurrent-slot-{i}"})
                 for i, temp_dir in enumerate(temp_dirs)
             ]
 
@@ -440,7 +440,7 @@ class TestMemcordBindConcurrency:
         for i in range(10):
             # Bind
             bind_result = await server.call_tool_direct(
-                "memcord_bind", {"project_path": temp_project_dir, "slot_name": f"cycle-slot-{i}"}
+                "memcord_init", {"project_path": temp_project_dir, "slot_name": f"cycle-slot-{i}"}
             )
             assert "Bound" in bind_result[0].text
 
@@ -461,13 +461,13 @@ class TestMemcordBindToolRegistration:
 
     @pytest.mark.asyncio
     async def test_bind_tool_in_tool_list(self, test_server):
-        """Test that memcord_bind is in the tool list."""
+        """Test that memcord_init is in the tool list."""
         server = test_server
 
         tools = await server.list_tools_direct()
         tool_names = [tool.name for tool in tools]
 
-        assert "memcord_bind" in tool_names
+        assert "memcord_init" in tool_names
 
     @pytest.mark.asyncio
     async def test_unbind_tool_in_tool_list(self, test_server):
@@ -481,11 +481,11 @@ class TestMemcordBindToolRegistration:
 
     @pytest.mark.asyncio
     async def test_bind_tool_has_correct_schema(self, test_server):
-        """Test that memcord_bind has the correct input schema."""
+        """Test that memcord_init has the correct input schema."""
         server = test_server
 
         tools = await server.list_tools_direct()
-        bind_tool = next(tool for tool in tools if tool.name == "memcord_bind")
+        bind_tool = next(tool for tool in tools if tool.name == "memcord_init")
 
         assert bind_tool.inputSchema is not None
         assert "properties" in bind_tool.inputSchema
@@ -546,11 +546,11 @@ class TestMemcordBindCallToolDirect:
 
     @pytest.mark.asyncio
     async def test_call_tool_direct_bind(self, test_server, temp_project_dir):
-        """Test memcord_bind via call_tool_direct."""
+        """Test memcord_init via call_tool_direct."""
         server = test_server
 
         result = await server.call_tool_direct(
-            "memcord_bind", {"project_path": temp_project_dir, "slot_name": "call-direct-test"}
+            "memcord_init", {"project_path": temp_project_dir, "slot_name": "call-direct-test"}
         )
 
         assert isinstance(result, (list, tuple))
@@ -564,7 +564,7 @@ class TestMemcordBindCallToolDirect:
         server = test_server
 
         # First bind
-        await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir})
+        await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir})
 
         # Then unbind
         result = await server.call_tool_direct("memcord_unbind", {"project_path": temp_project_dir})
@@ -588,7 +588,7 @@ class TestMemcordBindPathHandling:
         subdir.mkdir()
 
         # Use the absolute path
-        result = await server.call_tool_direct("memcord_bind", {"project_path": str(subdir)})
+        result = await server.call_tool_direct("memcord_init", {"project_path": str(subdir)})
 
         assert isinstance(result, list)
         # Path should be resolved to absolute
@@ -601,7 +601,7 @@ class TestMemcordBindPathHandling:
 
         path_with_slash = temp_project_dir + os.sep
 
-        result = await server.call_tool_direct("memcord_bind", {"project_path": path_with_slash})
+        result = await server.call_tool_direct("memcord_init", {"project_path": path_with_slash})
 
         assert isinstance(result, list)
         assert "Bound" in result[0].text
@@ -616,7 +616,7 @@ class TestMemcordBindPathHandling:
         subdir.mkdir()
         unnormalized_path = str(subdir) + "/../subdir"
 
-        result = await server.call_tool_direct("memcord_bind", {"project_path": unnormalized_path})
+        result = await server.call_tool_direct("memcord_init", {"project_path": unnormalized_path})
 
         assert isinstance(result, list)
         assert "Bound" in result[0].text
@@ -635,7 +635,7 @@ class TestMemcordBindMemcordFileContent:
         server = test_server
         slot_name = "simple-slot-name"
 
-        await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir, "slot_name": slot_name})
+        await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir, "slot_name": slot_name})
 
         memcord_file = Path(temp_project_dir) / ".memcord"
         content = memcord_file.read_text()
@@ -649,7 +649,7 @@ class TestMemcordBindMemcordFileContent:
         server = test_server
         slot_name = "readable-slot"
 
-        await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir, "slot_name": slot_name})
+        await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir, "slot_name": slot_name})
 
         memcord_file = Path(temp_project_dir) / ".memcord"
 
@@ -664,10 +664,10 @@ class TestMemcordBindMemcordFileContent:
         server = test_server
 
         # First binding
-        await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir, "slot_name": "first-slot"})
+        await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir, "slot_name": "first-slot"})
 
         # Second binding with different name
-        await server.call_tool_direct("memcord_bind", {"project_path": temp_project_dir, "slot_name": "second-slot"})
+        await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir, "slot_name": "second-slot"})
 
         memcord_file = Path(temp_project_dir) / ".memcord"
         content = memcord_file.read_text().strip()
