@@ -8,7 +8,9 @@ TESTING_METHODOLOGY_VALIDATION.md
 PR-DESCRIPTION*.md
 PR-READINESS*.md
 TODO.md
-.claude/
+.claude/agents/
+.claude/utils/
+.claude/skill/
 tmpclaude-*
 
 # Python
