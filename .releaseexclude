@@ -1,0 +1,45 @@
+# =============================================================================
+# Memcord Release Exclusions
+# =============================================================================
+# Files and directories listed here will NOT be synced to the public repository.
+# This file is read by the release-sync GitHub Action workflow.
+#
+# Syntax:
+#   - One pattern per line
+#   - Lines starting with # are comments
+#   - Supports glob patterns (*, **, ?)
+#   - Directory patterns should end with /
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Internal Development Documentation
+# -----------------------------------------------------------------------------
+OPTIMIZE_PLAN.md
+SMART_SAVE.md
+TODO.md
+CLAUDE.md
+CLAUDE-RECOVERY-PROMPT.md
+SESSION-RECOVERY.md
+TASK-MATRIX.md
+DRY_MAINTAINABILITY_ANALYSIS.md
+TESTING_METHODOLOGY_VALIDATION.md
+PR-DESCRIPTION*.md
+PR-READINESS*.md
+
+# -----------------------------------------------------------------------------
+# Claude Code Configuration (user-specific)
+# -----------------------------------------------------------------------------
+.claude/skills/
+.claude/agents/
+.claude/utils/
+
+# -----------------------------------------------------------------------------
+# Internal Scripts
+# -----------------------------------------------------------------------------
+scripts/publish-to-main.sh
+scripts/publish-to-main.ps1
+
+# -----------------------------------------------------------------------------
+# This file itself (should not be in public repo)
+# -----------------------------------------------------------------------------
+.releaseexclude

@@ -1,5 +1,9 @@
 # Claude Code internal files (not for repository)
 CLAUDE.md
+OPTIMIZE_PLAN.md
+SMART_SAVE.md
+
+# Release sync configuration (dev repo only)
 CLAUDE-RECOVERY-PROMPT.md
 SESSION-RECOVERY.md
 TASK-MATRIX.md
