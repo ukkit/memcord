@@ -304,7 +304,11 @@ class OperationLogger:
             self.operation_logs.append(log_entry)
 
     def complete_operation(
-        self, operation_id: str, status: str = "completed", error_message: str | None = None, result_size_bytes: int | None = None
+        self,
+        operation_id: str,
+        status: str = "completed",
+        error_message: str | None = None,
+        result_size_bytes: int | None = None,
     ) -> None:
         """Log the completion of an operation."""
         with self._lock:
@@ -784,7 +788,11 @@ class StatusMonitoringSystem:
         self.metrics_collector.record_metric("operations_started", 1, "count")
 
     def complete_operation_tracking(
-        self, operation_id: str, status: str = "completed", error_message: str | None = None, result_size_bytes: int | None = None
+        self,
+        operation_id: str,
+        status: str = "completed",
+        error_message: str | None = None,
+        result_size_bytes: int | None = None,
     ):
         """Complete operation tracking."""
         self.operation_logger.complete_operation(operation_id, status, error_message, result_size_bytes)

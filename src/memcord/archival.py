@@ -157,9 +157,9 @@ class ArchivalManager:
             return result
         elif isinstance(obj, list):
             _seen.add(id(obj))
-            result = [self._serialize_datetime(item, _seen) for item in obj]
+            list_result = [self._serialize_datetime(item, _seen) for item in obj]
             _seen.remove(id(obj))
-            return result
+            return list_result
         return obj
 
     async def get_index(self) -> ArchiveIndex:

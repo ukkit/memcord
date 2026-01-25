@@ -364,6 +364,8 @@ class ProgressTracker:
         operation = self.queue.get_operation(operation_id)
 
         try:
+            if operation is None:
+                raise RuntimeError(f"Operation {operation_id} not found")
             # Start operation
             operation.status = OperationStatus.RUNNING
             if operation.callback:
@@ -565,4 +567,4 @@ class OperationProgressContext:
     def is_cancelled(self) -> bool:
         """Check if operation was cancelled."""
         operation = self.tracker.queue.get_operation(self.operation_id)
-        return operation and operation.cancellation_event.is_set()
+        return operation is not None and operation.cancellation_event.is_set()

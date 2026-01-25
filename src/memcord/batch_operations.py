@@ -48,13 +48,13 @@ class BatchOperation:
     tool_name: str
     parameters: dict[str, Any]
     description: str
-    depends_on: list[str] = None  # Operation IDs this depends on
+    depends_on: list[str] | None = None  # Operation IDs this depends on
     retry_count: int = 0
     max_retries: int = 2
     timeout_seconds: float = 30.0
     rollback_operation: dict[str, Any] | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.depends_on is None:
             self.depends_on = []
 
@@ -66,12 +66,12 @@ class BatchResult:
     operation_id: str
     status: OperationStatus
     result: Any = None
-    error: str = None
+    error: str | None = None
     execution_time: float = 0.0
-    timestamp: datetime = None
+    timestamp: datetime | None = None
     retry_count: int = 0
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.timestamp is None:
             self.timestamp = datetime.now()
 
@@ -232,15 +232,15 @@ class BatchOperationManager:
             if tasks:
                 level_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-                for result in level_results:
-                    if isinstance(result, Exception):
+                for task_result in level_results:
+                    if isinstance(task_result, BaseException):
                         # Handle exceptions
                         error_result = BatchResult(
-                            operation_id="unknown", status=OperationStatus.FAILED, error=str(result)
+                            operation_id="unknown", status=OperationStatus.FAILED, error=str(task_result)
                         )
                         batch.results.append(error_result)
                     else:
-                        batch.results.append(result)
+                        batch.results.append(task_result)
 
     async def _execute_single_operation(self, operation: BatchOperation, context: dict[str, Any]) -> BatchResult:
         """Execute a single operation with retry logic."""
@@ -304,10 +304,10 @@ class BatchOperationManager:
 
     def _build_dependency_graph(self, operations: list[BatchOperation]) -> dict[str, list[str]]:
         """Build a dependency graph from operations."""
-        graph = {}
+        graph: dict[str, list[str]] = {}
 
         for operation in operations:
-            graph[operation.id] = operation.depends_on.copy()
+            graph[operation.id] = (operation.depends_on or []).copy()
 
         return graph
 
@@ -364,7 +364,7 @@ class BatchOperationManager:
 
             # Find operations that can run at this level
             for operation in remaining_operations[:]:
-                if all(dep in completed_operations for dep in operation.depends_on):
+                if all(dep in completed_operations for dep in (operation.depends_on or [])):
                     current_level.append(operation)
                     remaining_operations.remove(operation)
 
@@ -381,7 +381,7 @@ class BatchOperationManager:
         """Check if an operation's dependencies are satisfied."""
         completed_ops = {r.operation_id for r in results if r.status == OperationStatus.COMPLETED}
 
-        return all(dep in completed_ops for dep in operation.depends_on)
+        return all(dep in completed_ops for dep in (operation.depends_on or []))
 
     async def _rollback_batch(self, batch: BatchExecution, context: dict[str, Any]):
         """Rollback completed operations in reverse order."""

@@ -2,6 +2,7 @@
 
 import re
 from datetime import datetime, timedelta
+from typing import Any
 
 
 class TemporalParser:
@@ -120,7 +121,7 @@ class TemporalParser:
     @classmethod
     def find_closest_entry_by_time(
         cls, entries: list, target_time: datetime, tolerance_minutes: int = 30
-    ) -> tuple[int, object] | None:
+    ) -> "tuple[int, Any] | None":
         """
         Find the entry closest to the target time within tolerance.
 
@@ -144,7 +145,7 @@ class TemporalParser:
         return (best_index, best_match) if best_match else None
 
     @classmethod
-    def get_entry_by_ordinal(cls, entries: list, mode: str, ordinal: int) -> tuple[int, object] | None:
+    def get_entry_by_ordinal(cls, entries: list, mode: str, ordinal: int) -> "tuple[int, Any] | None":
         """
         Get entry by ordinal position (2nd latest, 3rd oldest, etc.).
 

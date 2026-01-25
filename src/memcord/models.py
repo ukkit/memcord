@@ -308,13 +308,14 @@ class MemorySlot(BaseModel):
 
     def get_entry_by_timestamp(
         self, target_time: datetime, tolerance_minutes: int = 30
-    ) -> tuple[int, MemoryEntry] | None:
+    ) -> tuple[int, "MemoryEntry"] | None:
         """Get entry closest to target timestamp within tolerance."""
         from .temporal_parser import TemporalParser
 
-        return TemporalParser.find_closest_entry_by_time(self.entries, target_time, tolerance_minutes)
+        result = TemporalParser.find_closest_entry_by_time(self.entries, target_time, tolerance_minutes)
+        return (result[0], result[1]) if result else None
 
-    def get_entry_by_relative_time(self, relative_desc: str) -> tuple[int, MemoryEntry] | None:
+    def get_entry_by_relative_time(self, relative_desc: str) -> tuple[int, "MemoryEntry"] | None:
         """Get entry by relative time description."""
         from .temporal_parser import TemporalParser
 
@@ -327,7 +328,8 @@ class MemorySlot(BaseModel):
         if target_time:  # Absolute time from relative expression
             return self.get_entry_by_timestamp(target_time)
         elif ordinal:  # Ordinal expression (2nd latest, etc.)
-            return TemporalParser.get_entry_by_ordinal(self.entries, mode, ordinal)
+            result = TemporalParser.get_entry_by_ordinal(self.entries, mode, ordinal)
+            return (result[0], result[1]) if result else None
         else:  # Simple latest/oldest
             if mode == "latest":
                 if self.entries:

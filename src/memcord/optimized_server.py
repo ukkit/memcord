@@ -61,8 +61,10 @@ class OptimizedChatMemoryServer(ChatMemoryServer):
         else:
             return [TextContent(type="text", text=content)]
 
-    def _setup_optimized_handlers(self):
+    def _setup_optimized_handlers(self) -> None:
         """Set up MCP server handlers with response optimization."""
+        # Capture reference to parent's call_tool_direct for use in nested function
+        parent_call_tool_direct = ChatMemoryServer.call_tool_direct
 
         @self.app.list_tools()
         async def list_tools() -> list[Tool]:
@@ -89,7 +91,7 @@ class OptimizedChatMemoryServer(ChatMemoryServer):
 
                 try:
                     # Get response from parent implementation
-                    result = await super().call_tool_direct(name, arguments)
+                    result = await parent_call_tool_direct(self, name, arguments)
 
                     # Optimize the response if enabled
                     if result and len(result) > 0:

@@ -48,11 +48,11 @@ class CacheEntry:
     value: Any
     timestamp: datetime
     access_count: int = 0
-    last_accessed: datetime = None
+    last_accessed: datetime | None = None
     size_bytes: int = 0
     ttl_seconds: int | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.last_accessed is None:
             self.last_accessed = self.timestamp
         if self.size_bytes == 0:

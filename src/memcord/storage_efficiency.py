@@ -400,7 +400,12 @@ class DeltaCompressor:
 
     async def create_delta(self, slot_name: str, old_slot: MemorySlot, new_slot: MemorySlot) -> Path:
         """Create delta between old and new slot versions."""
-        delta_data = {"slot_name": slot_name, "timestamp": datetime.now().isoformat(), "operations": []}
+        operations: list[dict[str, Any]] = []
+        delta_data: dict[str, Any] = {
+            "slot_name": slot_name,
+            "timestamp": datetime.now().isoformat(),
+            "operations": operations,
+        }
 
         # Compare entries
         old_entries = {entry.timestamp.isoformat(): entry for entry in old_slot.entries}
@@ -806,12 +811,14 @@ class StorageDefragmenter:
 
     async def defragment_storage(self, dry_run: bool = False) -> dict[str, Any]:
         """Defragment storage files and optimize layout."""
-        results = {
-            "operations_performed": [],
+        operations_performed: list[str] = []
+        errors: list[str] = []
+        results: dict[str, Any] = {
+            "operations_performed": operations_performed,
             "space_saved_mb": 0.0,
             "files_optimized": 0,
             "fragmentation_improvement": 0.0,
-            "errors": [],
+            "errors": errors,
         }
 
         try:
@@ -1197,12 +1204,14 @@ class AutomaticOptimizer:
 
     async def run_optimization_cycle(self) -> dict[str, Any]:
         """Run a complete optimization cycle."""
-        results = {
+        operations: list[str] = []
+        errors: list[str] = []
+        results: dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
-            "operations": [],
+            "operations": operations,
             "alerts_generated": 0,
             "space_saved_mb": 0.0,
-            "errors": [],
+            "errors": errors,
         }
 
         try:

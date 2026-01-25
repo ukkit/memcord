@@ -155,7 +155,7 @@ class StorageManager:
             cache_key = generate_slot_cache_key(slot_name)
             cached_data, hit = await self._cache_manager.get(cache_key, CacheLevel.MEMORY)
 
-            if hit:
+            if hit and cached_data is not None and isinstance(cached_data, dict):
                 try:
                     # Check if file was modified since cache
                     cache_mtime = cached_data.get("_file_mtime")
@@ -628,19 +628,14 @@ class StorageManager:
             await self._initialize_search_index()
             self._search_initialized = True
 
-            # Invalidate search result cache when index refreshes
-            if self._cache_manager:
-                try:
-                    # Clear all cached search results since index changed
-                    await self._cache_manager.invalidate_pattern("search:*")
-                except Exception:
-                    pass  # Cache invalidation is best-effort
+            # Note: Search result cache will naturally expire via TTL
+            # Pattern-based invalidation is not supported by CacheManager
 
         # Try cache after staleness check
         if self._cache_manager:
             cache_key = generate_search_cache_key(query)
             cached_results, hit = await self._cache_manager.get(cache_key, CacheLevel.DISK)
-            if hit:
+            if hit and cached_results is not None:
                 try:
                     # Convert cached data back to SearchResult objects
                     return [SearchResult(**result_data) for result_data in cached_results]
@@ -803,7 +798,7 @@ class StorageManager:
             if not slot:
                 raise ValueError(f"Memory slot '{slot_name}' not found")
 
-            compression_stats = {
+            compression_stats: dict[str, Any] = {
                 "slot_name": slot_name,
                 "entries_processed": 0,
                 "entries_compressed": 0,
@@ -873,7 +868,7 @@ class StorageManager:
             if not slot:
                 raise ValueError(f"Memory slot '{slot_name}' not found")
 
-            decompression_stats = {
+            decompression_stats: dict[str, Any] = {
                 "slot_name": slot_name,
                 "entries_processed": 0,
                 "entries_decompressed": 0,
@@ -927,13 +922,14 @@ class StorageManager:
             return slot.get_compression_stats()
         else:
             # Get stats for all slots
-            all_stats = {
+            slot_stats: dict[str, dict[str, Any]] = {}
+            all_stats: dict[str, Any] = {
                 "total_slots": 0,
                 "total_entries": 0,
                 "compressed_entries": 0,
                 "total_original_size": 0,
                 "total_compressed_size": 0,
-                "slot_stats": {},
+                "slot_stats": slot_stats,
             }
 
             for slot_file in self.memory_dir.glob("*.json"):
@@ -1105,7 +1101,13 @@ class StorageManager:
         """Automatically compress slots that haven't been accessed recently."""
         await self._ensure_efficiency_initialized()
 
-        compression_stats = {"slots_processed": 0, "slots_compressed": 0, "space_saved_mb": 0.0, "errors": []}
+        errors: list[str] = []
+        compression_stats: dict[str, Any] = {
+            "slots_processed": 0,
+            "slots_compressed": 0,
+            "space_saved_mb": 0.0,
+            "errors": errors,
+        }
 
         if not self._storage_monitor:
             return compression_stats
@@ -1133,11 +1135,12 @@ class StorageManager:
         """Optimize search indexes for better performance."""
         await self._ensure_efficiency_initialized()
 
-        optimization_stats = {
+        errors: list[str] = []
+        optimization_stats: dict[str, Any] = {
             "traditional_index_optimized": False,
             "incremental_index_optimized": False,
             "maintenance_performed": False,
-            "errors": [],
+            "errors": errors,
         }
 
         try:
@@ -1192,11 +1195,12 @@ class StorageManager:
 
     async def rebuild_indexes(self, force: bool = False) -> dict[str, Any]:
         """Rebuild search indexes from scratch."""
-        rebuild_stats = {
+        errors: list[str] = []
+        rebuild_stats: dict[str, Any] = {
             "traditional_index_rebuilt": False,
             "incremental_index_rebuilt": False,
             "slots_processed": 0,
-            "errors": [],
+            "errors": errors,
         }
 
         try:
@@ -1257,7 +1261,7 @@ class StorageManager:
         self._memory_manager.configure_limits(memory_limit_mb, warning_threshold, critical_threshold)
         return True
 
-    async def force_memory_cleanup(self) -> dict[str, int]:
+    async def force_memory_cleanup(self) -> dict[str, int | list[int]]:
         """Force memory cleanup and garbage collection."""
         if not self._memory_manager:
             return {"objects_freed": 0}

@@ -213,26 +213,22 @@ class MemoryEntryFactory:
     @staticmethod
     def create_manual_save(content: str = "Test content", **kwargs) -> MemoryEntry:
         """Create a manual_save MemoryEntry."""
-        defaults = {
-            "type": "manual_save",
-            "content": content,
-            "metadata": {"test": True},
-        }
-        defaults.update(kwargs)
-        return MemoryEntry(**defaults)
+        return MemoryEntry(
+            type=kwargs.get("type", "manual_save"),
+            content=content,
+            metadata=kwargs.get("metadata", {"test": True}),
+        )
 
     @staticmethod
     def create_auto_summary(content: str = "Summary content", original_length: int = 1000, **kwargs) -> MemoryEntry:
         """Create an auto_summary MemoryEntry."""
-        defaults = {
-            "type": "auto_summary",
-            "content": content,
-            "original_length": original_length,
-            "summary_length": len(content),
-            "metadata": {"summary": True},
-        }
-        defaults.update(kwargs)
-        return MemoryEntry(**defaults)
+        return MemoryEntry(
+            type=kwargs.get("type", "auto_summary"),
+            content=content,
+            original_length=original_length,
+            summary_length=len(content),
+            metadata=kwargs.get("metadata", {"summary": True}),
+        )
 
     @staticmethod
     def create_large_content(size_mb: float = 1.0) -> MemoryEntry:
@@ -247,17 +243,18 @@ class MemorySlotFactory:
     @staticmethod
     def create_basic(slot_name: str = "test_slot", **kwargs) -> MemorySlot:
         """Create a basic MemorySlot."""
-        defaults = {
-            "slot_name": slot_name,
-            "entries": [MemoryEntryFactory.create_manual_save()],
-            "tags": set(),
-            "priority": 0,
-        }
-        defaults.update(kwargs)
-        return MemorySlot(**defaults)
+        return MemorySlot(
+            slot_name=slot_name,
+            entries=kwargs.get("entries", [MemoryEntryFactory.create_manual_save()]),
+            tags=kwargs.get("tags", set()),
+            priority=kwargs.get("priority", 0),
+            is_archived=kwargs.get("is_archived", False),
+            archived_at=kwargs.get("archived_at"),
+            archive_reason=kwargs.get("archive_reason"),
+        )
 
     @staticmethod
-    def create_with_tags(slot_name: str = "tagged_slot", tags: set = None, **kwargs) -> MemorySlot:
+    def create_with_tags(slot_name: str = "tagged_slot", tags: set | None = None, **kwargs) -> MemorySlot:
         """Create MemorySlot with tags."""
         if tags is None:
             tags = {"test", "sample", "automated"}

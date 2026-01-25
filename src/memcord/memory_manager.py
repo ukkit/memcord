@@ -41,7 +41,7 @@ class MemoryStats:
 
     # Application-specific statistics
     tracked_objects: dict[str, int]  # object_type -> count
-    object_pools: dict[str, int]  # pool_name -> available_objects
+    object_pools: dict[str, int | float]  # pool_name -> available_objects (can be int or float)
     weak_references: int
 
     # Cache statistics
@@ -95,7 +95,7 @@ class ObjectPool:
             if len(self.pool) < self.max_size:
                 self.pool.append(obj)
 
-    def get_stats(self) -> dict[str, int]:
+    def get_stats(self) -> dict[str, int | float]:
         """Get pool statistics."""
         with self._lock:
             return {
@@ -159,7 +159,7 @@ class MemoryOptimizer:
 
     def __init__(self):
         self.object_pools: dict[str, ObjectPool] = {}
-        self.weak_references: set[weakref.ReferenceType] = set()
+        self.weak_references: set[Any] = set()  # Can contain ReferenceType or PlaceholderRef
         self.interned_strings: dict[str, str] = {}
         self.json_parse_cache: dict[str, Any] = {}
         self.json_serialize_cache: dict[int, str] = {}  # hash -> json
@@ -188,7 +188,7 @@ class MemoryOptimizer:
         self.interned_strings[s] = s
         return s
 
-    def add_weak_reference(self, obj, callback: Callable | None = None) -> weakref.ReferenceType | None:
+    def add_weak_reference(self, obj: Any, callback: Callable | None = None) -> Any:
         """Add a weak reference to track object lifecycle."""
         try:
 
@@ -268,7 +268,7 @@ class MemoryOptimizer:
         self.json_serialize_cache[obj_hash] = result
         return result
 
-    def get_pool_stats(self) -> dict[str, dict[str, int]]:
+    def get_pool_stats(self) -> dict[str, dict[str, int | float]]:
         """Get statistics for all object pools."""
         return {name: pool.get_stats() for name, pool in self.object_pools.items()}
 
@@ -321,7 +321,7 @@ class MemoryManager:
         # Statistics and monitoring
         self.stats_history: deque[MemoryStats] = deque(maxlen=1000)
         self.alerts: deque[MemoryAlert] = deque(maxlen=100)
-        self.tracked_objects: dict[str, set[weakref.ReferenceType]] = defaultdict(set)
+        self.tracked_objects: dict[str, set[Any]] = defaultdict(set)  # Can contain refs or strings
 
         # Background monitoring
         self._monitoring_task: asyncio.Task | None = None
@@ -568,12 +568,12 @@ class MemoryManager:
             if current_memory >= self.memory_limit_mb * 0.7:  # 70% threshold
                 gc.collect()
 
-    async def force_garbage_collection(self) -> dict[str, int]:
+    async def force_garbage_collection(self) -> dict[str, int | list[int]]:
         """Force garbage collection and return statistics."""
         initial_objects = len(gc.get_objects())
 
         # Force collection for all generations
-        collected_counts = []
+        collected_counts: list[int] = []
         for generation in range(3):
             collected = gc.collect(generation)
             collected_counts.append(collected)

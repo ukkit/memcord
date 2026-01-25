@@ -239,7 +239,12 @@ class ErrorHandler:
     """Central error handling and reporting system."""
 
     def __init__(self):
-        self.error_stats: dict[str, Any] = {"total_errors": 0, "errors_by_code": {}, "errors_by_severity": {}, "recent_errors": []}
+        self.error_stats: dict[str, Any] = {
+            "total_errors": 0,
+            "errors_by_code": {},
+            "errors_by_severity": {},
+            "recent_errors": [],
+        }
 
         # Documentation links for common errors
         self.doc_links = {
@@ -249,7 +254,12 @@ class ErrorHandler:
             ErrorCode.IMPORT_FAILED: "https://docs.memcord.dev/importing-content",
         }
 
-    def handle_error(self, error: Exception, operation: str | None = None, context: dict[str, Any] | None = None) -> MemcordError:
+    def handle_error(
+        self,
+        error: Exception,
+        operation: str | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> MemcordError:
         """Convert any exception to a MemcordError with proper context."""
         if isinstance(error, MemcordError):
             memcord_error = error

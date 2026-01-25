@@ -84,7 +84,10 @@ class ChatMemoryServer:
     )
 
     def __init__(
-        self, memory_dir: str = "memory_slots", shared_dir: str = "shared_memories", enable_advanced_tools: bool | None = None
+        self,
+        memory_dir: str = "memory_slots",
+        shared_dir: str = "shared_memories",
+        enable_advanced_tools: bool | None = None,
     ):
         self.storage = StorageManager(memory_dir, shared_dir)
         self.app = Server("chat-memory")
