@@ -133,7 +133,7 @@ class MemcordError(Exception):
 class ValidationError(MemcordError):
     """Input validation errors."""
 
-    def __init__(self, message: str, field: str = None, value: Any = None, **kwargs):
+    def __init__(self, message: str, field: str | None = None, value: Any = None, **kwargs):
         context = kwargs.get("context", {})
         if field:
             context["field"] = field
@@ -150,7 +150,7 @@ class ValidationError(MemcordError):
 class RateLimitError(MemcordError):
     """Rate limiting errors."""
 
-    def __init__(self, message: str, operation: str = None, limit: int = None, **kwargs):
+    def __init__(self, message: str, operation: str | None = None, limit: int | None = None, **kwargs):
         context = kwargs.get("context", {})
         if operation:
             context["operation"] = operation
@@ -175,7 +175,7 @@ class RateLimitError(MemcordError):
 class StorageError(MemcordError):
     """Storage-related errors."""
 
-    def __init__(self, message: str, slot_name: str = None, **kwargs):
+    def __init__(self, message: str, slot_name: str | None = None, **kwargs):
         context = kwargs.get("context", {})
         if slot_name:
             context["slot_name"] = slot_name
@@ -190,7 +190,7 @@ class StorageError(MemcordError):
 class OperationTimeoutError(MemcordError):
     """Operation timeout errors."""
 
-    def __init__(self, message: str, operation: str = None, timeout_seconds: int = None, **kwargs):
+    def __init__(self, message: str, operation: str | None = None, timeout_seconds: int | None = None, **kwargs):
         context = kwargs.get("context", {})
         if operation:
             context["operation"] = operation
@@ -215,7 +215,7 @@ class OperationTimeoutError(MemcordError):
 class ImportError(MemcordError):
     """Import operation errors."""
 
-    def __init__(self, message: str, source: str = None, **kwargs):
+    def __init__(self, message: str, source: str | None = None, **kwargs):
         context = kwargs.get("context", {})
         if source:
             context["source"] = source
@@ -239,7 +239,7 @@ class ErrorHandler:
     """Central error handling and reporting system."""
 
     def __init__(self):
-        self.error_stats = {"total_errors": 0, "errors_by_code": {}, "errors_by_severity": {}, "recent_errors": []}
+        self.error_stats: dict[str, Any] = {"total_errors": 0, "errors_by_code": {}, "errors_by_severity": {}, "recent_errors": []}
 
         # Documentation links for common errors
         self.doc_links = {
@@ -249,7 +249,7 @@ class ErrorHandler:
             ErrorCode.IMPORT_FAILED: "https://docs.memcord.dev/importing-content",
         }
 
-    def handle_error(self, error: Exception, operation: str = None, context: dict[str, Any] = None) -> MemcordError:
+    def handle_error(self, error: Exception, operation: str | None = None, context: dict[str, Any] | None = None) -> MemcordError:
         """Convert any exception to a MemcordError with proper context."""
         if isinstance(error, MemcordError):
             memcord_error = error
@@ -267,7 +267,7 @@ class ErrorHandler:
         return memcord_error
 
     def _convert_exception(
-        self, error: Exception, operation: str = None, context: dict[str, Any] = None
+        self, error: Exception, operation: str | None = None, context: dict[str, Any] | None = None
     ) -> MemcordError:
         """Convert standard Python exceptions to MemcordError."""
         context = context or {}
@@ -324,7 +324,7 @@ class ErrorHandler:
         """Get error statistics."""
         return self.error_stats.copy()
 
-    def create_validation_error(self, message: str, field: str = None, value: Any = None) -> ValidationError:
+    def create_validation_error(self, message: str, field: str | None = None, value: Any = None) -> ValidationError:
         """Helper to create validation errors."""
         return ValidationError(message, field=field, value=value)
 
@@ -334,7 +334,7 @@ class ErrorHandler:
             f"Rate limit exceeded for {operation} ({limit} requests/minute)", operation=operation, limit=limit
         )
 
-    def create_storage_error(self, message: str, slot_name: str = None) -> StorageError:
+    def create_storage_error(self, message: str, slot_name: str | None = None) -> StorageError:
         """Helper to create storage errors."""
         return StorageError(message, slot_name=slot_name)
 

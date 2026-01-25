@@ -256,7 +256,7 @@ class OperationTimeoutManager:
     """Manage operation timeouts and cancellation."""
 
     def __init__(self):
-        self.timeouts = {
+        self.timeouts: dict[str, int] = {
             "memcord_save": 30,  # seconds
             "memcord_save_progress": 60,
             "memcord_search": 10,
@@ -308,8 +308,8 @@ class SecurityMiddleware:
 
     def __init__(self):
         self.rate_limiter = RateLimiter()
-        self.path_validator = PathValidator()
-        self.input_validator = InputValidator()
+        self.path_validator: PathValidator = PathValidator()
+        self.input_validator: InputValidator = InputValidator()
         self.timeout_manager = OperationTimeoutManager()
 
         # Security configuration

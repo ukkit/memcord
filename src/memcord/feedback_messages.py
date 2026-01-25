@@ -9,7 +9,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from .progress_tracker import OperationResult, OperationType
 
@@ -494,7 +494,7 @@ class ConfirmationManager:
         """Create confirmation dialog for operation."""
         rule = self._confirmation_rules.get(operation_type)
         if rule:
-            return rule(context)
+            return cast(ConfirmationDialog, rule(context))
         return None
 
     def _assess_severity(self, operation_type: str, context: dict[str, Any]) -> ActionSeverity:

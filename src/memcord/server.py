@@ -17,9 +17,9 @@ import asyncio
 import functools
 import os
 import secrets
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from mcp.server import Server
 from mcp.types import Resource, TextContent, Tool
@@ -84,7 +84,7 @@ class ChatMemoryServer:
     )
 
     def __init__(
-        self, memory_dir: str = "memory_slots", shared_dir: str = "shared_memories", enable_advanced_tools: bool = None
+        self, memory_dir: str = "memory_slots", shared_dir: str = "shared_memories", enable_advanced_tools: bool | None = None
     ):
         self.storage = StorageManager(memory_dir, shared_dir)
         self.app = Server("chat-memory")
@@ -128,7 +128,7 @@ class ChatMemoryServer:
         # Build handler dispatch map for O(1) lookup
         self._handler_map = self._build_handler_map()
 
-    def _build_handler_map(self) -> dict[str, tuple[callable, bool]]:
+    def _build_handler_map(self) -> dict[str, tuple[Callable[..., Any], bool]]:
         """Build handler dispatch map.
 
         Returns:
@@ -195,7 +195,7 @@ class ChatMemoryServer:
                 )
             ]
 
-        return await handler(arguments)
+        return cast(Sequence[TextContent], await handler(arguments))
 
     @property
     def summarizer(self):
@@ -339,7 +339,7 @@ class ChatMemoryServer:
             for fmt in ["md", "txt", "json"]:
                 resources.append(
                     Resource(
-                        uri=str(f"memory://{slot_name}.{fmt}"),
+                        uri=f"memory://{slot_name}.{fmt}",  # type: ignore[arg-type]
                         name=f"{slot_name} ({fmt.upper()})",
                         description=f"Memory slot {slot_name} in {fmt.upper()} format",
                         mimeType=f"text/{fmt}" if fmt in ["txt", "md"] else f"application/{fmt}",
@@ -964,7 +964,7 @@ class ChatMemoryServer:
                 for fmt in ["md", "txt", "json"]:
                     resources.append(
                         Resource(
-                            uri=str(f"memory://{slot_name}.{fmt}"),
+                            uri=f"memory://{slot_name}.{fmt}",  # type: ignore[arg-type]
                             name=f"{slot_name} ({fmt.upper()})",
                             mimeType=self._get_mime_type(fmt),
                             description=f"Memory slot '{slot_name}' in {fmt.upper()} format",
@@ -1437,6 +1437,7 @@ class ChatMemoryServer:
                 return [TextContent(type="text", text="Error: No tags specified to add")]
 
             results = []
+            assert slot_name is not None  # Already checked above
             for tag in tags:
                 success = await self.storage.add_tag_to_slot(slot_name, tag)
                 if success:
@@ -1451,6 +1452,7 @@ class ChatMemoryServer:
                 return [TextContent(type="text", text="Error: No tags specified to remove")]
 
             results = []
+            assert slot_name is not None  # Already checked above
             for tag in tags:
                 success = await self.storage.remove_tag_from_slot(slot_name, tag)
                 if success:
@@ -1461,6 +1463,7 @@ class ChatMemoryServer:
             return [TextContent(type="text", text="\n".join(results))]
 
         elif action == "list":
+            assert slot_name is not None  # slot_name must be set for list action
             slot = await self.storage.read_memory(slot_name)
             if not slot:
                 return [TextContent(type="text", text=f"Memory slot '{slot_name}' not found")]
@@ -1498,6 +1501,7 @@ class ChatMemoryServer:
             if not group_path:
                 return [TextContent(type="text", text="Error: Group path is required for 'set' action")]
 
+            assert slot_name is not None  # Already checked above
             success = await self.storage.set_slot_group(slot_name, group_path)
             if success:
                 return [TextContent(type="text", text=f"Set group '{group_path}' for memory slot '{slot_name}'")]
@@ -1505,6 +1509,7 @@ class ChatMemoryServer:
                 return [TextContent(type="text", text=f"Failed to set group for '{slot_name}'")]
 
         elif action == "remove":
+            assert slot_name is not None  # Already checked above
             success = await self.storage.set_slot_group(slot_name, None)
             if success:
                 return [TextContent(type="text", text=f"Removed group assignment from memory slot '{slot_name}'")]

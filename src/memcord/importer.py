@@ -174,7 +174,7 @@ class WebURLHandler(ImportHandler):
         """Check if source is a valid web URL."""
         try:
             parsed = urlparse(source)
-            return parsed.scheme in ("http", "https") and parsed.netloc
+            return parsed.scheme in ("http", "https") and bool(parsed.netloc)
         except Exception:
             return False
 
@@ -267,7 +267,7 @@ class StructuredDataHandler(ImportHandler):
 
             extension = path.suffix.lower()
             content = None
-            format_info = {}
+            format_info: dict[str, Any] = {}
 
             if extension == ".json":
                 # Handle JSON files

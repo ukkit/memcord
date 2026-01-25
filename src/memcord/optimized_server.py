@@ -8,7 +8,7 @@ import json
 import secrets
 import time
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, cast
 
 from mcp.types import Resource, TextContent, Tool
 
@@ -24,7 +24,7 @@ class OptimizedChatMemoryServer(ChatMemoryServer):
         self,
         memory_dir: str = "memory_slots",
         shared_dir: str = "shared_memories",
-        enable_advanced_tools: bool = None,
+        enable_advanced_tools: bool | None = None,
         enable_response_optimization: bool = True,
     ):
         """Initialize optimized server.
@@ -96,7 +96,7 @@ class OptimizedChatMemoryServer(ChatMemoryServer):
                         original_text = result[0].text
                         return self._optimize_response(original_text)
                     else:
-                        return result
+                        return cast(Sequence[TextContent], result)
 
                 finally:
                     # Clean up operation tracking
@@ -119,7 +119,7 @@ class OptimizedChatMemoryServer(ChatMemoryServer):
                 for fmt in ["md", "txt", "json"]:
                     resources.append(
                         Resource(
-                            uri=f"memory://{slot_name}.{fmt}",
+                            uri=f"memory://{slot_name}.{fmt}",  # type: ignore[arg-type]
                             name=f"{slot_name} ({fmt.upper()})",
                             mimeType=self._get_mime_type(fmt),
                             description=f"Memory slot '{slot_name}' in {fmt.upper()} format",
@@ -271,7 +271,7 @@ class TokenUsageMonitor:
 def create_optimized_server(
     memory_dir: str = "memory_slots",
     shared_dir: str = "shared_memories",
-    enable_advanced_tools: bool = None,
+    enable_advanced_tools: bool | None = None,
     enable_response_optimization: bool = True,
 ) -> OptimizedChatMemoryServer:
     """Create an optimized ChatMemoryServer instance.

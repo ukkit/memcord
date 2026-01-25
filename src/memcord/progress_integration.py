@@ -10,7 +10,7 @@ import inspect
 from collections.abc import Callable
 from functools import wraps
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from .feedback_messages import ConfirmationManager, FeedbackMessageGenerator
 from .progress_tracker import (
@@ -167,7 +167,7 @@ class MemcordProgressIntegration:
             operations = context.get("operations", [])
             if isinstance(operations, list):
                 return len(operations)
-            return context.get("operation_count", 5)
+            return cast(int, context.get("operation_count", 5))
 
         return 1  # Default single step
 

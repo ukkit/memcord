@@ -377,7 +377,7 @@ class MonitoringService:
 
             elif check_type == "full_report":
                 # Generate comprehensive report
-                report = self.status_monitor.generate_full_report()
+                report = await self.status_monitor.generate_full_report()
 
                 return DiagnosticsReport(
                     success=True,

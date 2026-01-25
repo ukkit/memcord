@@ -17,6 +17,7 @@ import os
 import shutil
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 # Platform detection
 IS_WINDOWS = sys.platform == "win32"
@@ -71,13 +72,13 @@ def get_claude_code_config_path() -> Path | None:
     return get_memcord_path() / ".mcp.json"
 
 
-def load_template(template_path: Path) -> dict:
+def load_template(template_path: Path) -> dict[str, Any]:
     """Load a JSON template file."""
     with open(template_path, encoding="utf-8") as f:
-        return json.load(f)
+        return cast(dict[str, Any], json.load(f))
 
 
-def replace_placeholders(config: dict, memcord_path: str, use_backslashes: bool = False) -> dict:
+def replace_placeholders(config: dict[str, Any], memcord_path: str, use_backslashes: bool = False) -> dict[str, Any]:
     """Replace {{MEMCORD_PATH}} placeholders in config."""
     config_str = json.dumps(config)
 
@@ -90,7 +91,7 @@ def replace_placeholders(config: dict, memcord_path: str, use_backslashes: bool 
         path_for_json = memcord_path.replace("\\", "/")
 
     config_str = config_str.replace("{{MEMCORD_PATH}}", path_for_json)
-    return json.loads(config_str)
+    return cast(dict[str, Any], json.loads(config_str))
 
 
 def save_config(config: dict, output_path: Path, dry_run: bool = False) -> bool:

@@ -3,6 +3,7 @@
 import math
 import re
 from collections import defaultdict
+from typing import Any
 
 from .models import MemorySlot, SearchQuery, SearchResult
 
@@ -259,7 +260,7 @@ class SearchEngine:
             return all_scores
 
         else:  # NOT logic would need special handling
-            return self.index.search(query_parts[0])
+            return dict(self.index.search(query_parts[0]))
 
     def _passes_filters(self, slot: MemorySlot, query: SearchQuery) -> bool:
         """Check if a slot passes all search filters."""
@@ -397,7 +398,7 @@ class SearchEngine:
 
         return snippet
 
-    def get_stats(self) -> dict[str, any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get search engine statistics."""
         return {
             "total_slots": self.index.total_slots,
