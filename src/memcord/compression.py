@@ -40,7 +40,7 @@ class ContentCompressor:
     # Default compression level (1-9, where 9 is best compression)
     DEFAULT_COMPRESSION_LEVEL = 6
 
-    def __init__(self, compression_threshold: int = None, compression_level: int = None):
+    def __init__(self, compression_threshold: int | None = None, compression_level: int | None = None):
         """Initialize compressor with configurable settings."""
         self.compression_threshold = compression_threshold or self.MIN_COMPRESSION_SIZE
         self.compression_level = compression_level or self.DEFAULT_COMPRESSION_LEVEL

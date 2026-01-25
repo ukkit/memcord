@@ -324,7 +324,7 @@ def list_categories() -> list[str]:
     Returns:
         Sorted list of unique category names
     """
-    categories = set()
+    categories: set[str] = set()
     for prompt in PROMPTS.values():
         categories.update(prompt.get("categories", []))
     return sorted(categories)

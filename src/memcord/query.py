@@ -121,7 +121,7 @@ class QueryProcessor:
                     return q_type, key_terms
 
         # Default fallback - extract all meaningful words
-        key_terms = self._extract_key_terms([question])
+        key_terms = self._extract_key_terms((question,))
         return "general", key_terms
 
     def _extract_key_terms(self, text_groups: tuple[str, ...]) -> list[str]:

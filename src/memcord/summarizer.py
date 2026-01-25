@@ -65,7 +65,7 @@ class TextSummarizer:
             "their",
         }
 
-    def summarize(self, text: str, target_ratio: float = 0.15, compression_ratio: float = None) -> str:
+    def summarize(self, text: str, target_ratio: float = 0.15, compression_ratio: float | None = None) -> str:
         """
         Create an extractive summary of the text.
 
@@ -159,7 +159,7 @@ class TextSummarizer:
 
     def _calculate_word_frequencies(self, sentences: list[str]) -> dict[str, float]:
         """Calculate normalized word frequencies."""
-        word_count = Counter()
+        word_count: Counter[str] = Counter()
 
         for sentence in sentences:
             words = self._tokenize(sentence.lower())
@@ -229,7 +229,7 @@ class TextSummarizer:
 
         return summary
 
-    def get_summary_stats(self, original: str, summary: str) -> dict[str, int]:
+    def get_summary_stats(self, original: str, summary: str) -> dict[str, int | float]:
         """Get statistics about the summarization."""
         # Validate inputs
         if not isinstance(original, str):
@@ -244,5 +244,5 @@ class TextSummarizer:
             "summary_words": len(summary.split()),
             "words_original": len(original.split()),  # Alternative name for backward compatibility
             "words_summary": len(summary.split()),  # Alternative name for backward compatibility
-            "compression_ratio": len(summary) / len(original) if original else 0,
+            "compression_ratio": len(summary) / len(original) if original else 0.0,
         }

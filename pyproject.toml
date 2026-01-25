@@ -103,6 +103,33 @@ asyncio_mode = "auto"
 source = ["src/memcord"]
 omit = ["tests/*", "src/memcord/__pycache__/*"]
 
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_ignores = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = "trafilatura.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "pdfplumber.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "bs4.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "nltk.*"
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
 [tool.coverage.report]
 exclude_lines = [
     "pragma: no cover",
@@ -125,4 +152,8 @@ dev = [
     "selenium>=4.34.0",
     "mypy>=1.15.0",
     "bandit>=1.8.0",
+    "types-aiofiles>=24.1.0",
+    "types-psutil>=6.0.0",
+    "types-requests>=2.31.0",
+    "pandas-stubs>=2.0.0",
 ]

@@ -123,16 +123,16 @@ class SelectEntryService:
                 )
 
         elif request.relative_time:
-            result = slot.get_entry_by_relative_time(request.relative_time)
-            if result:
-                selected_index, selected_entry = result
+            time_result = slot.get_entry_by_relative_time(request.relative_time)
+            if time_result:
+                selected_index, selected_entry = time_result
                 selection_method = "relative_time"
                 selection_query = request.relative_time
 
         elif request.entry_index is not None:
-            result = slot.get_entry_by_index(request.entry_index)
-            if result:
-                selected_index, selected_entry = result
+            index_result = slot.get_entry_by_index(request.entry_index)
+            if index_result:
+                selected_index, selected_entry = index_result
                 selection_method = "index"
                 selection_query = str(request.entry_index)
 

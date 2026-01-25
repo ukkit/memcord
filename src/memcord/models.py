@@ -262,7 +262,7 @@ class MemorySlot(BaseModel):
         """Get slot name for compatibility with merger."""
         return self.slot_name
 
-    def archive(self, reason: str = None) -> None:
+    def archive(self, reason: str | None = None) -> None:
         """Mark this memory slot as archived."""
         self.is_archived = True
         self.archived_at = datetime.now()

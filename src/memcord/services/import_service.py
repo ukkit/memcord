@@ -105,7 +105,8 @@ class ImportService:
 
             import_header += "========================\n\n"
             content_parts.append(import_header)
-            content_parts.append(import_result.content)
+            if import_result.content:
+                content_parts.append(import_result.content)
 
             final_content = "".join(content_parts)
 
@@ -118,9 +119,9 @@ class ImportService:
                 if slot:
                     # Update tags
                     if tags:
-                        existing_tags = set(slot.tags or [])
+                        existing_tags = set(slot.tags or set())
                         existing_tags.update(tags)
-                        slot.tags = list(existing_tags)
+                        slot.tags = existing_tags
 
                     # Update group
                     if group_path:
@@ -140,9 +141,9 @@ class ImportService:
                 success=True,
                 slot_name=slot_name,
                 source=source,
-                source_type=import_result.source_type,
+                source_type=import_result.source_type or "unknown",
                 source_location=import_result.source_location,
-                content_length=len(import_result.content),
+                content_length=len(import_result.content) if import_result.content else 0,
                 file_size=import_result.metadata.get("file_size"),
                 timestamp=entry.timestamp,
                 tags_applied=tags,

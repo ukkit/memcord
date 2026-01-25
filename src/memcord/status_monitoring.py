@@ -84,7 +84,7 @@ class MetricsCollector:
         self.max_metrics = max_metrics
         self._lock = Lock()
 
-    def record_metric(self, name: str, value: float, unit: str = "", tags: dict[str, str] = None):
+    def record_metric(self, name: str, value: float, unit: str = "", tags: dict[str, str] | None = None):
         """Record a performance metric."""
         with self._lock:
             metric = PerformanceMetric(
@@ -92,7 +92,7 @@ class MetricsCollector:
             )
             self.metrics[name].append(metric)
 
-    def get_metrics(self, name: str, since: datetime = None, limit: int = 100) -> list[PerformanceMetric]:
+    def get_metrics(self, name: str, since: datetime | None = None, limit: int = 100) -> list[PerformanceMetric]:
         """Get metrics for a specific metric name."""
         with self._lock:
             metrics = list(self.metrics[name])
@@ -304,7 +304,7 @@ class OperationLogger:
             self.operation_logs.append(log_entry)
 
     def complete_operation(
-        self, operation_id: str, status: str = "completed", error_message: str = None, result_size_bytes: int = None
+        self, operation_id: str, status: str = "completed", error_message: str | None = None, result_size_bytes: int | None = None
     ) -> None:
         """Log the completion of an operation."""
         with self._lock:
@@ -326,7 +326,7 @@ class OperationLogger:
                 del self.active_operations[operation_id]
 
     def get_operation_logs(
-        self, tool_name: str = None, status: str = None, since: datetime = None, limit: int = 100
+        self, tool_name: str | None = None, status: str | None = None, since: datetime | None = None, limit: int = 100
     ) -> list[OperationLog]:
         """Get operation logs with optional filtering."""
         with self._lock:
@@ -358,7 +358,7 @@ class OperationLogger:
         completed_logs = [log for log in logs if log.status == "completed" and log.duration_ms is not None]
         failed_logs = [log for log in logs if log.status == "failed"]
 
-        stats = {
+        stats: dict[str, Any] = {
             "total_operations": len(logs),
             "completed_operations": len(completed_logs),
             "failed_operations": len(failed_logs),
@@ -369,20 +369,20 @@ class OperationLogger:
         }
 
         # Tool distribution
-        tool_counts = defaultdict(int)
+        tool_counts: defaultdict[str, int] = defaultdict(int)
         for log in logs:
             tool_counts[log.tool_name] += 1
         stats["tool_distribution"] = dict(tool_counts)
 
         # Duration statistics
         if completed_logs:
-            durations = [log.duration_ms for log in completed_logs]
-            stats["avg_duration_ms"] = sum(durations) / len(durations)
-            stats["min_duration_ms"] = min(durations)
-            stats["max_duration_ms"] = max(durations)
+            durations = [log.duration_ms for log in completed_logs if log.duration_ms is not None]
+            stats["avg_duration_ms"] = sum(durations) / len(durations) if durations else 0
+            stats["min_duration_ms"] = min(durations) if durations else 0
+            stats["max_duration_ms"] = max(durations) if durations else 0
 
             # Slowest operations
-            slowest = sorted(completed_logs, key=lambda x: x.duration_ms, reverse=True)[:5]
+            slowest = sorted(completed_logs, key=lambda x: x.duration_ms or 0, reverse=True)[:5]
             stats["slowest_operations"] = [
                 {
                     "operation_id": op.operation_id,
@@ -598,7 +598,7 @@ class DiagnosticTool:
         self, metrics_collector: MetricsCollector, operation_logger: OperationLogger
     ) -> dict[str, Any]:
         """Analyze system for performance issues."""
-        analysis = {"timestamp": datetime.now().isoformat(), "issues": [], "recommendations": []}
+        analysis: dict[str, Any] = {"timestamp": datetime.now().isoformat(), "issues": [], "recommendations": []}
 
         # Check operation performance
         stats = operation_logger.get_operation_stats(window_hours=1)
@@ -672,7 +672,7 @@ class DiagnosticTool:
     ) -> dict[str, Any]:
         """Generate comprehensive system status report."""
         health_checks = await self.run_health_checks()
-        report = {
+        report: dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
             "health_checks": [asdict(check) for check in health_checks],
             "performance_analysis": self.analyze_performance_issues(metrics_collector, operation_logger),
@@ -738,7 +738,7 @@ class StatusMonitoringSystem:
             "recent_operation_stats": self.operation_logger.get_operation_stats(window_hours=1),
         }
 
-    def get_performance_metrics(self, metric_name: str = None, hours: int = 1) -> dict[str, Any]:
+    def get_performance_metrics(self, metric_name: str | None = None, hours: int = 1) -> dict[str, Any]:
         """Get performance metrics."""
         if metric_name:
             since = datetime.now() - timedelta(hours=hours)
@@ -784,13 +784,13 @@ class StatusMonitoringSystem:
         self.metrics_collector.record_metric("operations_started", 1, "count")
 
     def complete_operation_tracking(
-        self, operation_id: str, status: str = "completed", error_message: str = None, result_size_bytes: int = None
+        self, operation_id: str, status: str = "completed", error_message: str | None = None, result_size_bytes: int | None = None
     ):
         """Complete operation tracking."""
         self.operation_logger.complete_operation(operation_id, status, error_message, result_size_bytes)
         self.metrics_collector.record_metric(f"operations_{status}", 1, "count")
 
-    def record_performance_metric(self, name: str, value: float, unit: str = "", tags: dict[str, str] = None):
+    def record_performance_metric(self, name: str, value: float, unit: str = "", tags: dict[str, str] | None = None):
         """Record a performance metric."""
         self.metrics_collector.record_metric(name, value, unit, tags)
 

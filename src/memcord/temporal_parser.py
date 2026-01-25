@@ -109,10 +109,10 @@ class TemporalParser:
                 return ("oldest", None, None)
 
         # Check time delta patterns
-        for pattern, handler in cls.TIME_DELTA_PATTERNS:
+        for pattern, time_handler in cls.TIME_DELTA_PATTERNS:
             match = re.search(pattern, relative_str)
             if match:
-                target_time = handler(match)
+                target_time = time_handler(match)
                 return ("absolute", None, target_time)
 
         return None

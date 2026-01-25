@@ -754,7 +754,7 @@ class WorkflowTemplateManager:
         description: str,
         steps: list[dict[str, Any]],
         required_params: list[str],
-        optional_params: list[str] = None,
+        optional_params: list[str] | None = None,
     ) -> WorkflowTemplate:
         """Create a custom user template."""
         if optional_params is None:

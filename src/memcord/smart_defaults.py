@@ -269,7 +269,7 @@ class PreferenceLearningEngine:
 
     def _get_context_defaults(self, tool_name: str, context: dict[str, Any]) -> dict[str, Any]:
         """Get defaults based on current context."""
-        defaults = {}
+        defaults: dict[str, Any] = {}
 
         # Time-based defaults
         current_hour = datetime.now().hour
@@ -319,7 +319,7 @@ class PreferenceLearningEngine:
 
             if recent_slots:
                 # Detect common prefixes
-                prefix_counts = Counter()
+                prefix_counts: Counter[str] = Counter()
                 for slot in recent_slots:
                     parts = slot.split("_")
                     if len(parts) > 1:
@@ -877,7 +877,7 @@ class WorkflowAutomation:
 
     def _substitute_params(self, template_params: dict[str, Any], filled_params: dict[str, str]) -> dict[str, Any]:
         """Substitute parameters in template."""
-        result = {}
+        result: dict[str, Any] = {}
 
         for key, value in template_params.items():
             if isinstance(value, str):
