@@ -157,7 +157,7 @@ class IncrementalSearchIndex:
         words = self._tokenize(content)
 
         # Add new word counts
-        word_counts = defaultdict(int)
+        word_counts: dict[str, int] = defaultdict(int)
         for word in words:
             word_counts[word] += 1
             self.word_to_slots[word].add(slot_name)
@@ -1035,7 +1035,7 @@ class QuotaManager:
 
     async def suggest_cleanup_actions(self) -> list[str]:
         """Suggest actions to reduce storage usage."""
-        suggestions = []
+        suggestions: list[str] = []
 
         if not self.config.auto_cleanup_enabled:
             return suggestions

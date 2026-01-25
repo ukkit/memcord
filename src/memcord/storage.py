@@ -742,7 +742,7 @@ class StorageManager:
     async def list_groups(self) -> list[GroupInfo]:
         """List all memory groups."""
         # Dynamically update member counts
-        group_counts = {}
+        group_counts: dict[str, int] = {}
         for slot_file in self.memory_dir.glob("*.json"):
             slot_name = slot_file.stem
             try:

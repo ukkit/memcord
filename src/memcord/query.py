@@ -239,7 +239,7 @@ class QueryProcessor:
             return f"I couldn't find any information about {' '.join(key_terms)} in your memory slots."
 
         # Group results by slot for better organization
-        slots_info = {}
+        slots_info: dict[str, list[SearchResult]] = {}
         for result in results:
             if result.slot_name not in slots_info:
                 slots_info[result.slot_name] = []

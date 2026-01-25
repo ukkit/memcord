@@ -128,7 +128,7 @@ class MemoryLeakDetector:
         leaks = []
 
         # Analyze each object type for consistent growth
-        all_types = set()
+        all_types: set[str] = set()
         for snapshot in self.snapshots:
             all_types.update(snapshot.keys())
 

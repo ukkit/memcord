@@ -556,7 +556,7 @@ class ServerState(BaseModel):
 
     def get_group_hierarchy(self) -> dict[str, list[str]]:
         """Get group hierarchy as parent -> children mapping."""
-        hierarchy = {}
+        hierarchy: dict[str, list[str]] = {}
         for group_path, group_info in self.groups.items():
             parent = group_info.parent_path or "root"
             if parent not in hierarchy:

@@ -101,7 +101,7 @@ class MockStorageManager:
     def __init__(self, slot_count: int = 5, should_fail: bool = False):
         self.slot_count = slot_count
         self.should_fail = should_fail
-        self.slots = {}
+        self.slots: dict[str, MemoryEntry] = {}
 
     async def list_memory_slots(self) -> list:
         """Mock async method that returns memory slots matching real storage format."""

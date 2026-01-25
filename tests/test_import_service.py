@@ -38,12 +38,18 @@ class MockImportResult:
 class MockMemorySlot:
     """Mock MemorySlot for testing."""
 
-    def __init__(self, slot_name: str, tags: list = None, group_path: str = None, description: str = None):
+    def __init__(
+        self,
+        slot_name: str,
+        tags: list[str] | None = None,
+        group_path: str | None = None,
+        description: str | None = None,
+    ):
         self.slot_name = slot_name
         self.tags = tags or []
         self.group_path = group_path
         self.description = description
-        self.entries = []
+        self.entries: list[dict[str, str]] = []
 
 
 class TestImportResult:

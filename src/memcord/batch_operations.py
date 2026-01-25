@@ -355,9 +355,9 @@ class BatchOperationManager:
 
     def _group_by_dependency_level(self, operations: list[BatchOperation]) -> list[list[BatchOperation]]:
         """Group operations by dependency level for parallel execution."""
-        levels = []
+        levels: list[list[BatchOperation]] = []
         remaining_operations = operations.copy()
-        completed_operations = set()
+        completed_operations: set[str] = set()
 
         while remaining_operations:
             current_level = []
@@ -463,7 +463,7 @@ class BatchOperationManager:
         suggestions = []
 
         # Analyze operation patterns
-        tool_counts = {}
+        tool_counts: dict[str, int] = {}
         for op in operations:
             tool = op.get("tool", "unknown")
             tool_counts[tool] = tool_counts.get(tool, 0) + 1

@@ -114,8 +114,8 @@ class MemorySlotMerger:
             raise ValueError("No slots provided for merge preview")
 
         # Collect all content
-        all_content = []
-        all_tags = set()
+        all_content: list[str] = []
+        all_tags: set[str] = set()
         all_groups = set()
         chronological_entries = []
 
@@ -267,7 +267,7 @@ class MemorySlotMerger:
         if not sections:
             return []
 
-        deduplicated = []
+        deduplicated: list[dict[str, Any]] = []
 
         for current_section in sections:
             is_duplicate = False

@@ -27,7 +27,7 @@ class SearchIndex:
         self.remove_slot(slot.slot_name)
 
         # Add new word counts
-        word_counts = defaultdict(int)
+        word_counts: dict[str, int] = defaultdict(int)
         for word in words:
             word_counts[word] += 1
             self.word_to_slots[word].add(slot.slot_name)
@@ -251,7 +251,7 @@ class SearchEngine:
 
         elif operator.upper() == "OR":
             # Any term can be present
-            all_scores = {}
+            all_scores: dict[str, float] = {}
             for part in query_parts:
                 part_scores = self.index.search(part)
                 for slot_name, score in part_scores.items():

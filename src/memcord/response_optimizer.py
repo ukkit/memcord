@@ -57,7 +57,7 @@ class ResponseOptimizer:
         lines = [line.strip() for line in content.split("\n") if line.strip()]
 
         # Group related content more aggressively
-        compact_lines = []
+        compact_lines: list[str] = []
         for line in lines:
             if line.startswith("•") or line.startswith("-") or line.startswith("*"):
                 # Condense consecutive list items on same line
@@ -82,9 +82,9 @@ class ResponseOptimizer:
 
     def _paginate_content(self, content: str, page_size: int = 1000) -> list[TextContent]:
         """Split content into pages for better readability."""
-        pages = []
+        pages: list[str] = []
         lines = content.split("\n")
-        current_page = []
+        current_page: list[str] = []
         current_size = 0
 
         for line in lines:
@@ -268,7 +268,7 @@ class ResponseOptimizer:
             return [TextContent(type="text", text=f"No results for '{query}'")]
 
         # Group results by type for better organization
-        by_type = {}
+        by_type: dict[str, list[dict[str, Any]]] = {}
         for result in results:
             result_type = result.get("match_type", "unknown")
             if result_type not in by_type:

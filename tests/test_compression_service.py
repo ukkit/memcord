@@ -24,7 +24,7 @@ class MockMemorySlot:
     def __init__(self, slot_name: str, content: str = "test content"):
         self.slot_name = slot_name
         self.content = content
-        self.entries = []
+        self.entries: list[dict[str, str]] = []
 
     def model_dump(self):
         return {

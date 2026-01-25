@@ -1,11 +1,16 @@
 """Compression utilities for memory slot optimization."""
 
+from __future__ import annotations
+
 import gzip
 import zlib
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from .models import CompressionInfo
 
 
 class CompressionMetadata(BaseModel):
@@ -101,7 +106,7 @@ class ContentCompressor:
 
         return compressed_b64, metadata
 
-    def decompress_json_content(self, compressed_content: str, metadata: CompressionMetadata) -> str:
+    def decompress_json_content(self, compressed_content: str, metadata: CompressionMetadata | CompressionInfo) -> str:
         """Decompress base64-encoded compressed content."""
         if metadata.algorithm == "none":
             return compressed_content
