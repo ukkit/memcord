@@ -71,9 +71,9 @@ class ArchiveIndex(BaseModel):
             "total_archived_size": self.total_archived_size,
             "total_savings": total_savings,
             "savings_percentage": savings_percent,
-            "average_compression_ratio": self.total_archived_size / self.total_original_size
-            if self.total_original_size > 0
-            else 1.0,
+            "average_compression_ratio": (
+                self.total_archived_size / self.total_original_size if self.total_original_size > 0 else 1.0
+            ),
         }
 
 

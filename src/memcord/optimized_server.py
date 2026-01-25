@@ -203,9 +203,9 @@ class OptimizedChatMemoryServer(ChatMemoryServer):
             },
             "response_optimization": {
                 "enabled": self.response_optimizer is not None,
-                "compression_threshold": self.response_optimizer.compression_threshold
-                if self.response_optimizer
-                else None,
+                "compression_threshold": (
+                    self.response_optimizer.compression_threshold if self.response_optimizer else None
+                ),
             },
             "tools_count": {
                 "basic": len(optimized_basic),
@@ -262,9 +262,9 @@ class TokenUsageMonitor:
             "total_reduction_pct": total_reduction,
             "tokens_saved": (total_original - total_optimized) // 4,
             "avg_optimization_time_ms": avg_optimization_time * 1000,
-            "most_optimized_tool": max(self.response_stats, key=lambda x: x["reduction_pct"])["tool_name"]
-            if self.response_stats
-            else None,
+            "most_optimized_tool": (
+                max(self.response_stats, key=lambda x: x["reduction_pct"])["tool_name"] if self.response_stats else None
+            ),
         }
 
 

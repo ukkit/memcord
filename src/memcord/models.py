@@ -77,9 +77,7 @@ class MemorySlot(BaseModel):
     tags: set[str] = Field(default_factory=set, description="Tags associated with this memory slot")
 
     class Config:
-        json_encoders = {
-            set: list  # Convert sets to lists for JSON serialization
-        }
+        json_encoders = {set: list}  # Convert sets to lists for JSON serialization
 
     group_path: str | None = Field(
         None,
@@ -384,9 +382,9 @@ class MemorySlot(BaseModel):
                 "timestamp": prev_entry.timestamp.isoformat(),
                 "type": prev_entry.type,
                 "time_description": TemporalParser.format_time_description(prev_entry.timestamp),
-                "content_preview": prev_entry.content[:100] + "..."
-                if len(prev_entry.content) > 100
-                else prev_entry.content,
+                "content_preview": (
+                    prev_entry.content[:100] + "..." if len(prev_entry.content) > 100 else prev_entry.content
+                ),
             }
 
         # Add next entry info
@@ -396,9 +394,9 @@ class MemorySlot(BaseModel):
                 "timestamp": next_entry.timestamp.isoformat(),
                 "type": next_entry.type,
                 "time_description": TemporalParser.format_time_description(next_entry.timestamp),
-                "content_preview": next_entry.content[:100] + "..."
-                if len(next_entry.content) > 100
-                else next_entry.content,
+                "content_preview": (
+                    next_entry.content[:100] + "..." if len(next_entry.content) > 100 else next_entry.content
+                ),
             }
 
         return context
@@ -526,9 +524,7 @@ class ServerState(BaseModel):
     all_tags: set[str] = Field(default_factory=set, description="All tags used across memory slots")
 
     class Config:
-        json_encoders = {
-            set: list  # Convert sets to lists for JSON serialization
-        }
+        json_encoders = {set: list}  # Convert sets to lists for JSON serialization
 
     groups: dict[str, GroupInfo] = Field(default_factory=dict, description="All memory groups")
     search_index_dirty: bool = Field(True, description="Whether search index needs rebuilding")

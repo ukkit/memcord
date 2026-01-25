@@ -611,9 +611,9 @@ class MemoryManager:
             "current_memory_mb": current_memory,
             "peak_memory_mb": peak_memory,
             "memory_change_mb": current_memory - initial_memory,
-            "memory_change_percent": (current_memory - initial_memory) / initial_memory * 100
-            if initial_memory > 0
-            else 0,
+            "memory_change_percent": (
+                (current_memory - initial_memory) / initial_memory * 100 if initial_memory > 0 else 0
+            ),
             "data_points": len(recent_stats),
         }
 

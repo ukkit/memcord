@@ -1323,8 +1323,7 @@ class ChatMemoryServer:
             if "next_entry" in result.context:
                 next_entry = result.context["next_entry"]
                 next_line = (
-                    f"➡️ **Next:** {next_entry['timestamp']} "
-                    f"({next_entry['type']}) - {next_entry['time_description']}"
+                    f"➡️ **Next:** {next_entry['timestamp']} ({next_entry['type']}) - {next_entry['time_description']}"
                 )
                 lines.append(next_line)
                 lines.append(f"   Preview: {next_entry['content_preview']}")
@@ -2268,8 +2267,7 @@ class ChatMemoryServer:
         return [
             TextContent(
                 type="text",
-                text=f"Bound '{project_path}' to memory slot '{slot_name}'. "
-                f".memcord file created. Slot is now active.",
+                text=f"Bound '{project_path}' to memory slot '{slot_name}'. .memcord file created. Slot is now active.",
             )
         ]
 

@@ -530,9 +530,7 @@ class ProgressTracker:
         try:
             with open(self._history_file, "w") as f:
                 json.dump(
-                    {
-                        "undo_stack": self._undo_stack[-50:]  # Keep only last 50
-                    },
+                    {"undo_stack": self._undo_stack[-50:]},  # Keep only last 50
                     f,
                     indent=2,
                 )
