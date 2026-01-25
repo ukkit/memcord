@@ -18,7 +18,6 @@ import functools
 import os
 import secrets
 from collections.abc import Sequence
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -30,8 +29,8 @@ from .errors import (
     MemcordError,
     OperationTimeoutError,
 )
-from .response_builder import handle_errors
 from .models import SearchQuery
+from .response_builder import handle_errors
 from .security import SecurityMiddleware
 from .status_monitoring import StatusMonitoringSystem
 from .storage import StorageManager
@@ -112,6 +111,7 @@ class ChatMemoryServer:
 
         # Pre-load summarizer for faster first save_progress call
         from .summarizer import TextSummarizer
+
         self._summarizer = TextSummarizer()
         self._query_processor = None
         self._importer = None
@@ -299,7 +299,7 @@ class ChatMemoryServer:
                 slot_name = memcord_file.read_text().strip()
                 if slot_name:
                     return slot_name
-            except (OSError, IOError):
+            except OSError:
                 pass
         return None
 
@@ -462,7 +462,10 @@ class ChatMemoryServer:
             ),
             Tool(
                 name="memcord_ping",
-                description="Lightweight health check for server warm-up. Returns minimal response to confirm server is running.",
+                description=(
+                    "Lightweight health check for server warm-up. "
+                    "Returns minimal response to confirm server is running."
+                ),
                 inputSchema={"type": "object", "properties": {}},
             ),
             # Search & Intelligence Tools
@@ -682,7 +685,10 @@ class ChatMemoryServer:
             # Project Binding Tools
             Tool(
                 name="memcord_init",
-                description="Initialize memcord for a project directory by binding it to a memory slot. Creates .memcord file in the project.",
+                description=(
+                    "Initialize memcord for a project directory by binding it to a memory slot. "
+                    "Creates .memcord file in the project."
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -1255,11 +1261,21 @@ class ChatMemoryServer:
         # Get slot name (use current if not specified, or project binding)
         slot_name = self._resolve_slot(arguments)
         if not slot_name:
-            return [TextContent(type="text", text="❌ No memory slot selected. Use 'memcord_name [slot_name]' to select a slot first.")]
+            return [
+                TextContent(
+                    type="text",
+                    text="❌ No memory slot selected. Use 'memcord_name [slot_name]' to select a slot first.",
+                )
+            ]
 
         # Check if in zero mode
         if self.storage._state.is_zero_mode():
-            return [TextContent(type="text", text="🚫 Zero mode is active. Use 'memcord_name [slot_name]' to select a memory slot first.")]
+            return [
+                TextContent(
+                    type="text",
+                    text="🚫 Zero mode is active. Use 'memcord_name [slot_name]' to select a memory slot first.",
+                )
+            ]
 
         # Build request and delegate to service
         request = SelectionRequest(
@@ -1280,7 +1296,11 @@ class ChatMemoryServer:
             if result.available_entries:
                 error_msg += f"\n\nAvailable entries in '{result.slot_name}':\n"
                 for entry in result.available_entries:
-                    error_msg += f"• Index {entry['index']}: {entry['timestamp']} ({entry['type']}) - {entry['time_description']}\n"
+                    entry_line = (
+                        f"• Index {entry['index']}: {entry['timestamp']} "
+                        f"({entry['type']}) - {entry['time_description']}\n"
+                    )
+                    error_msg += entry_line
             return [TextContent(type="text", text=error_msg)]
 
         lines = [
@@ -1302,7 +1322,11 @@ class ChatMemoryServer:
                 lines.append(f"   Preview: {prev['content_preview']}")
             if "next_entry" in result.context:
                 next_entry = result.context["next_entry"]
-                lines.append(f"➡️ **Next:** {next_entry['timestamp']} ({next_entry['type']}) - {next_entry['time_description']}")
+                next_line = (
+                    f"➡️ **Next:** {next_entry['timestamp']} "
+                    f"({next_entry['type']}) - {next_entry['time_description']}"
+                )
+                lines.append(next_line)
                 lines.append(f"   Preview: {next_entry['content_preview']}")
 
         return [TextContent(type="text", text="\n".join(lines))]
@@ -1574,9 +1598,7 @@ class ChatMemoryServer:
         delete_sources = arguments.get("delete_sources", False)
 
         if action == "preview":
-            result = await self.merge_service.preview_merge(
-                source_slots, target_slot, similarity_threshold
-            )
+            result = await self.merge_service.preview_merge(source_slots, target_slot, similarity_threshold)
             return self._format_merge_preview(result)
         elif action == "merge":
             result = await self.merge_service.execute_merge(
@@ -1588,7 +1610,6 @@ class ChatMemoryServer:
 
     def _format_merge_preview(self, result) -> list[TextContent]:
         """Format merge preview result for display."""
-        from .services import MergePreviewResult
 
         if not result.success:
             error_msg = f"Error: {result.error}"
@@ -1639,7 +1660,6 @@ class ChatMemoryServer:
 
     def _format_merge_result(self, result) -> list[TextContent]:
         """Format merge execution result for display."""
-        from .services import MergeExecuteResult
 
         if not result.success:
             return [TextContent(type="text", text=f"Merge failed: {result.error}")]
@@ -1688,7 +1708,12 @@ class ChatMemoryServer:
             result = await self.compression_service.decompress_slot(slot_name)
             return self._format_decompression_result(result)
         else:
-            return [TextContent(type="text", text=f"Error: Unknown action '{action}'. Use 'analyze', 'compress', 'decompress', or 'stats'.")]
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Error: Unknown action '{action}'. Use 'analyze', 'compress', 'decompress', or 'stats'.",
+                )
+            ]
 
     def _format_compression_stats(self, result) -> list[TextContent]:
         """Format compression stats for display."""
@@ -1799,7 +1824,8 @@ class ChatMemoryServer:
             result = await self.archive_service.find_candidates(days_inactive)
             return self._format_archive_candidates(result)
         else:
-            return [TextContent(type="text", text=f"Error: Unknown action '{action}'. Use 'archive', 'restore', 'list', 'stats', or 'candidates'.")]
+            msg = f"Error: Unknown action '{action}'. Use 'archive', 'restore', 'list', 'stats', or 'candidates'."
+            return [TextContent(type="text", text=msg)]
 
     def _format_archive_result(self, result) -> list[TextContent]:
         """Format archive result for display."""
@@ -1888,7 +1914,12 @@ class ChatMemoryServer:
         if not result.success:
             return [TextContent(type="text", text=f"Error: {result.error}")]
         if not result.candidates:
-            return [TextContent(type="text", text=f"No memory slots found that have been inactive for {result.days_inactive_threshold}+ days.")]
+            return [
+                TextContent(
+                    type="text",
+                    text=f"No memory slots found that have been inactive for {result.days_inactive_threshold}+ days.",
+                )
+            ]
 
         response = [
             f"# Archive Candidates (inactive for {result.days_inactive_threshold}+ days)",
@@ -1897,22 +1928,27 @@ class ChatMemoryServer:
             "",
         ]
         for candidate in result.candidates:
-            response.extend([
-                f"## {candidate.slot_name}",
-                f"- **Last Updated:** {candidate.last_updated} ({candidate.days_inactive} days ago)",
-                f"- **Entries:** {candidate.entry_count}",
-                f"- **Size:** {format_size(candidate.current_size)}",
-            ])
+            response.extend(
+                [
+                    f"## {candidate.slot_name}",
+                    f"- **Last Updated:** {candidate.last_updated} ({candidate.days_inactive} days ago)",
+                    f"- **Entries:** {candidate.entry_count}",
+                    f"- **Size:** {format_size(candidate.current_size)}",
+                ]
+            )
             if candidate.tags:
                 response.append(f"- **Tags:** {', '.join(candidate.tags)}")
             if candidate.group_path:
                 response.append(f"- **Group:** {candidate.group_path}")
             response.append("")
 
-        response.extend([
-            "To archive any of these slots, use:",
-            f'`memcord_archive slot_name="<slot_name>" action="archive" reason="inactive_{result.days_inactive_threshold}d"`',
-        ])
+        threshold = result.days_inactive_threshold
+        response.extend(
+            [
+                "To archive any of these slots, use:",
+                f'`memcord_archive slot_name="<slot_name>" action="archive" reason="inactive_{threshold}d"`',
+            ]
+        )
         return [TextContent(type="text", text="\n".join(response))]
 
     @handle_errors(default_error_message="Status check failed")
@@ -1935,24 +1971,28 @@ class ChatMemoryServer:
         ]
 
         if result.total_operations > 0:
-            response.extend([
-                "📈 Recent Activity (Last Hour):",
-                f"  • Total Operations: {result.total_operations}",
-                f"  • Success Rate: {result.success_rate:.1f}%",
-                f"  • Average Duration: {result.avg_duration_ms:.0f}ms",
-                "",
-            ])
+            response.extend(
+                [
+                    "📈 Recent Activity (Last Hour):",
+                    f"  • Total Operations: {result.total_operations}",
+                    f"  • Success Rate: {result.success_rate:.1f}%",
+                    f"  • Average Duration: {result.avg_duration_ms:.0f}ms",
+                    "",
+                ]
+            )
 
         response.extend([f"🔍 Health Checks: {result.healthy_checks}/{result.total_checks} healthy", ""])
 
         if result.cpu_percent or result.memory_percent or result.disk_usage_percent:
-            response.extend([
-                "💻 Resource Usage:",
-                f"  • CPU: {result.cpu_percent:.1f}%",
-                f"  • Memory: {result.memory_percent:.1f}%",
-                f"  • Disk: {result.disk_usage_percent:.1f}%",
-                "",
-            ])
+            response.extend(
+                [
+                    "💻 Resource Usage:",
+                    f"  • CPU: {result.cpu_percent:.1f}%",
+                    f"  • Memory: {result.memory_percent:.1f}%",
+                    f"  • Disk: {result.disk_usage_percent:.1f}%",
+                    "",
+                ]
+            )
 
         if include_details and result.health_checks:
             response.extend(["🔍 Detailed Health Checks:", ""])
@@ -1993,15 +2033,17 @@ class ChatMemoryServer:
             ]
             if result.summary and result.summary.count > 0:
                 s = result.summary
-                response.extend([
-                    "📋 Summary:",
-                    f"  • Count: {s.count}",
-                    f"  • Average: {s.avg:.2f}{s.unit}",
-                    f"  • Min: {s.min:.2f}{s.unit}",
-                    f"  • Max: {s.max:.2f}{s.unit}",
-                    f"  • Latest: {s.latest:.2f}{s.unit}",
-                    "",
-                ])
+                response.extend(
+                    [
+                        "📋 Summary:",
+                        f"  • Count: {s.count}",
+                        f"  • Average: {s.avg:.2f}{s.unit}",
+                        f"  • Min: {s.min:.2f}{s.unit}",
+                        f"  • Max: {s.max:.2f}{s.unit}",
+                        f"  • Latest: {s.latest:.2f}{s.unit}",
+                        "",
+                    ]
+                )
             else:
                 response.append("No data available for this metric in the specified time window.")
         else:
@@ -2020,12 +2062,14 @@ class ChatMemoryServer:
                 response.append("")
 
             if result.available_metrics:
-                response.extend([
-                    "🔍 Available Metrics:",
-                    "  " + ", ".join(result.available_metrics),
-                    "",
-                    '💡 Use `memcord_metrics metric_name="<name>"` for detailed metric data.',
-                ])
+                response.extend(
+                    [
+                        "🔍 Available Metrics:",
+                        "  " + ", ".join(result.available_metrics),
+                        "",
+                        '💡 Use `memcord_metrics metric_name="<name>"` for detailed metric data.',
+                    ]
+                )
             else:
                 response.append("No metrics available yet. Metrics are collected as operations are performed.")
 
@@ -2055,21 +2099,24 @@ class ChatMemoryServer:
         ]
 
         if result.total_operations > 0:
-            response.extend([
-                "📈 Statistics:",
-                f"  • Total Operations: {result.total_operations}",
-                f"  • Success Rate: {result.success_rate:.1f}%",
-                f"  • Failed Operations: {result.failed_operations}",
-            ])
+            response.extend(
+                [
+                    "📈 Statistics:",
+                    f"  • Total Operations: {result.total_operations}",
+                    f"  • Success Rate: {result.success_rate:.1f}%",
+                    f"  • Failed Operations: {result.failed_operations}",
+                ]
+            )
             if result.avg_duration_ms:
                 response.append(f"  • Average Duration: {result.avg_duration_ms:.0f}ms")
             response.append("")
 
         if result.logs:
             response.append("🔍 Recent Operations:")
+            status_emojis = {"completed": "✅", "failed": "❌", "started": "🔄", "timeout": "⏰"}
             for log in result.logs:
                 time_str = log.start_time.strftime("%H:%M:%S")
-                status_emoji = {"completed": "✅", "failed": "❌", "started": "🔄", "timeout": "⏰"}.get(log.status, "❓")
+                status_emoji = status_emojis.get(log.status, "❓")
                 duration_str = f" ({log.duration_ms:.0f}ms)" if log.duration_ms else ""
                 response.append(f"  {status_emoji} {time_str} {log.tool_name}{duration_str}")
                 if log.error_message:
@@ -2093,16 +2140,19 @@ class ChatMemoryServer:
         """Format diagnostics report for display."""
         if not result.success:
             if result.error and "Unknown check type" in result.error:
-                return [TextContent(type="text", text=f"Invalid check_type '{result.check_type}'. Use 'health', 'performance', or 'full_report'.")]
+                msg = f"Invalid check_type '{result.check_type}'. Use 'health', 'performance', or 'full_report'."
+                return [TextContent(type="text", text=msg)]
             return [TextContent(type="text", text=f"Diagnostics failed: {result.error}")]
 
         response = []
 
         if result.check_type == "health":
             response = ["🏥 System Health Diagnostics", "=" * 40, ""]
+            health_emojis = {"healthy": "✅", "degraded": "⚠️", "unhealthy": "❌", "unknown": "❓"}
             for check in result.health_checks:
-                status_emoji = {"healthy": "✅", "degraded": "⚠️", "unhealthy": "❌", "unknown": "❓"}.get(check.status, "❓")
-                response.extend([f"{status_emoji} {check.service.upper()}: {check.status}", f"  Response Time: {check.response_time:.1f}ms"])
+                status_emoji = health_emojis.get(check.status, "❓")
+                response.append(f"{status_emoji} {check.service.upper()}: {check.status}")
+                response.append(f"  Response Time: {check.response_time:.1f}ms")
                 if check.error_message:
                     response.append(f"  Error: {check.error_message}")
                 if check.details:
@@ -2142,23 +2192,31 @@ class ChatMemoryServer:
 
             resources = report.get("resource_usage", {})
             if resources:
-                response.extend([
-                    "💻 Current Resource Usage:",
-                    f"  • CPU: {resources.get('cpu_percent', 0):.1f}%",
-                    f"  • Memory: {resources.get('memory_percent', 0):.1f}% ({resources.get('memory_used_mb', 0):.0f}MB)",
-                    f"  • Disk: {resources.get('disk_usage_percent', 0):.1f}% ({resources.get('disk_free_gb', 0):.1f}GB free)",
-                    "",
-                ])
+                mem_pct = resources.get("memory_percent", 0)
+                mem_mb = resources.get("memory_used_mb", 0)
+                disk_pct = resources.get("disk_usage_percent", 0)
+                disk_free = resources.get("disk_free_gb", 0)
+                response.extend(
+                    [
+                        "💻 Current Resource Usage:",
+                        f"  • CPU: {resources.get('cpu_percent', 0):.1f}%",
+                        f"  • Memory: {mem_pct:.1f}% ({mem_mb:.0f}MB)",
+                        f"  • Disk: {disk_pct:.1f}% ({disk_free:.1f}GB free)",
+                        "",
+                    ]
+                )
 
             op_stats = report.get("operation_stats", {})
             if op_stats.get("total_operations", 0) > 0:
-                response.extend([
-                    "📊 Operation Statistics (24h):",
-                    f"  • Total Operations: {op_stats.get('total_operations', 0)}",
-                    f"  • Success Rate: {op_stats.get('success_rate', 0):.1f}%",
-                    f"  • Average Duration: {op_stats.get('avg_duration_ms', 0):.0f}ms",
-                    "",
-                ])
+                response.extend(
+                    [
+                        "📊 Operation Statistics (24h):",
+                        f"  • Total Operations: {op_stats.get('total_operations', 0)}",
+                        f"  • Success Rate: {op_stats.get('success_rate', 0):.1f}%",
+                        f"  • Average Duration: {op_stats.get('avg_duration_ms', 0):.0f}ms",
+                        "",
+                    ]
+                )
 
             perf_analysis = report.get("performance_analysis", {})
             issues = perf_analysis.get("issues", [])
@@ -2168,14 +2226,16 @@ class ChatMemoryServer:
             else:
                 response.append("✅ No performance issues detected")
 
-            response.extend([
-                "",
-                "💡 For detailed analysis of specific areas, use:",
-                '  • `memcord_diagnostics check_type="health"` - Health checks',
-                '  • `memcord_diagnostics check_type="performance"` - Performance analysis',
-                "  • `memcord_metrics` - Performance metrics",
-                "  • `memcord_logs` - Operation logs",
-            ])
+            response.extend(
+                [
+                    "",
+                    "💡 For detailed analysis of specific areas, use:",
+                    '  • `memcord_diagnostics check_type="health"` - Health checks',
+                    '  • `memcord_diagnostics check_type="performance"` - Performance analysis',
+                    "  • `memcord_metrics` - Performance metrics",
+                    "  • `memcord_logs` - Operation logs",
+                ]
+            )
 
         return [TextContent(type="text", text="\n".join(response))]
 

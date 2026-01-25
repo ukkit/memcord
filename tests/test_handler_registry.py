@@ -109,9 +109,7 @@ class TestHandlerRegistry:
         async def handler_2(self, args):
             return []
 
-        @registry.register(
-            "tool_3", category="advanced", description="Tool 3", input_schema={}, requires_advanced=True
-        )
+        @registry.register("tool_3", category="advanced", description="Tool 3", input_schema={}, requires_advanced=True)
         async def handler_3(self, args):
             return []
 

@@ -156,7 +156,9 @@ class TestMemcordBindRebinding:
         await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir, "slot_name": original_name})
 
         # Re-bind with new name
-        result = await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir, "slot_name": new_name})
+        result = await server.call_tool_direct(
+            "memcord_init", {"project_path": temp_project_dir, "slot_name": new_name}
+        )
 
         # Should use the new name
         assert new_name in result[0].text
@@ -305,9 +307,10 @@ class TestMemcordBindEdgeCases:
 
             assert isinstance(result, list)
             # Path should be resolved and expanded in the result
-            assert Path(temp_dir).resolve().as_posix() in result[0].text.replace("\\", "/") or str(
-                Path(temp_dir).resolve()
-            ) in result[0].text
+            assert (
+                Path(temp_dir).resolve().as_posix() in result[0].text.replace("\\", "/")
+                or str(Path(temp_dir).resolve()) in result[0].text
+            )
 
     @pytest.mark.asyncio
     async def test_bind_empty_slot_name(self, test_server, temp_project_dir):
@@ -401,7 +404,7 @@ class TestMemcordBindConcurrency:
         temp_dirs = []
         try:
             # Create multiple temp directories
-            for i in range(5):
+            for _ in range(5):
                 temp_dir = tempfile.mkdtemp()
                 temp_dirs.append(temp_dir)
 
@@ -553,7 +556,7 @@ class TestMemcordBindCallToolDirect:
             "memcord_init", {"project_path": temp_project_dir, "slot_name": "call-direct-test"}
         )
 
-        assert isinstance(result, (list, tuple))
+        assert isinstance(result, list | tuple)
         assert len(result) >= 1
         assert hasattr(result[0], "text")
         assert "Bound" in result[0].text
@@ -569,7 +572,7 @@ class TestMemcordBindCallToolDirect:
         # Then unbind
         result = await server.call_tool_direct("memcord_unbind", {"project_path": temp_project_dir})
 
-        assert isinstance(result, (list, tuple))
+        assert isinstance(result, list | tuple)
         assert len(result) >= 1
         assert hasattr(result[0], "text")
         assert "Removed" in result[0].text

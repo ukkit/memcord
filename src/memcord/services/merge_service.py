@@ -9,7 +9,6 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..merger import MergePreview, MergeResult
     from ..models import MemorySlot
     from ..storage import StorageManager
 
@@ -87,9 +86,7 @@ class MergeService:
 
         return True, None, cleaned_sources, cleaned_target
 
-    async def load_source_slots(
-        self, source_slot_names: list[str]
-    ) -> tuple[list["MemorySlot"], list[str]]:
+    async def load_source_slots(self, source_slot_names: list[str]) -> tuple[list["MemorySlot"], list[str]]:
         """Load source slots from storage.
 
         Returns:
@@ -124,9 +121,7 @@ class MergeService:
             MergePreviewResult with preview data or error
         """
         # Validate request
-        is_valid, error, cleaned_sources, cleaned_target = await self.validate_merge_request(
-            source_slots, target_slot
-        )
+        is_valid, error, cleaned_sources, cleaned_target = await self.validate_merge_request(source_slots, target_slot)
         if not is_valid:
             return MergePreviewResult(success=False, error=error)
 
@@ -194,9 +189,7 @@ class MergeService:
             MergeExecuteResult with operation results
         """
         # Validate request
-        is_valid, error, cleaned_sources, cleaned_target = await self.validate_merge_request(
-            source_slots, target_slot
-        )
+        is_valid, error, cleaned_sources, cleaned_target = await self.validate_merge_request(source_slots, target_slot)
         if not is_valid:
             return MergeExecuteResult(success=False, error=error)
 
@@ -288,9 +281,7 @@ class MergeService:
             debug_lines.append(f"  - has_content: {hasattr(slot, 'content')}")
             debug_lines.append(f"  - has_name: {hasattr(slot, 'name')}")
             debug_lines.append(f"  - has_entries: {hasattr(slot, 'entries')}")
-            debug_lines.append(
-                f"  - entries_count: {len(slot.entries) if hasattr(slot, 'entries') else 'N/A'}"
-            )
+            debug_lines.append(f"  - entries_count: {len(slot.entries) if hasattr(slot, 'entries') else 'N/A'}")
 
             try:
                 content = slot.content

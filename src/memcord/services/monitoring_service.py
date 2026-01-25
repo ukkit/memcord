@@ -186,9 +186,7 @@ class MonitoringService:
         except Exception as e:
             return StatusReport(success=False, error=str(e))
 
-    def get_metrics(
-        self, metric_name: str | None = None, hours: int = 1
-    ) -> MetricsReport:
+    def get_metrics(self, metric_name: str | None = None, hours: int = 1) -> MetricsReport:
         """Get performance metrics.
 
         Args:
@@ -201,9 +199,7 @@ class MonitoringService:
         try:
             if metric_name:
                 # Get specific metric
-                metrics_data = self.status_monitor.get_performance_metrics(
-                    metric_name, hours
-                )
+                metrics_data = self.status_monitor.get_performance_metrics(metric_name, hours)
                 summary_data = metrics_data.get("summary", {})
 
                 summary = None
@@ -291,9 +287,7 @@ class MonitoringService:
             for log in logs_raw[:20]:  # Limit to 20 for display
                 start_time = log.get("start_time")
                 if isinstance(start_time, str):
-                    start_time = datetime.fromisoformat(
-                        start_time.replace("Z", "+00:00")
-                    )
+                    start_time = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
 
                 logs.append(
                     LogEntry(
@@ -336,9 +330,7 @@ class MonitoringService:
 
             if check_type == "health":
                 # Run health checks
-                health_checks_raw = (
-                    await self.status_monitor.diagnostic_tool.run_health_checks()
-                )
+                health_checks_raw = await self.status_monitor.diagnostic_tool.run_health_checks()
 
                 health_checks = []
                 for check in health_checks_raw:

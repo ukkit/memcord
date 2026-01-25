@@ -6,7 +6,7 @@ and separation of concerns.
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..storage import StorageManager
@@ -110,9 +110,7 @@ class ArchiveService:
         """
         self.storage = storage
 
-    async def archive_slot(
-        self, slot_name: str, reason: str = "manual"
-    ) -> ArchiveResult:
+    async def archive_slot(self, slot_name: str, reason: str = "manual") -> ArchiveResult:
         """Archive a memory slot.
 
         Args:
@@ -200,9 +198,7 @@ class ArchiveService:
                 days_ago = 0
                 if archived_at:
                     try:
-                        days_ago = (
-                            datetime.now() - datetime.fromisoformat(archived_at)
-                        ).days
+                        days_ago = (datetime.now() - datetime.fromisoformat(archived_at)).days
                     except (ValueError, TypeError):
                         pass
 
@@ -247,9 +243,7 @@ class ArchiveService:
         except Exception:
             return ArchiveStats()
 
-    async def find_candidates(
-        self, days_inactive: int = 30
-    ) -> ArchiveCandidatesResult:
+    async def find_candidates(self, days_inactive: int = 30) -> ArchiveCandidatesResult:
         """Find memory slots that are candidates for archival.
 
         Args:

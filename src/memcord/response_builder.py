@@ -95,7 +95,7 @@ def handle_errors(
     """
 
     def decorator(
-        func: Callable[..., Awaitable[Sequence[TextContent]]]
+        func: Callable[..., Awaitable[Sequence[TextContent]]],
     ) -> Callable[..., Awaitable[Sequence[TextContent]]]:
         @functools.wraps(func)
         async def wrapper(self, arguments: dict[str, Any]) -> Sequence[TextContent]:
@@ -108,9 +108,7 @@ def handle_errors(
                 # Unknown errors - wrap in MemcordError if handler available
                 handler = error_handler or getattr(self, "error_handler", None)
                 if handler:
-                    wrapped_error = handler.handle_error(
-                        e, func.__name__, {"arguments": arguments}
-                    )
+                    wrapped_error = handler.handle_error(e, func.__name__, {"arguments": arguments})
                     return ResponseBuilder.error(wrapped_error)
                 else:
                     return ResponseBuilder.error_message(f"{default_error_message}: {e}")
@@ -133,15 +131,13 @@ def validate_required_args(*required_args: str):
     """
 
     def decorator(
-        func: Callable[..., Awaitable[Sequence[TextContent]]]
+        func: Callable[..., Awaitable[Sequence[TextContent]]],
     ) -> Callable[..., Awaitable[Sequence[TextContent]]]:
         @functools.wraps(func)
         async def wrapper(self, arguments: dict[str, Any]) -> Sequence[TextContent]:
             missing = [arg for arg in required_args if not arguments.get(arg)]
             if missing:
-                return ResponseBuilder.error_message(
-                    f"Missing required arguments: {', '.join(missing)}"
-                )
+                return ResponseBuilder.error_message(f"Missing required arguments: {', '.join(missing)}")
             return await func(self, arguments)
 
         return wrapper
@@ -168,7 +164,7 @@ def validate_slot_selected(
     """
 
     def decorator(
-        func: Callable[..., Awaitable[Sequence[TextContent]]]
+        func: Callable[..., Awaitable[Sequence[TextContent]]],
     ) -> Callable[..., Awaitable[Sequence[TextContent]]]:
         @functools.wraps(func)
         async def wrapper(self, arguments: dict[str, Any]) -> Sequence[TextContent]:

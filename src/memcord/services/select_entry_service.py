@@ -219,10 +219,12 @@ class SelectEntryService:
         for i, ts in enumerate(available_timestamps):
             entry = slot.entries[i]
             time_desc = TemporalParser.format_time_description(entry.timestamp)
-            entries.append({
-                "index": i,
-                "timestamp": ts,
-                "type": entry.type,
-                "time_description": time_desc,
-            })
+            entries.append(
+                {
+                    "index": i,
+                    "timestamp": ts,
+                    "type": entry.type,
+                    "time_description": time_desc,
+                }
+            )
         return entries

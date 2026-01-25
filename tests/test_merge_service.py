@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from memcord.models import MemoryEntry, MemorySlot
+from memcord.models import MemoryEntry
 from memcord.services.merge_service import (
     MergeExecuteResult,
     MergePreviewResult,
@@ -26,9 +26,7 @@ class MockMemorySlot:
         self.content = content
         self.tags = tags or set()
         self.group_path = group_path
-        self.entries = [
-            MemoryEntry(type="manual_save", content=content, timestamp=datetime.now())
-        ]
+        self.entries = [MemoryEntry(type="manual_save", content=content, timestamp=datetime.now())]
         self.created_at = datetime.now()
         self.updated_at = datetime.now()
 
@@ -175,9 +173,7 @@ class TestMergeServiceValidation:
     @pytest.mark.asyncio
     async def test_validate_empty_source_slots(self, merge_service):
         """Test validation fails with empty source slots."""
-        is_valid, error, sources, target = await merge_service.validate_merge_request(
-            [], "target"
-        )
+        is_valid, error, sources, target = await merge_service.validate_merge_request([], "target")
 
         assert is_valid is False
         assert "At least 2 source slots" in error
@@ -186,9 +182,7 @@ class TestMergeServiceValidation:
     @pytest.mark.asyncio
     async def test_validate_single_source_slot(self, merge_service):
         """Test validation fails with single source slot."""
-        is_valid, error, sources, target = await merge_service.validate_merge_request(
-            ["only_one"], "target"
-        )
+        is_valid, error, sources, target = await merge_service.validate_merge_request(["only_one"], "target")
 
         assert is_valid is False
         assert "At least 2 source slots" in error
@@ -196,9 +190,7 @@ class TestMergeServiceValidation:
     @pytest.mark.asyncio
     async def test_validate_empty_target(self, merge_service):
         """Test validation fails with empty target."""
-        is_valid, error, sources, target = await merge_service.validate_merge_request(
-            ["slot1", "slot2"], ""
-        )
+        is_valid, error, sources, target = await merge_service.validate_merge_request(["slot1", "slot2"], "")
 
         assert is_valid is False
         assert "Target slot name cannot be empty" in error
@@ -206,9 +198,7 @@ class TestMergeServiceValidation:
     @pytest.mark.asyncio
     async def test_validate_whitespace_target(self, merge_service):
         """Test validation fails with whitespace-only target."""
-        is_valid, error, sources, target = await merge_service.validate_merge_request(
-            ["slot1", "slot2"], "   "
-        )
+        is_valid, error, sources, target = await merge_service.validate_merge_request(["slot1", "slot2"], "   ")
 
         assert is_valid is False
         assert "Target slot name cannot be empty" in error
@@ -393,9 +383,7 @@ class TestMergeServiceExecute:
         """Create mock storage manager."""
         storage = MagicMock()
         storage.read_memory = AsyncMock()
-        storage.save_memory = AsyncMock(
-            return_value=MemoryEntry(type="manual_save", content="merged")
-        )
+        storage.save_memory = AsyncMock(return_value=MemoryEntry(type="manual_save", content="merged"))
         storage.delete_slot = AsyncMock(return_value=True)
         storage._save_slot = AsyncMock()
         return storage
@@ -463,9 +451,7 @@ class TestMergeServiceExecute:
             MockMemorySlot("merged"),
         ]
 
-        result = await merge_service.execute_merge(
-            ["slot1", "slot2"], "merged", delete_sources=True
-        )
+        result = await merge_service.execute_merge(["slot1", "slot2"], "merged", delete_sources=True)
 
         assert result.success is True
         assert "slot1" in result.deleted_sources
@@ -483,9 +469,7 @@ class TestMergeServiceExecute:
         # First delete succeeds, second fails
         mock_storage.delete_slot.side_effect = [True, Exception("Delete failed")]
 
-        result = await merge_service.execute_merge(
-            ["slot1", "slot2"], "merged", delete_sources=True
-        )
+        result = await merge_service.execute_merge(["slot1", "slot2"], "merged", delete_sources=True)
 
         assert result.success is True
         assert "slot1" in result.deleted_sources
@@ -498,9 +482,7 @@ class TestMergeServiceExecute:
             MockMemorySlot("slot1"),
             MockMemorySlot("slot2"),
         ]
-        mock_merger.merge_slots.return_value = MockMergeResult(
-            success=False, error="Merge conflict"
-        )
+        mock_merger.merge_slots.return_value = MockMergeResult(success=False, error="Merge conflict")
 
         result = await merge_service.execute_merge(["slot1", "slot2"], "merged")
 
@@ -516,9 +498,7 @@ class TestMergeServiceExecute:
             MockMemorySlot("merged"),
         ]
 
-        await merge_service.execute_merge(
-            ["slot1", "slot2"], "merged", similarity_threshold=0.5
-        )
+        await merge_service.execute_merge(["slot1", "slot2"], "merged", similarity_threshold=0.5)
 
         # Verify merger was called with custom threshold
         call_args = mock_merger.merge_slots.call_args

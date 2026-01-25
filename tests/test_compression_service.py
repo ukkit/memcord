@@ -324,7 +324,7 @@ class TestCompressionServiceAnalyze:
     @pytest.mark.asyncio
     async def test_analyze_exception_handling(self, compression_service, mock_storage):
         """Test analyze handles exceptions."""
-        mock_storage.read_memory.side_effect = IOError("Read error")
+        mock_storage.read_memory.side_effect = OSError("Read error")
 
         result = await compression_service.analyze("my_slot")
 
@@ -421,7 +421,13 @@ class TestCompressionServiceCompress:
             {"name": "slot2"},
         ]
         mock_storage.compress_slot.side_effect = [
-            {"entries_processed": 10, "entries_compressed": 8, "original_size": 5000, "compressed_size": 3000, "space_saved": 2000},
+            {
+                "entries_processed": 10,
+                "entries_compressed": 8,
+                "original_size": 5000,
+                "compressed_size": 3000,
+                "space_saved": 2000,
+            },
             Exception("Failed"),
         ]
 

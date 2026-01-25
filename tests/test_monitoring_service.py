@@ -4,7 +4,7 @@ Tests the MonitoringService business logic extracted from the server handlers
 during the optimization (Phase 2).
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -14,8 +14,8 @@ from memcord.services.monitoring_service import (
     HealthCheck,
     LogEntry,
     LogsReport,
-    MetricSummary,
     MetricsReport,
+    MetricSummary,
     MonitoringService,
     PerformanceIssue,
     StatusReport,
@@ -460,8 +460,18 @@ class TestMonitoringServiceLogs:
         """Test successful log retrieval."""
         mock_status_monitor.get_operation_logs.return_value = {
             "logs": [
-                {"tool_name": "memcord_save", "status": "completed", "start_time": datetime.now().isoformat(), "duration_ms": 45.0},
-                {"tool_name": "memcord_read", "status": "completed", "start_time": datetime.now().isoformat(), "duration_ms": 20.0},
+                {
+                    "tool_name": "memcord_save",
+                    "status": "completed",
+                    "start_time": datetime.now().isoformat(),
+                    "duration_ms": 45.0,
+                },
+                {
+                    "tool_name": "memcord_read",
+                    "status": "completed",
+                    "start_time": datetime.now().isoformat(),
+                    "duration_ms": 20.0,
+                },
             ],
             "total_count": 2,
             "stats": {
@@ -497,7 +507,12 @@ class TestMonitoringServiceLogs:
         """Test log retrieval with status filter."""
         mock_status_monitor.get_operation_logs.return_value = {
             "logs": [
-                {"tool_name": "memcord_read", "status": "failed", "start_time": datetime.now().isoformat(), "error_message": "Not found"},
+                {
+                    "tool_name": "memcord_read",
+                    "status": "failed",
+                    "start_time": datetime.now().isoformat(),
+                    "error_message": "Not found",
+                },
             ],
             "total_count": 1,
             "stats": {},

@@ -4,8 +4,8 @@ Extracts business logic from the compress handler for better testability
 and separation of concerns.
 """
 
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..storage import StorageManager
@@ -166,9 +166,7 @@ class CompressionService:
         except Exception as e:
             return CompressionAnalysis(success=False, error=str(e))
 
-    async def compress_slot(
-        self, slot_name: str, force: bool = False
-    ) -> CompressionResult:
+    async def compress_slot(self, slot_name: str, force: bool = False) -> CompressionResult:
         """Compress a single memory slot.
 
         Args:
@@ -221,25 +219,13 @@ class CompressionService:
 
             for slot_info in slots_info:
                 try:
-                    compression_stats = await self.storage.compress_slot(
-                        slot_info["name"], force
-                    )
+                    compression_stats = await self.storage.compress_slot(slot_info["name"], force)
                     total_stats["slots_processed"] += 1
-                    total_stats["total_entries_processed"] += compression_stats.get(
-                        "entries_processed", 0
-                    )
-                    total_stats["total_entries_compressed"] += compression_stats.get(
-                        "entries_compressed", 0
-                    )
-                    total_stats["total_original_size"] += compression_stats.get(
-                        "original_size", 0
-                    )
-                    total_stats["total_compressed_size"] += compression_stats.get(
-                        "compressed_size", 0
-                    )
-                    total_stats["total_space_saved"] += compression_stats.get(
-                        "space_saved", 0
-                    )
+                    total_stats["total_entries_processed"] += compression_stats.get("entries_processed", 0)
+                    total_stats["total_entries_compressed"] += compression_stats.get("entries_compressed", 0)
+                    total_stats["total_original_size"] += compression_stats.get("original_size", 0)
+                    total_stats["total_compressed_size"] += compression_stats.get("compressed_size", 0)
+                    total_stats["total_space_saved"] += compression_stats.get("space_saved", 0)
                 except Exception:
                     continue
 
@@ -286,9 +272,7 @@ class CompressionService:
                 slot_name=slot_name,
                 entries_processed=decompression_stats.get("entries_processed", 0),
                 entries_decompressed=decompression_stats.get("entries_decompressed", 0),
-                decompressed_successfully=decompression_stats.get(
-                    "decompressed_successfully", True
-                ),
+                decompressed_successfully=decompression_stats.get("decompressed_successfully", True),
             )
 
         except Exception as e:

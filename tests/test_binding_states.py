@@ -14,13 +14,11 @@ Coverage:
 """
 
 import asyncio
-import os
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from mcp.types import TextContent
 
 from memcord.server import ChatMemoryServer
 
@@ -62,7 +60,9 @@ class TestSlotResolutionPriority:
 
         # Create content in different slots
         await server.call_tool_direct("memcord_save", {"slot_name": "active-slot", "chat_text": "Active slot content"})
-        await server.call_tool_direct("memcord_save", {"slot_name": "explicit-slot", "chat_text": "Explicit slot content"})
+        await server.call_tool_direct(
+            "memcord_save", {"slot_name": "explicit-slot", "chat_text": "Explicit slot content"}
+        )
 
         # Read with explicit argument should use explicit slot
         result = await server.call_tool_direct("memcord_read", {"slot_name": "explicit-slot"})
@@ -95,7 +95,9 @@ class TestSlotResolutionPriority:
 
         # Set a different active slot
         await server.call_tool_direct("memcord_name", {"slot_name": "different-active-slot"})
-        await server.call_tool_direct("memcord_save", {"slot_name": "different-active-slot", "chat_text": "Different active content"})
+        await server.call_tool_direct(
+            "memcord_save", {"slot_name": "different-active-slot", "chat_text": "Different active content"}
+        )
 
         # Read without argument should use active slot, not bound slot
         result = await server.call_tool_direct("memcord_read", {})
@@ -234,7 +236,9 @@ class TestActiveSlotState:
         assert server.storage.get_current_slot() is None
 
         # Bind project
-        result = await server.call_tool_direct("memcord_init", {"project_path": temp_project_dir, "slot_name": "bound-activated"})
+        result = await server.call_tool_direct(
+            "memcord_init", {"project_path": temp_project_dir, "slot_name": "bound-activated"}
+        )
 
         assert "active" in result[0].text.lower()
         assert server.storage.get_current_slot() == "bound-activated"
@@ -393,7 +397,9 @@ class TestSlotResolutionInteractions:
         await server.call_tool_direct("memcord_name", {"slot_name": "progress-test-slot"})
 
         # Save progress without slot_name
-        await server.call_tool_direct("memcord_save_progress", {"chat_text": "Session progress content that needs to be summarized"})
+        await server.call_tool_direct(
+            "memcord_save_progress", {"chat_text": "Session progress content that needs to be summarized"}
+        )
 
         # Verify content is in active slot
         result = await server.call_tool_direct("memcord_read", {"slot_name": "progress-test-slot"})
@@ -435,7 +441,9 @@ class TestZeroModeInteraction:
         await server.call_tool_direct("memcord_zero", {})
 
         # Try to save
-        result = await server.call_tool_direct("memcord_save", {"slot_name": "test-slot", "chat_text": "Should not save"})
+        result = await server.call_tool_direct(
+            "memcord_save", {"slot_name": "test-slot", "chat_text": "Should not save"}
+        )
 
         # Should indicate zero mode is active
         assert "zero" in result[0].text.lower() or "no memory" in result[0].text.lower()
@@ -555,24 +563,24 @@ class TestSelectEntrySlotResolution:
         # Note: slot name avoids SQL keywords like "select" which are blocked
         name_result = await server.call_tool_direct("memcord_name", {"slot_name": "entry-test-slot"})
         assert "active" in name_result[0].text.lower(), f"memcord_name failed: {name_result[0].text}"
-        assert server.storage.get_current_slot() == "entry-test-slot", (
-            f"Current slot not set after memcord_name: got {server.storage.get_current_slot()!r}"
-        )
+        assert (
+            server.storage.get_current_slot() == "entry-test-slot"
+        ), f"Current slot not set after memcord_name: got {server.storage.get_current_slot()!r}"
 
         save_result = await server.call_tool_direct("memcord_save", {"chat_text": "Entry content"})
         assert "saved" in save_result[0].text.lower(), f"memcord_save failed: {save_result[0].text}"
 
         # Verify current slot is still active after save
-        assert server.storage.get_current_slot() == "entry-test-slot", (
-            f"Current slot changed after save: got {server.storage.get_current_slot()!r}"
-        )
+        assert (
+            server.storage.get_current_slot() == "entry-test-slot"
+        ), f"Current slot changed after save: got {server.storage.get_current_slot()!r}"
 
         # Select entry without slot_name
         result = await server.call_tool_direct("memcord_select_entry", {"relative_time": "latest"})
 
-        assert "Entry content" in result[0].text or "entry-test-slot" in result[0].text, (
-            f"select_entry failed: {result[0].text}"
-        )
+        assert (
+            "Entry content" in result[0].text or "entry-test-slot" in result[0].text
+        ), f"select_entry failed: {result[0].text}"
 
     @pytest.mark.asyncio
     async def test_select_entry_explicit_slot_overrides(self, test_server):
@@ -588,7 +596,9 @@ class TestSelectEntrySlotResolution:
         await server.call_tool_direct("memcord_use", {"slot_name": "slot-a"})
 
         # Select from slot-b explicitly
-        result = await server.call_tool_direct("memcord_select_entry", {"slot_name": "slot-b", "relative_time": "latest"})
+        result = await server.call_tool_direct(
+            "memcord_select_entry", {"slot_name": "slot-b", "relative_time": "latest"}
+        )
 
         assert "slot-b" in result[0].text or "Content B" in result[0].text
 
@@ -605,10 +615,7 @@ class TestConcurrentSlotOperations:
         await server.call_tool_direct("memcord_name", {"slot_name": "concurrent-slot"})
 
         # Concurrent saves
-        tasks = [
-            server.call_tool_direct("memcord_save", {"chat_text": f"Concurrent content {i}"})
-            for i in range(5)
-        ]
+        tasks = [server.call_tool_direct("memcord_save", {"chat_text": f"Concurrent content {i}"}) for i in range(5)]
 
         await asyncio.gather(*tasks)
 
@@ -627,10 +634,14 @@ class TestConcurrentSlotOperations:
 
         # Even while active slot changes, explicit saves should go to right place
         async def save_to_slot1():
-            return await server.call_tool_direct("memcord_save", {"slot_name": "slot-1", "chat_text": "Content for slot 1"})
+            return await server.call_tool_direct(
+                "memcord_save", {"slot_name": "slot-1", "chat_text": "Content for slot 1"}
+            )
 
         async def save_to_slot2():
-            return await server.call_tool_direct("memcord_save", {"slot_name": "slot-2", "chat_text": "Content for slot 2"})
+            return await server.call_tool_direct(
+                "memcord_save", {"slot_name": "slot-2", "chat_text": "Content for slot 2"}
+            )
 
         async def change_active():
             await server.call_tool_direct("memcord_name", {"slot_name": "slot-3"})

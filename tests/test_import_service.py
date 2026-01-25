@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from memcord.models import MemoryEntry, MemorySlot
+from memcord.models import MemoryEntry
 from memcord.services.import_service import ImportResult, ImportService
 
 
@@ -106,9 +106,7 @@ class TestImportServiceValidation:
     def mock_storage(self):
         """Create mock storage manager."""
         storage = MagicMock()
-        storage.save_memory = AsyncMock(
-            return_value=MemoryEntry(type="manual_save", content="test")
-        )
+        storage.save_memory = AsyncMock(return_value=MemoryEntry(type="manual_save", content="test"))
         storage.read_memory = AsyncMock()
         storage._save_slot = AsyncMock()
         return storage
@@ -194,9 +192,7 @@ class TestImportServiceFileImport:
     @pytest.mark.asyncio
     async def test_successful_file_import(self, import_service, mock_importer):
         """Test successful file import."""
-        result = await import_service.import_content(
-            "/path/to/file.txt", "my_slot"
-        )
+        result = await import_service.import_content("/path/to/file.txt", "my_slot")
 
         assert result.success is True
         assert result.slot_name == "my_slot"
@@ -207,9 +203,7 @@ class TestImportServiceFileImport:
     @pytest.mark.asyncio
     async def test_import_strips_source_whitespace(self, import_service, mock_importer):
         """Test source path is stripped of whitespace."""
-        await import_service.import_content(
-            "  /path/to/file.txt  ", "my_slot"
-        )
+        await import_service.import_content("  /path/to/file.txt  ", "my_slot")
 
         mock_importer.import_content.assert_called_once_with("/path/to/file.txt")
 
@@ -396,7 +390,7 @@ class TestImportServiceErrorHandling:
     async def test_storage_exception(self, import_service, mock_storage, mock_importer):
         """Test handling of storage exceptions."""
         mock_importer.import_content = AsyncMock(return_value=MockImportResult())
-        mock_storage.save_memory.side_effect = IOError("Disk full")
+        mock_storage.save_memory.side_effect = OSError("Disk full")
 
         result = await import_service.import_content("/path/to/file.txt", "my_slot")
 

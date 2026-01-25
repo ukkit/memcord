@@ -5,7 +5,7 @@ large if/elif chains when routing tool calls to their handlers.
 """
 
 from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from mcp.types import TextContent, Tool

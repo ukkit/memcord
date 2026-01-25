@@ -13,7 +13,6 @@ from memcord.services.archive_service import (
     ArchiveCandidate,
     ArchiveCandidatesResult,
     ArchiveInfo,
-    ArchiveListResult,
     ArchiveResult,
     ArchiveService,
     ArchiveStats,
@@ -390,7 +389,7 @@ class TestArchiveServiceListArchives:
     @pytest.mark.asyncio
     async def test_list_archives_error_handling(self, archive_service, mock_storage):
         """Test list archives error handling."""
-        mock_storage.list_archives.side_effect = IOError("Storage error")
+        mock_storage.list_archives.side_effect = OSError("Storage error")
 
         result = await archive_service.list_archives()
 
@@ -433,7 +432,7 @@ class TestArchiveServiceGetStats:
     @pytest.mark.asyncio
     async def test_get_stats_error_returns_empty(self, archive_service, mock_storage):
         """Test stats returns empty on error."""
-        mock_storage.get_archive_stats.side_effect = IOError("Error")
+        mock_storage.get_archive_stats.side_effect = OSError("Error")
 
         stats = await archive_service.get_stats()
 
@@ -504,7 +503,7 @@ class TestArchiveServiceFindCandidates:
     @pytest.mark.asyncio
     async def test_find_candidates_error_handling(self, archive_service, mock_storage):
         """Test find candidates error handling."""
-        mock_storage.find_archival_candidates.side_effect = IOError("Storage error")
+        mock_storage.find_archival_candidates.side_effect = OSError("Storage error")
 
         result = await archive_service.find_candidates(30)
 
