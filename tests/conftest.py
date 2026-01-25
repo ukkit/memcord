@@ -251,6 +251,7 @@ class MemorySlotFactory:
             is_archived=kwargs.get("is_archived", False),
             archived_at=kwargs.get("archived_at"),
             archive_reason=kwargs.get("archive_reason"),
+            description=kwargs.get("description"),
         )
 
     @staticmethod

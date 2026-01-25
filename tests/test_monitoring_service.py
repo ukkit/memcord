@@ -563,7 +563,7 @@ class TestMonitoringServiceDiagnostics:
         monitor.diagnostic_tool.analyze_performance_issues = MagicMock()
         monitor.metrics_collector = MagicMock()
         monitor.operation_logger = MagicMock()
-        monitor.generate_full_report = MagicMock()
+        monitor.generate_full_report = AsyncMock()
         return monitor
 
     @pytest.fixture
