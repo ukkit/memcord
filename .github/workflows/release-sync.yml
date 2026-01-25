@@ -408,14 +408,17 @@ jobs:
               SYNC_MODE="Content-based sync"
               [ "${{ inputs.force_replace }}" == "true" ] && SYNC_MODE="Force replace"
 
-              git commit -m "🚀 Release ${{ needs.validate-inputs.outputs.release_tag }}
+              git commit -m "$(cat <<EOF
+🚀 Release ${{ needs.validate-inputs.outputs.release_tag }}
 
 Synced from ${{ env.SOURCE_REPO }} @ $SOURCE_COMMIT
 
 📊 Mode: $SYNC_MODE
 📊 Files changed: $CHANGED_FILES
 
-Co-authored-by: Release Bot <release-bot@memcord.dev>"
+Co-authored-by: Release Bot <release-bot@memcord.dev>
+EOF
+)"
 
               echo "has_changes=true" >> "$GITHUB_OUTPUT"
             else
