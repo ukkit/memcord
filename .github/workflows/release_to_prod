@@ -1,0 +1,525 @@
+name: Release Sync to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Release version/tag (e.g., v2.4.0)'
+        required: true
+        type: string
+      target_branch:
+        description: 'Target branch in production repo'
+        required: false
+        default: 'main'
+        type: choice
+        options:
+          - main
+          - master
+      sync_method:
+        description: 'Sync method'
+        required: false
+        default: 'pull_request'
+        type: choice
+        options:
+          - pull_request
+          - direct_push
+      exclusion_list:
+        description: 'Additional files/folders to exclude (comma-separated)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Dry run - show what would be synced without making changes'
+        required: false
+        default: false
+        type: boolean
+      force_replace:
+        description: 'Force replace - sync all files regardless of modification status'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  actions: read
+
+concurrency:
+  group: release-sync-${{ inputs.target_branch }}-${{ inputs.release_version }}
+  cancel-in-progress: false
+
+env:
+  SOURCE_REPO: 'ukkit/memcord_dev'
+  TARGET_REPO: 'ukkit/memcord'
+
+jobs:
+  validate-inputs:
+    name: Validate Release Inputs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      release_tag: ${{ steps.validate.outputs.release_tag }}
+      target_branch: ${{ steps.validate.outputs.target_branch }}
+      exclusions: ${{ steps.validate.outputs.exclusions }}
+    steps:
+      - name: Validate inputs
+        id: validate
+        shell: bash
+        run: |
+          # Validate release version format (semver with optional pre-release)
+          if [[ ! "${{ inputs.release_version }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "❌ Invalid release version format. Use semantic versioning (e.g., v2.4.0 or v2.4.0-beta.1)"
+            exit 1
+          fi
+
+          {
+            echo "release_tag=${{ inputs.release_version }}"
+            echo "target_branch=${{ inputs.target_branch }}"
+            echo "exclusions=${{ inputs.exclusion_list }}"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "✅ Input validation passed"
+          echo "📋 Release: ${{ inputs.release_version }}"
+          echo "📋 Target Branch: ${{ inputs.target_branch }}"
+          echo "📋 Sync Method: ${{ inputs.sync_method }}"
+          echo "📋 Dry Run: ${{ inputs.dry_run }}"
+          echo "📋 Force Replace: ${{ inputs.force_replace }}"
+
+  prepare-sync:
+    name: Prepare Sync Operation
+    needs: validate-inputs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      exclusion_patterns: ${{ steps.exclusions.outputs.patterns }}
+      sync_summary: ${{ steps.prepare.outputs.summary }}
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup exclusion patterns
+        id: exclusions
+        shell: bash
+        run: |
+          # Default exclusions for memcord
+          DEFAULT_EXCLUSIONS=(
+            # Git and CI
+            ".git/"
+            ".github/workflows/"
+            ".releaseexclude"
+
+            # Development files - NOT for public repo
+            "OPTIMIZE_PLAN.md"
+            "SMART_SAVE.md"
+            "TODO.md"
+            "CLAUDE.md"
+            "CLAUDE-RECOVERY-PROMPT.md"
+            "SESSION-RECOVERY.md"
+            "TASK-MATRIX.md"
+            "DRY_MAINTAINABILITY_ANALYSIS.md"
+            "TESTING_METHODOLOGY_VALIDATION.md"
+            "PR-DESCRIPTION*.md"
+            "PR-READINESS*.md"
+
+            # Claude Code internal files
+            ".claude/settings.local.json"
+            ".claude/skills/"
+            ".claude/agents/"
+            ".claude/utils/"
+
+            # Scripts (internal dev tools)
+            "scripts/publish-to-main.sh"
+            "scripts/publish-to-main.ps1"
+
+            # Python artifacts
+            "__pycache__/"
+            "*.pyc"
+            "*.pyo"
+            ".pytest_cache/"
+            ".mypy_cache/"
+            ".ruff_cache/"
+            "*.egg-info/"
+            "dist/"
+            "build/"
+            ".eggs/"
+
+            # Virtual environments
+            ".venv/"
+            "venv/"
+            "env/"
+
+            # IDE and editor files
+            ".vscode/"
+            ".idea/"
+            "*.swp"
+            "*.swo"
+            "*~"
+
+            # OS files
+            ".DS_Store"
+            "Thumbs.db"
+
+            # Environment and secrets
+            ".env"
+            ".env.local"
+            ".env.development"
+            ".env.test"
+            ".env.production"
+
+            # Logs and temp files
+            "*.log"
+            "*.tmp"
+            "*.temp"
+            ".tmp/"
+            ".temp/"
+            "tmpclaude-*"
+
+            # Coverage and test artifacts
+            "coverage/"
+            ".coverage"
+            "htmlcov/"
+
+            # Data directories (user-specific)
+            "memory_slots/"
+            "shared_memories/"
+            "archives/"
+            "cache/"
+            "logs/"
+          )
+
+          # Load exclusions from .releaseexclude file if it exists
+          EXCLUDE_FILE=".releaseexclude"
+          if [ -f "$EXCLUDE_FILE" ]; then
+            echo "📄 Loading exclusions from $EXCLUDE_FILE"
+            while IFS= read -r line; do
+              # Skip empty lines and comments
+              if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
+                DEFAULT_EXCLUSIONS+=("$line")
+              fi
+            done < "$EXCLUDE_FILE"
+          fi
+
+          # Add user-provided exclusions
+          if [ -n "${{ needs.validate-inputs.outputs.exclusions }}" ]; then
+            IFS=',' read -ra USER_EXCLUSIONS <<< "${{ needs.validate-inputs.outputs.exclusions }}"
+            for exclusion in "${USER_EXCLUSIONS[@]}"; do
+              exclusion=$(echo "$exclusion" | xargs)
+              if [ -n "$exclusion" ]; then
+                DEFAULT_EXCLUSIONS+=("$exclusion")
+              fi
+            done
+          fi
+
+          # Convert to JSON array
+          if ! EXCLUSION_JSON=$(printf '%s\n' "${DEFAULT_EXCLUSIONS[@]}" | jq -R -s -c 'split("\n")[:-1]'); then
+            echo "❌ Failed to convert exclusions to JSON"
+            exit 1
+          fi
+
+          if [ -z "$EXCLUSION_JSON" ] || [ "$EXCLUSION_JSON" = "null" ]; then
+            echo "❌ Invalid exclusion JSON generated"
+            exit 1
+          fi
+
+          echo "patterns=$EXCLUSION_JSON" >> "$GITHUB_OUTPUT"
+
+          echo "🚫 Exclusion patterns configured:"
+          printf '%s\n' "${DEFAULT_EXCLUSIONS[@]}"
+
+      - name: Prepare sync operation
+        id: prepare
+        shell: bash
+        run: |
+          echo "📊 Analyzing files for sync..."
+
+          TOTAL_FILES=$(find . -type f -not -path './.git/*' | wc -l)
+
+          SUMMARY="Release ${{ needs.validate-inputs.outputs.release_tag }} sync preparation:
+          - Source: ${{ env.SOURCE_REPO }}
+          - Target: ${{ env.TARGET_REPO }}
+          - Branch: ${{ needs.validate-inputs.outputs.target_branch }}
+          - Total files: $TOTAL_FILES
+          - Dry run: ${{ inputs.dry_run }}
+          - Force replace: ${{ inputs.force_replace }}"
+
+          {
+            echo "summary<<EOF"
+            echo "$SUMMARY"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  sync-files:
+    name: Sync Files to Target Repository
+    needs: [validate-inputs, prepare-sync]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      has_changes: ${{ steps.sync.outputs.has_changes }}
+      dry_run_output: ${{ steps.sync.outputs.dry_run_output }}
+      dry_run_raw: ${{ steps.sync.outputs.dry_run_raw }}
+    if: ${{ !failure() && !cancelled() }}
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          path: source
+
+      - name: Checkout target repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.TARGET_REPO }}
+          token: ${{ secrets.RELEASE_PAT }}
+          path: target
+          fetch-depth: 0
+
+      - name: Validate source repository state
+        shell: bash
+        run: |
+          cd source
+          echo "🔍 Validating source repository state..."
+
+          if ! git tag -l | grep -q "^${{ needs.validate-inputs.outputs.release_tag }}$"; then
+            echo "❌ Release tag '${{ needs.validate-inputs.outputs.release_tag }}' not found"
+            echo "Available tags:"
+            git tag -l | tail -10
+            exit 1
+          fi
+
+          echo "📋 Checking out release tag: ${{ needs.validate-inputs.outputs.release_tag }}"
+          git checkout "${{ needs.validate-inputs.outputs.release_tag }}"
+
+          CURRENT_TAG=$(git describe --exact-match --tags HEAD 2>/dev/null || echo "none")
+          if [ "$CURRENT_TAG" != "${{ needs.validate-inputs.outputs.release_tag }}" ]; then
+            echo "❌ Not on expected tag"
+            exit 1
+          fi
+
+          echo "✅ Source validated: ${{ needs.validate-inputs.outputs.release_tag }}"
+          echo "📋 Commit: $(git rev-parse HEAD)"
+
+      - name: Setup Git configuration
+        shell: bash
+        run: |
+          cd target
+          git config user.name "Release Bot"
+          git config user.email "release-bot@memcord.dev"
+
+      - name: Create release branch
+        if: ${{ inputs.sync_method == 'pull_request' }}
+        shell: bash
+        run: |
+          cd target
+          BRANCH_NAME="release/${{ needs.validate-inputs.outputs.release_tag }}"
+
+          if git show-ref --verify --quiet "refs/heads/$BRANCH_NAME"; then
+            git branch -D "$BRANCH_NAME"
+          fi
+
+          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
+            git push origin --delete "$BRANCH_NAME" || true
+          fi
+
+          git checkout -b "$BRANCH_NAME"
+          echo "RELEASE_BRANCH=$BRANCH_NAME" >> "$GITHUB_ENV"
+
+      - name: Sync files with exclusions
+        id: sync
+        shell: bash
+        run: |
+          echo "🔄 Starting file synchronization..."
+
+          EXCLUSIONS='${{ needs.prepare-sync.outputs.exclusion_patterns }}'
+
+          if [ -z "$EXCLUSIONS" ] || [ "$EXCLUSIONS" = "null" ]; then
+            echo "❌ No exclusion patterns provided"
+            exit 1
+          fi
+
+          echo "$EXCLUSIONS" | jq -r '.[]' > /tmp/rsync_exclude.txt
+
+          echo "📝 Exclusion patterns:"
+          cat /tmp/rsync_exclude.txt
+
+          RSYNC_OPTIONS="-avh --itemize-changes --exclude-from=/tmp/rsync_exclude.txt --compress --stats"
+
+          if [ "${{ inputs.force_replace }}" == "true" ]; then
+            echo "⚠️ FORCE REPLACE MODE"
+            RSYNC_OPTIONS="$RSYNC_OPTIONS --delete --force --ignore-times"
+          else
+            RSYNC_OPTIONS="$RSYNC_OPTIONS --delete -c"
+          fi
+
+          if [ "${{ inputs.dry_run }}" == "true" ]; then
+            echo "🔍 DRY RUN - No actual changes"
+
+            rsync --dry-run $RSYNC_OPTIONS source/ target/ > /tmp/sync_output.txt 2>&1 || true
+
+            FILES_TO_SYNC=$(grep -cE "^[<>ch.*]" /tmp/sync_output.txt || echo "0")
+            FILES_TO_DELETE=$(grep -c "^deleting" /tmp/sync_output.txt || echo "0")
+
+            echo "=== DRY RUN RESULTS ===" > /tmp/formatted_output.txt
+            echo "Files to sync: $FILES_TO_SYNC" >> /tmp/formatted_output.txt
+            echo "Files to delete: $FILES_TO_DELETE" >> /tmp/formatted_output.txt
+            echo "" >> /tmp/formatted_output.txt
+
+            if [ "$FILES_TO_SYNC" -gt 0 ]; then
+              echo "🔄 Files to sync:" >> /tmp/formatted_output.txt
+              grep -E "^[<>ch.*]" /tmp/sync_output.txt | sed 's/^/  /' >> /tmp/formatted_output.txt
+            fi
+
+            if [ "$FILES_TO_DELETE" -gt 0 ]; then
+              echo "🗑️ Files to delete:" >> /tmp/formatted_output.txt
+              grep "^deleting" /tmp/sync_output.txt | sed 's/^deleting /  /' >> /tmp/formatted_output.txt
+            fi
+
+            cat /tmp/formatted_output.txt
+
+            {
+              echo "dry_run_output<<EOF"
+              cat /tmp/formatted_output.txt
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+
+            {
+              echo "dry_run_raw<<EOF"
+              cat /tmp/sync_output.txt
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "🚀 Performing sync..."
+            rsync $RSYNC_OPTIONS source/ target/
+
+            cd target
+
+            if ! git diff --quiet || ! git diff --cached --quiet; then
+              echo "📝 Changes detected"
+              git add -A
+
+              CHANGED_FILES=$(git diff --cached --name-status | wc -l)
+              SOURCE_COMMIT=$(cd ../source && git rev-parse HEAD)
+
+              SYNC_MODE="Content-based sync"
+              [ "${{ inputs.force_replace }}" == "true" ] && SYNC_MODE="Force replace"
+
+              git commit -m "🚀 Release ${{ needs.validate-inputs.outputs.release_tag }}
+
+Synced from ${{ env.SOURCE_REPO }} @ $SOURCE_COMMIT
+
+📊 Mode: $SYNC_MODE
+📊 Files changed: $CHANGED_FILES
+
+Co-authored-by: Release Bot <release-bot@memcord.dev>"
+
+              echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "📝 No changes detected"
+              echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Push changes
+        if: steps.sync.outputs.has_changes == 'true' && inputs.dry_run == false
+        shell: bash
+        run: |
+          cd target
+
+          if [ "${{ inputs.sync_method }}" == "direct_push" ]; then
+            echo "📤 Pushing to ${{ needs.validate-inputs.outputs.target_branch }}"
+            git push origin HEAD:${{ needs.validate-inputs.outputs.target_branch }}
+          else
+            echo "📤 Pushing release branch: $RELEASE_BRANCH"
+            git push origin "$RELEASE_BRANCH"
+          fi
+
+          echo "✅ Push completed"
+
+      - name: Create Pull Request
+        if: steps.sync.outputs.has_changes == 'true' && inputs.sync_method == 'pull_request' && inputs.dry_run == false
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.RELEASE_PAT }}
+          script: |
+            const syncMode = '${{ inputs.force_replace }}' === 'true' ? '⚠️ Force Replace' : '📊 Standard Sync';
+
+            const { data: pr } = await github.rest.pulls.create({
+              owner: 'ukkit',
+              repo: 'memcord',
+              title: `🚀 Release ${{ needs.validate-inputs.outputs.release_tag }}`,
+              head: process.env.RELEASE_BRANCH,
+              base: '${{ needs.validate-inputs.outputs.target_branch }}',
+              body: `## Release Sync: ${{ needs.validate-inputs.outputs.release_tag }}
+
+This PR syncs files from the development repository for release ${{ needs.validate-inputs.outputs.release_tag }}.
+
+### 📋 Details
+- **Source**: ${{ env.SOURCE_REPO }}
+- **Target Branch**: ${{ needs.validate-inputs.outputs.target_branch }}
+- **Sync Mode**: ${syncMode}
+- **Triggered By**: @${{ github.actor }}
+
+### ✅ Pre-merge Checklist
+- [ ] Review all file changes
+- [ ] Verify no sensitive files included
+- [ ] Confirm tests pass
+- [ ] Update release notes if needed
+
+### 🔗 Links
+- [Source Release](https://github.com/${{ env.SOURCE_REPO }}/releases/tag/${{ needs.validate-inputs.outputs.release_tag }})
+- [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+---
+*Automated by Release Sync workflow*`
+            });
+
+            console.log(`✅ PR created: ${pr.html_url}`);
+
+            await github.rest.issues.addLabels({
+              owner: 'ukkit',
+              repo: 'memcord',
+              issue_number: pr.number,
+              labels: ['release', 'automated']
+            });
+
+  summary:
+    name: Generate Summary
+    needs: [validate-inputs, prepare-sync, sync-files]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    if: always()
+    steps:
+      - name: Generate workflow summary
+        shell: bash
+        run: |
+          echo "# 🚀 Release Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "${{ needs.prepare-sync.outputs.sync_summary }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ inputs.dry_run }}" == "true" ]; then
+            echo "## 🔍 Dry Run Results" >> $GITHUB_STEP_SUMMARY
+            echo "No actual changes were made." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "${{ needs.sync-files.outputs.dry_run_output }}" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ✅ Sync Results" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ needs.sync-files.outputs.has_changes }}" == "true" ]; then
+              echo "Files synchronized successfully!" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "No changes - repositories already in sync." >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 🔗 Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [Source Repository](https://github.com/${{ env.SOURCE_REPO }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [Target Repository](https://github.com/${{ env.TARGET_REPO }})" >> $GITHUB_STEP_SUMMARY
