@@ -440,7 +440,7 @@ class DiskCache:
 
     def _get_cache_key(self, key: str) -> str:
         """Generate cache key from input key."""
-        return hashlib.md5(key.encode("utf-8")).hexdigest()
+        return hashlib.md5(key.encode("utf-8"), usedforsecurity=False).hexdigest()
 
     async def _save_index(self):
         """Save cache index to disk."""
@@ -811,7 +811,7 @@ def generate_search_cache_key(query: SearchQuery) -> str:
 
     # Create deterministic hash
     query_str = json.dumps(query_data, sort_keys=True)
-    return f"search:{hashlib.md5(query_str.encode('utf-8')).hexdigest()}"
+    return f"search:{hashlib.md5(query_str.encode('utf-8'), usedforsecurity=False).hexdigest()}"
 
 
 def generate_stats_cache_key(stats_type: str, identifier: str | None = None) -> str:

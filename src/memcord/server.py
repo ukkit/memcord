@@ -1439,8 +1439,10 @@ class ChatMemoryServer:
             if not tags:
                 return [TextContent(type="text", text="Error: No tags specified to add")]
 
+            if not slot_name:
+                return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
+
             results = []
-            assert slot_name is not None  # Already checked above
             for tag in tags:
                 success = await self.storage.add_tag_to_slot(slot_name, tag)
                 if success:
@@ -1454,8 +1456,10 @@ class ChatMemoryServer:
             if not tags:
                 return [TextContent(type="text", text="Error: No tags specified to remove")]
 
+            if not slot_name:
+                return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
+
             results = []
-            assert slot_name is not None  # Already checked above
             for tag in tags:
                 success = await self.storage.remove_tag_from_slot(slot_name, tag)
                 if success:
@@ -1466,7 +1470,9 @@ class ChatMemoryServer:
             return [TextContent(type="text", text="\n".join(results))]
 
         elif action == "list":
-            assert slot_name is not None  # slot_name must be set for list action
+            if not slot_name:
+                return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
+
             slot = await self.storage.read_memory(slot_name)
             if not slot:
                 return [TextContent(type="text", text=f"Memory slot '{slot_name}' not found")]
@@ -1504,7 +1510,9 @@ class ChatMemoryServer:
             if not group_path:
                 return [TextContent(type="text", text="Error: Group path is required for 'set' action")]
 
-            assert slot_name is not None  # Already checked above
+            if not slot_name:
+                return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
+
             success = await self.storage.set_slot_group(slot_name, group_path)
             if success:
                 return [TextContent(type="text", text=f"Set group '{group_path}' for memory slot '{slot_name}'")]
@@ -1512,7 +1520,9 @@ class ChatMemoryServer:
                 return [TextContent(type="text", text=f"Failed to set group for '{slot_name}'")]
 
         elif action == "remove":
-            assert slot_name is not None  # Already checked above
+            if not slot_name:
+                return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
+
             success = await self.storage.set_slot_group(slot_name, None)
             if success:
                 return [TextContent(type="text", text=f"Removed group assignment from memory slot '{slot_name}'")]
