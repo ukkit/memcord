@@ -47,9 +47,9 @@ class TestInstallShScript:
 
     def test_script_clones_correct_repo(self, script_content):
         """Test that install.sh clones from the correct GitHub repository."""
-        assert (
-            "git clone https://github.com/ukkit/memcord.git" in script_content
-        ), "install.sh should clone from correct GitHub URL"
+        assert "git clone https://github.com/ukkit/memcord.git" in script_content, (
+            "install.sh should clone from correct GitHub URL"
+        )
 
     def test_script_checks_existing_data(self, script_content):
         """Test that install.sh checks for existing memory_slots data."""
@@ -59,9 +59,9 @@ class TestInstallShScript:
     def test_script_runs_data_protection(self, script_content):
         """Test that install.sh runs data protection script when needed."""
         assert "utilities/protect_data.py" in script_content, "install.sh should reference data protection script"
-        assert (
-            "python3 utilities/protect_data.py" in script_content
-        ), "install.sh should run data protection with python3"
+        assert "python3 utilities/protect_data.py" in script_content, (
+            "install.sh should run data protection with python3"
+        )
 
     def test_script_creates_venv(self, script_content):
         """Test that install.sh creates virtual environment with uv."""
@@ -93,9 +93,9 @@ class TestInstallShScript:
         assert ".mcp.json" in script_content, "install.sh should mention .mcp.json"
         assert "claude_desktop_config.json" in script_content, "install.sh should mention claude_desktop_config.json"
         assert ".vscode/mcp.json" in script_content, "install.sh should mention .vscode/mcp.json"
-        assert (
-            ".antigravity/mcp_config.json" in script_content
-        ), "install.sh should mention .antigravity/mcp_config.json"
+        assert ".antigravity/mcp_config.json" in script_content, (
+            "install.sh should mention .antigravity/mcp_config.json"
+        )
 
 
 # =============================================================================
@@ -123,15 +123,15 @@ class TestInstallPs1Script:
 
     def test_script_uses_error_action_stop(self, script_content):
         """Test that install.ps1 uses ErrorActionPreference Stop."""
-        assert (
-            '$ErrorActionPreference = "Stop"' in script_content
-        ), "install.ps1 should set ErrorActionPreference to Stop"
+        assert '$ErrorActionPreference = "Stop"' in script_content, (
+            "install.ps1 should set ErrorActionPreference to Stop"
+        )
 
     def test_script_clones_correct_repo(self, script_content):
         """Test that install.ps1 clones from the correct GitHub repository."""
-        assert (
-            "git clone https://github.com/ukkit/memcord.git" in script_content
-        ), "install.ps1 should clone from correct GitHub URL"
+        assert "git clone https://github.com/ukkit/memcord.git" in script_content, (
+            "install.ps1 should clone from correct GitHub URL"
+        )
 
     def test_script_checks_existing_data(self, script_content):
         """Test that install.ps1 checks for existing memory_slots data."""
@@ -141,9 +141,9 @@ class TestInstallPs1Script:
     def test_script_runs_data_protection(self, script_content):
         """Test that install.ps1 runs data protection script when needed."""
         assert "utilities/protect_data.py" in script_content, "install.ps1 should reference data protection script"
-        assert (
-            "python utilities/protect_data.py" in script_content
-        ), "install.ps1 should run data protection with python"
+        assert "python utilities/protect_data.py" in script_content, (
+            "install.ps1 should run data protection with python"
+        )
 
     def test_script_checks_uv_installed(self, script_content):
         """Test that install.ps1 checks if uv is installed."""
@@ -180,9 +180,9 @@ class TestInstallPs1Script:
     def test_script_shows_claude_desktop_config_location(self, script_content):
         """Test that install.ps1 shows Claude Desktop config location."""
         assert "APPDATA" in script_content, "install.ps1 should reference APPDATA for config location"
-        assert (
-            "Claude\\claude_desktop_config.json" in script_content
-        ), "install.ps1 should show Claude Desktop config path"
+        assert "Claude\\claude_desktop_config.json" in script_content, (
+            "install.ps1 should show Claude Desktop config path"
+        )
 
 
 # =============================================================================
@@ -210,9 +210,9 @@ class TestGenerateConfigScript:
 
     def test_script_has_shebang(self, script_content):
         """Test that generate-config.py has proper Python shebang."""
-        assert script_content.startswith(
-            "#!/usr/bin/env python3"
-        ), "generate-config.py should start with #!/usr/bin/env python3"
+        assert script_content.startswith("#!/usr/bin/env python3"), (
+            "generate-config.py should start with #!/usr/bin/env python3"
+        )
 
     def test_script_can_be_imported(self):
         """Test that generate-config.py can be imported as a module."""
@@ -472,9 +472,9 @@ class TestConfigTemplates:
         for template_path, servers_key in templates:
             with open(template_path) as f:
                 config = json.load(f)
-            assert (
-                config[servers_key]["memcord"]["command"] == "uv"
-            ), f"Template {template_path} should use 'uv' command"
+            assert config[servers_key]["memcord"]["command"] == "uv", (
+                f"Template {template_path} should use 'uv' command"
+            )
 
 
 if __name__ == "__main__":

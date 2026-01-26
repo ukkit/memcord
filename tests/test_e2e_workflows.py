@@ -79,9 +79,9 @@ class TestBasicWorkflows:
         for query, expected_slot in test_cases:
             results = await storage.search_memory(SearchQuery(query=query))
             assert len(results) > 0, f"Should find results for '{query}'"
-            assert any(
-                expected_slot in r.slot_name for r in results
-            ), f"Should find '{expected_slot}' when searching for '{query}'"
+            assert any(expected_slot in r.slot_name for r in results), (
+                f"Should find '{expected_slot}' when searching for '{query}'"
+            )
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -421,9 +421,9 @@ class TestRealWorldScenarios:
         for keyword, expected_day in test_searches:
             results = await storage.search_memory(SearchQuery(query=keyword))
             assert len(results) > 0, f"Should find content for '{keyword}'"
-            assert any(
-                expected_day in r.slot_name for r in results
-            ), f"Should find '{expected_day}' when searching '{keyword}'"
+            assert any(expected_day in r.slot_name for r in results), (
+                f"Should find '{expected_day}' when searching '{keyword}'"
+            )
 
 
 class TestCommandInteractions:

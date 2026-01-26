@@ -563,24 +563,24 @@ class TestSelectEntrySlotResolution:
         # Note: slot name avoids SQL keywords like "select" which are blocked
         name_result = await server.call_tool_direct("memcord_name", {"slot_name": "entry-test-slot"})
         assert "active" in name_result[0].text.lower(), f"memcord_name failed: {name_result[0].text}"
-        assert (
-            server.storage.get_current_slot() == "entry-test-slot"
-        ), f"Current slot not set after memcord_name: got {server.storage.get_current_slot()!r}"
+        assert server.storage.get_current_slot() == "entry-test-slot", (
+            f"Current slot not set after memcord_name: got {server.storage.get_current_slot()!r}"
+        )
 
         save_result = await server.call_tool_direct("memcord_save", {"chat_text": "Entry content"})
         assert "saved" in save_result[0].text.lower(), f"memcord_save failed: {save_result[0].text}"
 
         # Verify current slot is still active after save
-        assert (
-            server.storage.get_current_slot() == "entry-test-slot"
-        ), f"Current slot changed after save: got {server.storage.get_current_slot()!r}"
+        assert server.storage.get_current_slot() == "entry-test-slot", (
+            f"Current slot changed after save: got {server.storage.get_current_slot()!r}"
+        )
 
         # Select entry without slot_name
         result = await server.call_tool_direct("memcord_select_entry", {"relative_time": "latest"})
 
-        assert (
-            "Entry content" in result[0].text or "entry-test-slot" in result[0].text
-        ), f"select_entry failed: {result[0].text}"
+        assert "Entry content" in result[0].text or "entry-test-slot" in result[0].text, (
+            f"select_entry failed: {result[0].text}"
+        )
 
     @pytest.mark.asyncio
     async def test_select_entry_explicit_slot_overrides(self, test_server):

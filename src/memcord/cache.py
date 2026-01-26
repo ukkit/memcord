@@ -533,7 +533,9 @@ class UsagePatternAnalyzer:
 
             # Track co-access patterns (items accessed together)
             recent_keys = {
-                k for k, t in self._access_history[-10:] if (now - t).total_seconds() < 300  # Within 5 minutes
+                k
+                for k, t in self._access_history[-10:]
+                if (now - t).total_seconds() < 300  # Within 5 minutes
             }
             for other_key in recent_keys:
                 if other_key != key:
