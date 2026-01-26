@@ -39,7 +39,7 @@ on:
         type: boolean
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
   issues: write
   actions: read
@@ -258,7 +258,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      contents: read
+      contents: write
     outputs:
       has_changes: ${{ steps.sync.outputs.has_changes }}
       dry_run_output: ${{ steps.sync.outputs.dry_run_output }}
@@ -283,25 +283,26 @@ jobs:
         shell: bash
         run: |
           cd source
+          TAG="${{ needs.validate-inputs.outputs.release_tag }}"
           echo "🔍 Validating source repository state..."
 
-          if ! git tag -l | grep -q "^${{ needs.validate-inputs.outputs.release_tag }}$"; then
-            echo "❌ Release tag '${{ needs.validate-inputs.outputs.release_tag }}' not found"
-            echo "Available tags:"
-            git tag -l | tail -10
-            exit 1
+          if git tag -l | grep -q "^${TAG}$"; then
+            echo "📋 Found existing tag: $TAG"
+            git checkout "$TAG"
+          else
+            echo "📋 Tag $TAG not found — creating on current HEAD"
+            git tag "$TAG"
+            git push origin "$TAG"
+            echo "🏷️ Created and pushed tag: $TAG"
           fi
 
-          echo "📋 Checking out release tag: ${{ needs.validate-inputs.outputs.release_tag }}"
-          git checkout "${{ needs.validate-inputs.outputs.release_tag }}"
-
           CURRENT_TAG=$(git describe --exact-match --tags HEAD 2>/dev/null || echo "none")
-          if [ "$CURRENT_TAG" != "${{ needs.validate-inputs.outputs.release_tag }}" ]; then
+          if [ "$CURRENT_TAG" != "$TAG" ]; then
             echo "❌ Not on expected tag"
             exit 1
           fi
 
-          echo "✅ Source validated: ${{ needs.validate-inputs.outputs.release_tag }}"
+          echo "✅ Source validated: $TAG"
           echo "📋 Commit: $(git rev-parse HEAD)"
 
       - name: Setup Git configuration
