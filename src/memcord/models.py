@@ -163,7 +163,7 @@ class MemorySlot(BaseModel):
             "c:\\program",
             "\\\\.\\pipe\\",
             "/var/log/",
-            "/tmp/",  # nosec: B108
+            "/tmp/",
             "/usr/bin/",
             "/bin/",
         ]
