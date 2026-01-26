@@ -408,14 +408,18 @@ jobs:
               SYNC_MODE="Content-based sync"
               [ "${{ inputs.force_replace }}" == "true" ] && SYNC_MODE="Force replace"
 
-              git commit -m "Release ${{ needs.validate-inputs.outputs.release_tag }}
+              {
+                echo "Release ${{ needs.validate-inputs.outputs.release_tag }}"
+                echo ""
+                echo "Synced from ${{ env.SOURCE_REPO }} @ $SOURCE_COMMIT"
+                echo ""
+                echo "Mode: $SYNC_MODE"
+                echo "Files changed: $CHANGED_FILES"
+                echo ""
+                echo "Co-authored-by: Release Bot <release-bot@memcord.dev>"
+              } > /tmp/commit_msg.txt
 
-Synced from ${{ env.SOURCE_REPO }} @ $SOURCE_COMMIT
-
-Mode: $SYNC_MODE
-Files changed: $CHANGED_FILES
-
-Co-authored-by: Release Bot <release-bot@memcord.dev>"
+              git commit -F /tmp/commit_msg.txt
 
               echo "has_changes=true" >> "$GITHUB_OUTPUT"
             else
@@ -448,34 +452,38 @@ Co-authored-by: Release Bot <release-bot@memcord.dev>"
           script: |
             const syncMode = '${{ inputs.force_replace }}' === 'true' ? '⚠️ Force Replace' : '📊 Standard Sync';
 
+            const prBody = [
+              `## Release Sync: ${{ needs.validate-inputs.outputs.release_tag }}`,
+              '',
+              `This PR syncs files from the development repository for release ${{ needs.validate-inputs.outputs.release_tag }}.`,
+              '',
+              '### 📋 Details',
+              `- **Source**: ${{ env.SOURCE_REPO }}`,
+              `- **Target Branch**: ${{ needs.validate-inputs.outputs.target_branch }}`,
+              `- **Sync Mode**: ${syncMode}`,
+              `- **Triggered By**: @${{ github.actor }}`,
+              '',
+              '### ✅ Pre-merge Checklist',
+              '- [ ] Review all file changes',
+              '- [ ] Verify no sensitive files included',
+              '- [ ] Confirm tests pass',
+              '- [ ] Update release notes if needed',
+              '',
+              '### 🔗 Links',
+              `- [Source Release](https://github.com/${{ env.SOURCE_REPO }}/releases/tag/${{ needs.validate-inputs.outputs.release_tag }})`,
+              `- [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})`,
+              '',
+              '---',
+              '*Automated by Release Sync workflow*',
+            ].join('\n');
+
             const { data: pr } = await github.rest.pulls.create({
               owner: 'ukkit',
               repo: 'memcord',
               title: `🚀 Release ${{ needs.validate-inputs.outputs.release_tag }}`,
               head: process.env.RELEASE_BRANCH,
               base: '${{ needs.validate-inputs.outputs.target_branch }}',
-              body: `## Release Sync: ${{ needs.validate-inputs.outputs.release_tag }}
-
-This PR syncs files from the development repository for release ${{ needs.validate-inputs.outputs.release_tag }}.
-
-### 📋 Details
-- **Source**: ${{ env.SOURCE_REPO }}
-- **Target Branch**: ${{ needs.validate-inputs.outputs.target_branch }}
-- **Sync Mode**: ${syncMode}
-- **Triggered By**: @${{ github.actor }}
-
-### ✅ Pre-merge Checklist
-- [ ] Review all file changes
-- [ ] Verify no sensitive files included
-- [ ] Confirm tests pass
-- [ ] Update release notes if needed
-
-### 🔗 Links
-- [Source Release](https://github.com/${{ env.SOURCE_REPO }}/releases/tag/${{ needs.validate-inputs.outputs.release_tag }})
-- [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-
----
-*Automated by Release Sync workflow*`
+              body: prBody,
             });
 
             console.log(`✅ PR created: ${pr.html_url}`);
