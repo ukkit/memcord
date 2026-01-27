@@ -12,42 +12,45 @@
   </tr>
 </table>
 
-[![MCP Server](https://img.shields.io/badge/MCP-Server-blue)](https://github.com/modelcontextprotocol)
-  [![Claude Code](https://img.shields.io/badge/Claude-Code-purple)](https://docs.anthropic.com/claude/docs/claude-code)
-  [![Claude Desktop](https://img.shields.io/badge/Claude-Desktop-orange)](https://claude.ai/desktop)
-  [![VSCode](https://img.shields.io/badge/Visual_Studio-Code-orange)](https://code.visualstudio.com/)
-  [![Google Antigravity](https://img.shields.io/badge/Google-Antigravity-4285F4)](https://antigravity.google)
-  [![Python](https://img.shields.io/badge/Python-3.10+-green)](https://python.org)
-  [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
-  [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20A-Coffee-white)](https://buymeacoffee.com/ukkit)
+<p align="center">
+  <a href="https://github.com/modelcontextprotocol"><img src="https://img.shields.io/badge/MCP-Server-blue" alt="MCP Server"></a>
+  <a href="https://docs.anthropic.com/claude/docs/claude-code"><img src="https://img.shields.io/badge/Claude-Code-purple" alt="Claude Code"></a>
+  <a href="https://claude.ai/desktop"><img src="https://img.shields.io/badge/Claude-Desktop-orange" alt="Claude Desktop"></a>
+  <a href="https://code.visualstudio.com/"><img src="https://img.shields.io/badge/Visual_Studio-Code-orange" alt="VSCode"></a>
+  <a href="https://antigravity.google"><img src="https://img.shields.io/badge/Google-Antigravity-4285F4" alt="Google Antigravity"></a>
+  <a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.10+-green" alt="Python"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow" alt="License"></a>
+  <a href="https://github.com/ukkit/memcord/actions/workflows/ci.yml"><img src="https://github.com/ukkit/memcord/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://buymeacoffee.com/ukkit"><img src="https://img.shields.io/badge/Buy%20Me%20A-Coffee-white" alt="Buy Me a Coffee"></a>
+</p>
 
-### Never Lose Context Again
+<h2 align="center">Never Lose Context Again</h2>
+<p align="center"><em>Transform your Claude conversations into a searchable, organized knowledge base that grows with you</em></p>
 
-Transform your Claude conversations into a searchable, organized knowledge base that grows with you
+## Core Benefits
 
-## ✨ Core Benefits
+* **Infinite Memory** - Claude remembers everything across unlimited conversations with intelligent auto-summarization
+* **Your Data, Your Control** - 100% local storage with zero cloud dependencies or privacy concerns
+* **Effortless Organization** - Smart tags and folders that organize themselves around your workflow
+* **Intelligent Merging** - Automatically combines related conversations while eliminating duplicates
 
-* **🧠 Infinite Memory** - Claude remembers everything across unlimited conversations with intelligent auto-summarization
-* **🔒 Your Data, Your Control** - 100% local storage with zero cloud dependencies or privacy concerns
-* **🎯 Effortless Organization** - Smart tags and folders that organize themselves around your workflow
-* **🔗 Intelligent Merging** - Automatically combines related conversations while eliminating duplicates
+**[What's new in v2.4.0](docs/versions.md#v240---project-memory-binding--auto-detection)** — Project memory binding & auto-detection for Claude Code. See [Project Setup Workflow](#project-setup-workflow) for details.
 
-## What's new in v2.4.0
+## Prerequisites
 
-```text
-Project Memory Binding & Auto-Detection for ⭐claude code⭐:
+- **Python 3.10+** — [python.org](https://python.org)
+- **uv** (Python package manager) — install with:
 
-  - New memcord_init tool: Initialize project directories with memory slots via .memcord file
-  - New memcord_unbind tool: Remove project bindings (preserves memory data)
-  - Auto-detection: Slash commands automatically use bound slot from .memcord file
-  - Zero-config workflow: Once bound, no need to specify slot names
-  - Updated tool count: 21 tools (13 basic + 8 advanced)
-  - Enhanced documentation for project binding workflows
-```
+  **macOS / Linux:**
+  ```bash
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
+  **Windows (PowerShell):**
+  ```powershell
+  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+  ```
 
-check out [🔗 Project Setup Workflow](#-project-setup-workflow) section for details
-
-## 🚀 Quick Start
+## Quick Start
 
 **macOS / Linux:**
 ```bash
@@ -65,166 +68,32 @@ This will:
 - Generate platform-specific MCP configuration files
 - Configure Claude Desktop, Claude Code, VSCode, and Antigravity IDE
 
-### Configuration Templates
+## IDE Configuration
 
-All MCP configuration templates are in `config-templates/`. After installation, run:
+The installer auto-configures all supported IDEs. For manual setup or troubleshooting, see the detailed guides:
 
-```bash
-# Regenerate configs (useful after updates or path changes)
-uv run python scripts/generate-config.py
-
-# Windows users
-uv run python scripts/generate-config.py --platform windows
-
-# Preview changes without writing
-uv run python scripts/generate-config.py --dry-run
-```
-
-### Claude Desktop
-
-Copy the generated `claude_desktop_config.json` to your Claude Desktop config location:
-
-| Platform | Config Location |
-|----------|-----------------|
-| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
-| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
-| Linux | `~/.config/Claude/claude_desktop_config.json` |
-
-Or use the template from `config-templates/claude-desktop/`:
-
-```json
-{
-  "mcpServers": {
-    "memcord": {
-      "command": "uv",
-      "args": ["--directory", "/path/to/memcord", "run", "memcord"],
-      "env": {
-        "PYTHONPATH": "/path/to/memcord/src",
-        "MEMCORD_ENABLE_ADVANCED": "false"
-      }
-    }
-  }
-}
-```
-
-**Windows users:** Use `config-templates/claude-desktop/config.windows.json` which includes the required `cmd /c` wrapper.
-
-### VSCode with GitHub Copilot
-
-**Prerequisites:**
-- VSCode 1.102+ (MCP support is GA)
-- GitHub Copilot subscription
-- Organization/Enterprise MCP policy enabled (if applicable)
-
-**Setup:**
-
-The installer creates `.vscode/mcp.json` automatically. Or copy manually:
-
-```bash
-cp config-templates/vscode/mcp.json .vscode/mcp.json
-```
-
-The VSCode config uses `${workspaceFolder}` variables, so no path replacement needed:
-
-```json
-{
-  "servers": {
-    "memcord": {
-      "command": "uv",
-      "args": ["--directory", "${workspaceFolder}", "run", "memcord"],
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}/src",
-        "MEMCORD_ENABLE_ADVANCED": "false"
-      }
-    }
-  }
-}
-```
-
-**GitHub Copilot Agent Mode:**
-Once configured, memcord tools are available in Copilot agent mode. Use natural language:
-- "Create a memory slot for this project"
-- "Search my memories for API design decisions"
-- "Query past conversations about authentication"
-
-**[Complete VSCode Setup Guide](docs/vscode-setup.md)** - Detailed instructions for VSCode and GitHub Copilot integration.
-
-### Google Antigravity IDE
-
-The installer generates `.antigravity/mcp_config.json` automatically. Or configure manually:
-
-```json
-{
-  "mcpServers": {
-    "memcord": {
-      "command": "uv",
-      "args": ["--directory", "/absolute/path/to/memcord", "run", "memcord"],
-      "env": {
-        "PYTHONPATH": "/absolute/path/to/memcord/src",
-        "MEMCORD_ENABLE_ADVANCED": "false"
-      }
-    }
-  }
-}
-```
-
-> **Note:** Antigravity requires absolute paths.
-
-<img alt="Anti-Gravity screenshot with memcord" src="assets/image/anti-gravity.png">
-
-### Claude Code CLI
-
-The installer creates `.mcp.json` in the project root. Or add manually:
-
-```bash
-claude mcp add-json memcord '{"type":"stdio","command":"uv","args":["--directory","/path/to/memcord","run","memcord"],"env":{"PYTHONPATH":"/path/to/memcord/src"}}'
-```
-
-**Windows users:** Use `cmd` wrapper:
-```powershell
-claude mcp add-json memcord '{"type":"stdio","command":"cmd","args":["/c","uv","--directory","C:\\path\\to\\memcord","run","memcord"],"env":{"PYTHONPATH":"C:\\path\\to\\memcord\\src"}}'
-```
-
-Verify installation:
-
-```bash
-claude mcp list
-claude mcp get memcord
-```
-
-Add at top of your CLAUDE.md file:
-
-```bash
-memcord_name "NAME_OF_YOUR_PROJECT"
-```
+| IDE / Client | Guide |
+|---|---|
+| Claude Code CLI | [Installation Guide — Claude Code](docs/installation.md#claude-code-cli-recommended-) |
+| Claude Desktop | [Installation Guide — Claude Desktop](docs/installation.md#claude-desktop) |
+| VSCode + GitHub Copilot | [VSCode Setup Guide](docs/vscode-setup.md) |
+| Google Antigravity | [Installation Guide — Other MCP Apps](docs/installation.md#other-mcp-applications) |
+| Configuration templates | [`config-templates/`](config-templates/) ([README](config-templates/README.md)) |
 
 ### Manual Installation
 
 ```bash
 git clone https://github.com/ukkit/memcord.git
 cd memcord
-uv venv
-source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
-uv pip install -e .
-
-# Generate configuration files
+uv venv && uv pip install -e .
 uv run python scripts/generate-config.py
 ```
 
-### Update Existing Installation
-
-```bash
-cd /path/to/memcord
-git pull
-uv pip install -e .
-uv run python scripts/generate-config.py  # Regenerate configs
-```
-
-**[Complete Installation Guide](docs/installation.md)** - Detailed setup for Claude Code, Claude Desktop, and other MCP applications.
+See the **[Complete Installation Guide](docs/installation.md)** for updating, advanced options, and custom commands.
 
 <a id="project-setup-workflow"></a>
 
-## 🔗 Project Setup Workflow
+## Project Setup Workflow
 
 ### First-Time Setup (New Project)
 
@@ -256,7 +125,7 @@ memcord_init "my_project_name"
 3. If found, reads the slot name and uses it automatically
 4. No need to remember or type slot names!
 
-## 💻 Basic Usage
+## Basic Usage
 
 ```bash
 # Create a memory slot and save conversation
@@ -265,10 +134,10 @@ memcord_save "Our discussion about the new API design..."
 memcord_save_progress
 
 # Use existing memory slot
-memcord_use "project_meeting" 🆕
+memcord_use "project_meeting"
 
 # Navigate timeline - select specific entries
-memcord_select_entry "2 hours ago"  # or "latest", index, timestamp 🆕
+memcord_select_entry "2 hours ago"  # or "latest", index, timestamp
 
 # Privacy control - activate zero mode (no saving)
 memcord_zero  # No memory will be saved until switched to another slot
@@ -281,32 +150,30 @@ memcord_query "What did we decide about authentication?"
 memcord_merge ["project_meeting", "api_notes"] "consolidated_project"
 
 # Initialize project directory with memory slot (auto-detection for slash commands)
-memcord_init "." "my-project"  # Creates .memcord file 🆕
-memcord_unbind "."             # Removes binding 🆕
+memcord_init "." "my-project"  # Creates .memcord file
+memcord_unbind "."             # Removes binding
 
 ```
-Refer to **📖 [Complete Tools Reference](docs/tools-reference.md)** for Advanced Mode and detailed documentation for all 21 tools with examples and parameters.
+Refer to **[Complete Tools Reference](docs/tools-reference.md)** for Advanced Mode and detailed documentation for all 21 tools with examples and parameters.
 
-## 📚 Documentation
-<details><summary>⚠️ Documentation updates in progress </summary>
+## Documentation
 
-- **📚 [Installation Guide](docs/installation.md)** - Complete setup instructions for all MCP applications
-- **📃 [Feature Guide](docs/features-guide.md)** - Complete list of features
-- **📖 [Tools Reference](docs/tools-reference.md)** - Detailed documentation for all 21 tools
-- **📥 [Import & Merge Guide](docs/import-and-merge.md)** - Comprehensive guide for Phase 3 features 🆕
-- **🔍 [Search & Query Guide](docs/search-and-query.md)** - Advanced search features and natural language queries
-- **🗂️ [Usage Examples](docs/examples.md)** - Real-world workflows and practical use cases
-- **⚙️ [Data Format Specification](docs/data-format.md)** - Technical details and file formats
-- **🛠️ [Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
-
-</details>
+- **[Installation Guide](docs/installation.md)** - Complete setup instructions for all MCP applications
+- **[Feature Guide](docs/features-guide.md)** - Complete list of features
+- **[Tools Reference](docs/tools-reference.md)** - Detailed documentation for all 21 tools
+- **[Import & Merge Guide](docs/import-and-merge.md)** - Comprehensive guide for Phase 3 features
+- **[Search & Query Guide](docs/search-and-query.md)** - Advanced search features and natural language queries
+- **[Usage Examples](docs/examples.md)** - Real-world workflows and practical use cases
+- **[Data Format Specification](docs/data-format.md)** - Technical details and file formats
+- **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
+- **[Version History](docs/versions.md)** - Changelog for all releases
 
 ---
 
-💎 If you find this project helpful, consider:
+If you find this project helpful, consider:
 
- - 🌟 Starring the repository on GitHub
- - 🤝 [Support Development](https://buymeacoffee.com/ukkit)
+ - ⭐ Starring the repository on GitHub
+ - 💸 [Support Development](https://buymeacoffee.com/ukkit)
  - 🐛 Reporting bugs and suggesting features
 
 ___

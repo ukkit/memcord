@@ -261,6 +261,15 @@ Memory slots are automatically available as MCP file resources:
 
 These resources update automatically when memory slots change and can be accessed by other MCP applications.
 
+## Update Existing Installation
+
+```bash
+cd /path/to/memcord
+git pull
+uv pip install -e .
+uv run python scripts/generate-config.py  # Regenerate configs
+```
+
 ## Security & Privacy
 
 - **Local Storage Only**: All data stored locally on your machine

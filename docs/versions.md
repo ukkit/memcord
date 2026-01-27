@@ -1,3 +1,15 @@
+# Version History
+
+## v2.4.0 - Project Memory Binding & Auto-Detection
+
+```text
+  - New memcord_init tool: Initialize project directories with memory slots via .memcord file
+  - New memcord_unbind tool: Remove project bindings (preserves memory data)
+  - Auto-detection: Slash commands automatically use bound slot from .memcord file
+  - Zero-config workflow: Once bound, no need to specify slot names
+  - Updated tool count: 21 tools (13 basic + 8 advanced)
+  - Enhanced documentation for project binding workflows
+```
 
 ## v2.3.7 - Cross-Platform Support
 
