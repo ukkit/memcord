@@ -52,17 +52,26 @@ claude mcp install .
 
 #### Manual Claude Code Configuration
 
-If you prefer manual configuration or need custom settings:
+If you prefer manual configuration or need custom settings, run these from any directory — replace `/path/to/memcord` with the absolute path to your memcord installation:
 
+**macOS / Linux:**
 ```bash
-# Method 1: Project-specific (shared with team)
-claude mcp add memcord uv --directory . run memcord --scope project -e PYTHONPATH=./src -e MEMCORD_ENABLE_ADVANCED=true
+# Project-specific (shared with team via version control)
+claude mcp add memcord uv --directory /path/to/memcord run memcord --scope project -e PYTHONPATH=/path/to/memcord/src -e MEMCORD_ENABLE_ADVANCED=false
 
-# Method 2: User-wide (available across all projects)  
-claude mcp add memcord uv --directory /path/to/memcord run memcord --scope user -e PYTHONPATH=/path/to/memcord/src -e MEMCORD_ENABLE_ADVANCED=true
+# User-wide (available across all projects)
+claude mcp add memcord uv --directory /path/to/memcord run memcord --scope user -e PYTHONPATH=/path/to/memcord/src -e MEMCORD_ENABLE_ADVANCED=false
+```
 
-# Method 3: Local to current directory
-claude mcp add memcord uv --directory . run memcord -e PYTHONPATH=./src -e MEMCORD_ENABLE_ADVANCED=true
+**Windows (PowerShell):**
+
+Windows requires `cmd /c` wrapper and `add-json` to avoid argument parsing issues:
+```powershell
+# Project-specific (shared with team via version control)
+claude mcp add-json memcord '{"type":"stdio","command":"cmd","args":["/c","uv","--directory","C:\\path\\to\\memcord","run","memcord"],"env":{"PYTHONPATH":"C:\\path\\to\\memcord\\src","MEMCORD_ENABLE_ADVANCED":"false"}}' --scope project
+
+# User-wide (available across all projects)
+claude mcp add-json memcord '{"type":"stdio","command":"cmd","args":["/c","uv","--directory","C:\\path\\to\\memcord","run","memcord"],"env":{"PYTHONPATH":"C:\\path\\to\\memcord\\src","MEMCORD_ENABLE_ADVANCED":"false"}}' --scope user
 ```
 
 #### Verification
@@ -245,7 +254,7 @@ After creating the commands, use them in Claude Code:
 
 ```
 /project:memory-save project_discussion
-/project:memory-read project_discussion  
+/project:memory-read project_discussion
 /project:memory-list
 /project:search-memory API changes
 /project:query-memory "What decisions were made last week?"
@@ -256,7 +265,7 @@ After creating the commands, use them in Claude Code:
 Memory slots are automatically available as MCP file resources:
 
 - `memory://slot_name.md` - Markdown format
-- `memory://slot_name.txt` - Plain text format  
+- `memory://slot_name.txt` - Plain text format
 - `memory://slot_name.json` - JSON format
 
 These resources update automatically when memory slots change and can be accessed by other MCP applications.
