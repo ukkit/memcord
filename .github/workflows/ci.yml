@@ -1,12 +1,7 @@
 name: CI
 
 on:
-  push:
-    branches: [ main, fix-storage-health-coroutine-error ]
-  pull_request:
-    branches: [ main ]
-  schedule:
-    - cron: '0 12 * * *'  # Daily at 12:00 PM UTC
+  workflow_dispatch:  # Manual trigger only — automatic runs disabled to reduce costs
 
 jobs:
   checks:
