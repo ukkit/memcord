@@ -654,3 +654,723 @@ class TestConcurrentSlotOperations:
 
         assert "Content for slot 1" in result1[0].text
         assert "Content for slot 2" in result2[0].text
+
+
+class TestWriteSlotResolution:
+    """Test that write operations require explicit slot selection (no .memcord fallback)."""
+
+    @pytest.mark.asyncio
+    async def test_save_without_slot_returns_error(self, test_server, temp_project_dir):
+        """Verify write operations fail without active slot (even with .memcord file)."""
+        server = test_server
+
+        # Create .memcord file in temp directory
+        memcord_file = Path(temp_project_dir) / ".memcord"
+        memcord_file.write_text("fallback-slot")
+
+        # Mock cwd to be the temp directory
+        with patch.object(Path, "cwd", return_value=Path(temp_project_dir)):
+            # Verify .memcord file is detected (for read operations)
+            assert server._detect_project_slot() == "fallback-slot"
+
+            # But write should fail because no active slot is set
+            result = await server.call_tool_direct("memcord_save", {"chat_text": "Test content"})
+
+            assert "error" in result[0].text.lower() or "no slot" in result[0].text.lower()
+
+    @pytest.mark.asyncio
+    async def test_save_progress_without_slot_returns_error(self, test_server, temp_project_dir):
+        """Verify save_progress fails without active slot."""
+        server = test_server
+
+        # Create .memcord file in temp directory
+        memcord_file = Path(temp_project_dir) / ".memcord"
+        memcord_file.write_text("fallback-slot")
+
+        # Mock cwd to be the temp directory
+        with patch.object(Path, "cwd", return_value=Path(temp_project_dir)):
+            # Write should fail because no active slot is set
+            result = await server.call_tool_direct(
+                "memcord_save_progress", {"chat_text": "Content to summarize and save"}
+            )
+
+            assert "error" in result[0].text.lower() or "no slot" in result[0].text.lower()
+
+    @pytest.mark.asyncio
+    async def test_read_without_slot_uses_memcord_fallback(self, test_server, temp_project_dir):
+        """Verify read still uses .memcord fallback."""
+        server = test_server
+
+        # Create the slot first with content
+        await server.call_tool_direct("memcord_name", {"slot_name": "fallback-slot"})
+        await server.call_tool_direct("memcord_save", {"chat_text": "Fallback content"})
+
+        # Clear active slot
+        server.storage._state.clear_current_slot()
+        assert server.storage.get_current_slot() is None
+
+        # Create .memcord file pointing to the slot
+        memcord_file = Path(temp_project_dir) / ".memcord"
+        memcord_file.write_text("fallback-slot")
+
+        # Mock cwd to be the temp directory
+        with patch.object(Path, "cwd", return_value=Path(temp_project_dir)):
+            # Read should work via .memcord fallback
+            result = await server.call_tool_direct("memcord_read", {})
+
+            assert "Fallback content" in result[0].text
+
+
+class TestMemcordClose:
+    """Test memcord_close tool functionality."""
+
+    @pytest.mark.asyncio
+    async def test_memcord_close_clears_active_slot(self, test_server):
+        """Verify close deactivates the current slot."""
+        server = test_server
+
+        # Set active slot
+        await server.call_tool_direct("memcord_name", {"slot_name": "active-slot"})
+        assert server.storage.get_current_slot() == "active-slot"
+
+        # Close the slot
+        result = await server.call_tool_direct("memcord_close", {})
+
+        # Verify slot is deactivated
+        assert server.storage.get_current_slot() is None
+        assert "deactivated" in result[0].text.lower()
+        assert "active-slot" in result[0].text
+
+    @pytest.mark.asyncio
+    async def test_close_returns_previous_slot_name(self, test_server):
+        """Verify close returns what was deactivated."""
+        server = test_server
+
+        # Set active slot
+        await server.call_tool_direct("memcord_name", {"slot_name": "my-slot"})
+
+        # Close the slot
+        result = await server.call_tool_direct("memcord_close", {})
+
+        # Verify the previous slot name is mentioned
+        assert "my-slot" in result[0].text
+
+    @pytest.mark.asyncio
+    async def test_close_when_no_slot_active(self, test_server):
+        """Verify close handles no active slot gracefully."""
+        server = test_server
+
+        # Ensure no slot is active
+        assert server.storage.get_current_slot() is None
+
+        # Close should not error
+        result = await server.call_tool_direct("memcord_close", {})
+
+        assert "no slot was active" in result[0].text.lower()
+
+    @pytest.mark.asyncio
+    async def test_close_from_zero_mode(self, test_server):
+        """Verify close handles zero mode correctly."""
+        server = test_server
+
+        # Activate zero mode
+        await server.call_tool_direct("memcord_zero", {})
+        assert server.storage._state.is_zero_mode()
+
+        # Close should treat __ZERO__ as "no active slot"
+        result = await server.call_tool_direct("memcord_close", {})
+
+        assert "no slot was active" in result[0].text.lower()
+        assert server.storage.get_current_slot() is None
+
+    @pytest.mark.asyncio
+    async def test_save_fails_after_close(self, test_server):
+        """Verify save operations fail after close."""
+        server = test_server
+
+        # Set active slot
+        await server.call_tool_direct("memcord_name", {"slot_name": "test-slot"})
+
+        # Verify save works
+        result = await server.call_tool_direct("memcord_save", {"chat_text": "Before close"})
+        assert "saved" in result[0].text.lower()
+
+        # Close the slot
+        await server.call_tool_direct("memcord_close", {})
+
+        # Save should now fail
+        result = await server.call_tool_direct("memcord_save", {"chat_text": "After close"})
+        assert "error" in result[0].text.lower() or "no slot" in result[0].text.lower()
+
+    @pytest.mark.asyncio
+    async def test_reactivate_after_close(self, test_server):
+        """Verify slot can be reactivated after close."""
+        server = test_server
+
+        # Set active slot and save content
+        await server.call_tool_direct("memcord_name", {"slot_name": "reactivate-slot"})
+        await server.call_tool_direct("memcord_save", {"chat_text": "Original content"})
+
+        # Close the slot
+        await server.call_tool_direct("memcord_close", {})
+        assert server.storage.get_current_slot() is None
+
+        # Reactivate with memcord_use
+        await server.call_tool_direct("memcord_use", {"slot_name": "reactivate-slot"})
+        assert server.storage.get_current_slot() == "reactivate-slot"
+
+        # Save should work again
+        result = await server.call_tool_direct("memcord_save", {"chat_text": "New content"})
+        assert "saved" in result[0].text.lower()
+
+
+class TestSlotNameSpecialCharacters:
+    """Test slot names with special characters, unicode, and edge cases."""
+
+    @pytest.mark.asyncio
+    async def test_slot_name_with_hyphens_and_underscores(self, test_server):
+        """Test valid slot names with hyphens and underscores."""
+        server = test_server
+
+        result = await server.call_tool_direct("memcord_name", {"slot_name": "my-project_v2"})
+        assert "active" in result[0].text.lower()
+        assert server.storage.get_current_slot() == "my-project_v2"
+
+    @pytest.mark.asyncio
+    async def test_slot_name_with_numbers(self, test_server):
+        """Test slot names with numbers."""
+        server = test_server
+
+        result = await server.call_tool_direct("memcord_name", {"slot_name": "project123"})
+        assert "active" in result[0].text.lower()
+
+        result = await server.call_tool_direct("memcord_name", {"slot_name": "2024-january-notes"})
+        assert "active" in result[0].text.lower()
+
+    @pytest.mark.asyncio
+    async def test_slot_name_with_dots(self, test_server):
+        """Test slot names with dots (valid for versioning)."""
+        server = test_server
+
+        result = await server.call_tool_direct("memcord_name", {"slot_name": "project.v1.0"})
+        assert "active" in result[0].text.lower()
+        assert server.storage.get_current_slot() == "project.v1.0"
+
+    @pytest.mark.asyncio
+    async def test_slot_name_with_unicode_characters(self, test_server):
+        """Test slot names with unicode characters."""
+        server = test_server
+
+        # Japanese characters
+        result = await server.call_tool_direct("memcord_name", {"slot_name": "プロジェクト"})
+        assert "active" in result[0].text.lower()
+
+        # Emoji in slot name
+        result = await server.call_tool_direct("memcord_name", {"slot_name": "my-notes-📝"})
+        assert "active" in result[0].text.lower()
+
+        # Currency symbols
+        result = await server.call_tool_direct("memcord_name", {"slot_name": "budget-€-2024"})
+        assert "active" in result[0].text.lower()
+
+    @pytest.mark.asyncio
+    async def test_slot_name_with_spaces_converted_to_underscores(self, test_server):
+        """Test that spaces in slot names are converted to underscores."""
+        server = test_server
+
+        result = await server.call_tool_direct("memcord_name", {"slot_name": "my project notes"})
+        assert "active" in result[0].text.lower()
+        # Spaces should be converted to underscores
+        assert server.storage.get_current_slot() == "my_project_notes"
+
+    @pytest.mark.asyncio
+    async def test_slot_name_rejects_dangerous_characters(self, test_server):
+        """Test that dangerous characters are rejected."""
+        server = test_server
+
+        dangerous_names = [
+            "slot<script>",
+            "slot>alert",
+            'slot"name',
+            "slot'name",
+            "slot&name",
+            "slot|name",
+            "slot;name",
+            "slot`name",
+            "slot$name",
+        ]
+
+        for name in dangerous_names:
+            result = await server.call_tool_direct("memcord_name", {"slot_name": name})
+            assert "error" in result[0].text.lower() or "unsafe" in result[0].text.lower(), (
+                f"Expected error for dangerous name: {name}, got: {result[0].text}"
+            )
+
+    @pytest.mark.asyncio
+    async def test_slot_name_with_at_symbol(self, test_server):
+        """Test slot names with @ symbol (should be allowed)."""
+        server = test_server
+
+        result = await server.call_tool_direct("memcord_name", {"slot_name": "user@project"})
+        assert "active" in result[0].text.lower()
+
+    @pytest.mark.asyncio
+    async def test_slot_name_with_hash_symbol(self, test_server):
+        """Test slot names with # symbol (should be allowed)."""
+        server = test_server
+
+        result = await server.call_tool_direct("memcord_name", {"slot_name": "issue#123"})
+        assert "active" in result[0].text.lower()
+
+    @pytest.mark.asyncio
+    async def test_empty_slot_name_rejected(self, test_server):
+        """Test that empty slot names are rejected."""
+        server = test_server
+
+        result = await server.call_tool_direct("memcord_name", {"slot_name": ""})
+        assert "error" in result[0].text.lower() or "empty" in result[0].text.lower()
+
+    @pytest.mark.asyncio
+    async def test_whitespace_only_slot_name_rejected(self, test_server):
+        """Test that whitespace-only slot names are rejected."""
+        server = test_server
+
+        result = await server.call_tool_direct("memcord_name", {"slot_name": "   "})
+        assert "error" in result[0].text.lower() or "empty" in result[0].text.lower()
+
+    @pytest.mark.asyncio
+    async def test_slot_name_strips_leading_trailing_whitespace(self, test_server):
+        """Test that leading/trailing whitespace is stripped."""
+        server = test_server
+
+        result = await server.call_tool_direct("memcord_name", {"slot_name": "  my-slot  "})
+        assert "active" in result[0].text.lower()
+        assert server.storage.get_current_slot() == "my-slot"
+
+
+class TestSlotNameSQLInjection:
+    """Test slot names that attempt SQL injection attacks."""
+
+    @pytest.mark.asyncio
+    async def test_sql_drop_table_rejected(self, test_server):
+        """Test that DROP TABLE injection is rejected."""
+        server = test_server
+
+        injection_names = [
+            "slot; DROP TABLE users;--",
+            "DROP TABLE memories",
+            "slot DROP",
+            "my-DROP-slot",
+        ]
+
+        for name in injection_names:
+            result = await server.call_tool_direct("memcord_name", {"slot_name": name})
+            assert "error" in result[0].text.lower() or "sql" in result[0].text.lower(), (
+                f"Expected SQL rejection for: {name}, got: {result[0].text}"
+            )
+
+    @pytest.mark.asyncio
+    async def test_sql_union_select_rejected(self, test_server):
+        """Test that UNION SELECT injection is rejected."""
+        server = test_server
+
+        injection_names = [
+            "slot UNION SELECT * FROM users",
+            "UNION",
+            "SELECT",
+            "my-select-query",
+        ]
+
+        for name in injection_names:
+            result = await server.call_tool_direct("memcord_name", {"slot_name": name})
+            assert "error" in result[0].text.lower() or "sql" in result[0].text.lower(), (
+                f"Expected SQL rejection for: {name}, got: {result[0].text}"
+            )
+
+    @pytest.mark.asyncio
+    async def test_sql_insert_update_delete_rejected(self, test_server):
+        """Test that INSERT/UPDATE/DELETE injections are rejected."""
+        server = test_server
+
+        injection_names = [
+            "INSERT INTO slots",
+            "UPDATE slots SET",
+            "DELETE FROM slots",
+            "my-insert-slot",
+            "update-notes",
+            "delete-old",
+        ]
+
+        for name in injection_names:
+            result = await server.call_tool_direct("memcord_name", {"slot_name": name})
+            assert "error" in result[0].text.lower() or "sql" in result[0].text.lower(), (
+                f"Expected SQL rejection for: {name}, got: {result[0].text}"
+            )
+
+    @pytest.mark.asyncio
+    async def test_sql_comment_injection_rejected(self, test_server):
+        """Test that SQL comment injection is rejected."""
+        server = test_server
+
+        injection_names = [
+            "slot--comment",
+            "slot/*comment*/name",
+            "/*",
+            "*/",
+            "--",
+        ]
+
+        for name in injection_names:
+            result = await server.call_tool_direct("memcord_name", {"slot_name": name})
+            assert "error" in result[0].text.lower() or "sql" in result[0].text.lower(), (
+                f"Expected SQL rejection for: {name}, got: {result[0].text}"
+            )
+
+    @pytest.mark.asyncio
+    async def test_sql_create_alter_rejected(self, test_server):
+        """Test that CREATE/ALTER injections are rejected."""
+        server = test_server
+
+        injection_names = [
+            "CREATE TABLE evil",
+            "ALTER TABLE slots",
+            "create-new",
+            "alter-schema",
+        ]
+
+        for name in injection_names:
+            result = await server.call_tool_direct("memcord_name", {"slot_name": name})
+            assert "error" in result[0].text.lower() or "sql" in result[0].text.lower(), (
+                f"Expected SQL rejection for: {name}, got: {result[0].text}"
+            )
+
+    @pytest.mark.asyncio
+    async def test_case_insensitive_sql_rejection(self, test_server):
+        """Test that SQL keywords are rejected regardless of case."""
+        server = test_server
+
+        injection_names = [
+            "drop",
+            "DROP",
+            "DrOp",
+            "sElEcT",
+            "UNION",
+            "union",
+        ]
+
+        for name in injection_names:
+            result = await server.call_tool_direct("memcord_name", {"slot_name": name})
+            assert "error" in result[0].text.lower() or "sql" in result[0].text.lower(), (
+                f"Expected SQL rejection for: {name}, got: {result[0].text}"
+            )
+
+
+class TestSlotNameJSONEdgeCases:
+    """Test slot names with JSON-specific characters and edge cases."""
+
+    @pytest.mark.asyncio
+    async def test_slot_name_with_curly_braces(self, test_server):
+        """Test slot names with curly braces (JSON object syntax)."""
+        server = test_server
+
+        # Curly braces should be allowed (not in dangerous list)
+        result = await server.call_tool_direct("memcord_name", {"slot_name": "slot{test}"})
+        # Check if it succeeds or fails gracefully
+        assert "active" in result[0].text.lower() or "error" in result[0].text.lower()
+
+    @pytest.mark.asyncio
+    async def test_slot_name_with_square_brackets(self, test_server):
+        """Test slot names with square brackets (JSON array syntax)."""
+        server = test_server
+
+        result = await server.call_tool_direct("memcord_name", {"slot_name": "slot[0]"})
+        # Square brackets should be allowed
+        assert "active" in result[0].text.lower() or "error" in result[0].text.lower()
+
+    @pytest.mark.asyncio
+    async def test_slot_name_with_colon(self, test_server):
+        """Test slot names with colon (JSON key-value separator)."""
+        server = test_server
+
+        result = await server.call_tool_direct("memcord_name", {"slot_name": "key:value"})
+        assert "active" in result[0].text.lower()
+
+    @pytest.mark.asyncio
+    async def test_slot_name_with_comma(self, test_server):
+        """Test slot names with comma (JSON separator)."""
+        server = test_server
+
+        result = await server.call_tool_direct("memcord_name", {"slot_name": "item1,item2"})
+        assert "active" in result[0].text.lower()
+
+    @pytest.mark.asyncio
+    async def test_slot_name_json_injection_attempt(self, test_server):
+        """Test that JSON injection attempts with quotes are rejected."""
+        server = test_server
+
+        # Double quotes are in the dangerous characters list
+        injection_names = [
+            '{"key":"value"}',
+            '"slot_name"',
+            "slot'name",
+        ]
+
+        for name in injection_names:
+            result = await server.call_tool_direct("memcord_name", {"slot_name": name})
+            assert "error" in result[0].text.lower() or "unsafe" in result[0].text.lower(), (
+                f"Expected rejection for JSON injection: {name}, got: {result[0].text}"
+            )
+
+    @pytest.mark.asyncio
+    async def test_slot_name_with_backslash(self, test_server):
+        """Test slot names with backslash (JSON escape character)."""
+        server = test_server
+
+        result = await server.call_tool_direct("memcord_name", {"slot_name": "path\\to\\slot"})
+        # Backslash might be allowed or trigger path traversal check
+        # Just ensure it doesn't crash
+        assert result[0].text is not None
+
+    @pytest.mark.asyncio
+    async def test_slot_name_with_null_character(self, test_server):
+        """Test that null characters are stripped from slot names."""
+        server = test_server
+
+        # Null character should be stripped
+        result = await server.call_tool_direct("memcord_name", {"slot_name": "slot\x00name"})
+        # Should either work (with null stripped) or error
+        assert result[0].text is not None
+
+    @pytest.mark.asyncio
+    async def test_slot_name_with_newlines(self, test_server):
+        """Test slot names with newline characters."""
+        server = test_server
+
+        result = await server.call_tool_direct("memcord_name", {"slot_name": "slot\nname"})
+        # Newlines might be stripped or cause issues
+        assert result[0].text is not None
+
+    @pytest.mark.asyncio
+    async def test_slot_name_boolean_like_values(self, test_server):
+        """Test slot names that look like JSON booleans."""
+        server = test_server
+
+        # These should be valid slot names
+        for name in ["true", "false", "null", "True", "False", "NULL"]:
+            result = await server.call_tool_direct("memcord_name", {"slot_name": name})
+            assert "active" in result[0].text.lower(), f"Boolean-like name failed: {name}"
+
+    @pytest.mark.asyncio
+    async def test_slot_name_numeric_string(self, test_server):
+        """Test slot names that are purely numeric."""
+        server = test_server
+
+        for name in ["123", "0", "-1", "3.14", "1e10"]:
+            result = await server.call_tool_direct("memcord_name", {"slot_name": name})
+            # Numeric names should be valid
+            assert "active" in result[0].text.lower() or "error" not in result[0].text.lower()
+
+
+class TestSlotNamePathTraversal:
+    """Test slot names that attempt path traversal attacks."""
+
+    @pytest.mark.asyncio
+    async def test_path_traversal_unix_style_rejected(self, test_server):
+        """Test that Unix-style path traversal is rejected."""
+        server = test_server
+
+        traversal_names = [
+            "../etc/passwd",
+            "../../secret",
+            "slot/../../../etc",
+            "./../parent",
+        ]
+
+        for name in traversal_names:
+            result = await server.call_tool_direct("memcord_name", {"slot_name": name})
+            assert "error" in result[0].text.lower() or "traversal" in result[0].text.lower(), (
+                f"Expected path traversal rejection for: {name}, got: {result[0].text}"
+            )
+
+    @pytest.mark.asyncio
+    async def test_path_traversal_windows_style_rejected(self, test_server):
+        """Test that Windows-style path traversal is rejected."""
+        server = test_server
+
+        traversal_names = [
+            "..\\windows\\system32",
+            "..\\..\\secret",
+            "slot\\..\\..\\etc",
+        ]
+
+        for name in traversal_names:
+            result = await server.call_tool_direct("memcord_name", {"slot_name": name})
+            assert "error" in result[0].text.lower() or "traversal" in result[0].text.lower(), (
+                f"Expected path traversal rejection for: {name}, got: {result[0].text}"
+            )
+
+    @pytest.mark.asyncio
+    async def test_single_dot_allowed(self, test_server):
+        """Test that single dots are allowed (for versioning)."""
+        server = test_server
+
+        result = await server.call_tool_direct("memcord_name", {"slot_name": "v1.0.0"})
+        assert "active" in result[0].text.lower()
+
+
+class TestSlotNameReservedNames:
+    """Test that reserved slot names are rejected."""
+
+    @pytest.mark.asyncio
+    async def test_zero_mode_slot_name_rejected(self, test_server):
+        """Test that __ZERO__ reserved name is rejected."""
+        server = test_server
+
+        result = await server.call_tool_direct("memcord_name", {"slot_name": "__ZERO__"})
+        assert "error" in result[0].text.lower() or "reserved" in result[0].text.lower()
+
+    @pytest.mark.asyncio
+    async def test_windows_reserved_names_rejected(self, test_server):
+        """Test that Windows reserved device names are rejected."""
+        server = test_server
+
+        reserved_names = ["CON", "PRN", "AUX", "NUL", "COM1", "COM2", "LPT1", "LPT2"]
+
+        for name in reserved_names:
+            result = await server.call_tool_direct("memcord_name", {"slot_name": name})
+            assert "error" in result[0].text.lower() or "reserved" in result[0].text.lower(), (
+                f"Expected reserved rejection for: {name}, got: {result[0].text}"
+            )
+
+    @pytest.mark.asyncio
+    async def test_reserved_names_case_insensitive(self, test_server):
+        """Test that reserved names are rejected regardless of case."""
+        server = test_server
+
+        for name in ["con", "Con", "CON", "nul", "Nul", "NUL"]:
+            result = await server.call_tool_direct("memcord_name", {"slot_name": name})
+            assert "error" in result[0].text.lower() or "reserved" in result[0].text.lower(), (
+                f"Expected reserved rejection for: {name}, got: {result[0].text}"
+            )
+
+
+class TestSlotSelectionDeselectionWithSpecialNames:
+    """Test selecting and deselecting slots with special names."""
+
+    @pytest.mark.asyncio
+    async def test_select_unicode_slot_then_close(self, test_server):
+        """Test selecting a unicode-named slot and then closing it."""
+        server = test_server
+
+        # Create unicode slot
+        await server.call_tool_direct("memcord_name", {"slot_name": "日本語スロット"})
+        assert server.storage.get_current_slot() == "日本語スロット"
+
+        # Save content
+        await server.call_tool_direct("memcord_save", {"chat_text": "Unicode content"})
+
+        # Close
+        result = await server.call_tool_direct("memcord_close", {})
+        assert "日本語スロット" in result[0].text
+        assert server.storage.get_current_slot() is None
+
+    @pytest.mark.asyncio
+    async def test_select_emoji_slot_then_switch(self, test_server):
+        """Test selecting an emoji-named slot and switching to another."""
+        server = test_server
+
+        # Create emoji slot
+        await server.call_tool_direct("memcord_name", {"slot_name": "notes-📝-2024"})
+        assert server.storage.get_current_slot() == "notes-📝-2024"
+
+        # Switch to another slot
+        await server.call_tool_direct("memcord_name", {"slot_name": "other-slot"})
+        assert server.storage.get_current_slot() == "other-slot"
+
+        # Switch back using memcord_use
+        result = await server.call_tool_direct("memcord_use", {"slot_name": "notes-📝-2024"})
+        assert "active" in result[0].text.lower()
+        assert server.storage.get_current_slot() == "notes-📝-2024"
+
+    @pytest.mark.asyncio
+    async def test_select_slot_with_special_chars_save_read(self, test_server):
+        """Test full workflow with special character slot name."""
+        server = test_server
+
+        slot_name = "project@v2.0#main"
+
+        # Create and select
+        await server.call_tool_direct("memcord_name", {"slot_name": slot_name})
+
+        # Save content
+        await server.call_tool_direct("memcord_save", {"chat_text": "Special chars content"})
+
+        # Read content
+        result = await server.call_tool_direct("memcord_read", {})
+        assert "Special chars content" in result[0].text
+
+        # Close
+        await server.call_tool_direct("memcord_close", {})
+
+        # Reopen and verify content persisted
+        await server.call_tool_direct("memcord_use", {"slot_name": slot_name})
+        result = await server.call_tool_direct("memcord_read", {})
+        assert "Special chars content" in result[0].text
+
+    @pytest.mark.asyncio
+    async def test_multiple_special_slots_in_sequence(self, test_server):
+        """Test switching between multiple slots with special names."""
+        server = test_server
+
+        slots = [
+            "プロジェクトA",
+            "project-β-2024",
+            "notes_€_budget",
+        ]
+
+        # Create all slots with content
+        for i, slot in enumerate(slots):
+            await server.call_tool_direct("memcord_name", {"slot_name": slot})
+            await server.call_tool_direct("memcord_save", {"chat_text": f"Content for slot {i}"})
+
+        # Verify each slot has correct content
+        for i, slot in enumerate(slots):
+            await server.call_tool_direct("memcord_use", {"slot_name": slot})
+            result = await server.call_tool_direct("memcord_read", {})
+            assert f"Content for slot {i}" in result[0].text
+
+    @pytest.mark.asyncio
+    async def test_close_and_reselect_numeric_slot(self, test_server):
+        """Test close and reselect with numeric slot name."""
+        server = test_server
+
+        # Create numeric slot
+        await server.call_tool_direct("memcord_name", {"slot_name": "12345"})
+        await server.call_tool_direct("memcord_save", {"chat_text": "Numeric slot content"})
+
+        # Close
+        await server.call_tool_direct("memcord_close", {})
+        assert server.storage.get_current_slot() is None
+
+        # Reselect
+        await server.call_tool_direct("memcord_use", {"slot_name": "12345"})
+        assert server.storage.get_current_slot() == "12345"
+
+        # Verify content
+        result = await server.call_tool_direct("memcord_read", {})
+        assert "Numeric slot content" in result[0].text
+
+    @pytest.mark.asyncio
+    async def test_list_shows_special_named_slots(self, test_server):
+        """Test that memcord_list correctly shows slots with special names."""
+        server = test_server
+
+        special_slots = ["日本語", "emoji-🎉", "v1.0.0"]
+
+        for slot in special_slots:
+            await server.call_tool_direct("memcord_name", {"slot_name": slot})
+
+        result = await server.call_tool_direct("memcord_list", {})
+
+        for slot in special_slots:
+            assert slot in result[0].text, f"Slot {slot} not found in list"

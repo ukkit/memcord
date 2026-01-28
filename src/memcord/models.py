@@ -573,3 +573,9 @@ class ServerState(BaseModel):
     def activate_zero_mode(self) -> None:
         """Activate zero mode - no memory will be saved."""
         self.current_slot = "__ZERO__"
+
+    def clear_current_slot(self) -> str | None:
+        """Clear the current slot. Returns the previously active slot name."""
+        previous = self.current_slot
+        self.current_slot = None
+        return previous

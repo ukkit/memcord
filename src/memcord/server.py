@@ -64,7 +64,7 @@ class ChatMemoryServer:
     """MCP server for chat memory management."""
 
     # Error message constants (eliminate duplication)
-    ERROR_NO_SLOT_SELECTED = "Error: No memory slot selected. Use 'memname' first."
+    ERROR_NO_SLOT_SELECTED = "Error: No slot selected. Use memcord_name <slot> or memcord_use <slot> first."
     ERROR_EMPTY_CHAT_TEXT = "Error: Chat text cannot be empty"
     ERROR_EMPTY_SLOT_NAME = "Error: Slot name cannot be empty"
     ERROR_EMPTY_QUERY = "Error: Search query cannot be empty"
@@ -149,6 +149,7 @@ class ChatMemoryServer:
             "memcord_search": (self._handle_searchmem, False),
             "memcord_query": (self._handle_querymem, False),
             "memcord_zero": (self._handle_zeromem, False),
+            "memcord_close": (self._handle_closemem, False),
             "memcord_select_entry": (self._handle_select_entry, False),
             # Project Binding tools
             "memcord_init": (self._handle_bind, False),
@@ -315,6 +316,19 @@ class ChatMemoryServer:
         3. Project binding (.memcord file in cwd)
         """
         return arguments.get(key) or self.storage.get_current_slot() or self._detect_project_slot()
+
+    def _resolve_slot_for_write(self, arguments: dict[str, Any], key: str = "slot_name") -> str | None:
+        """Resolve slot for write operations (no .memcord fallback).
+
+        Priority:
+        1. Explicit slot_name in arguments
+        2. Currently active slot (via memcord_use/memcord_name)
+
+        Returns None if no slot selected (caller should return error).
+        This prevents accidental writes to wrong slots when MCP server
+        runs from a different directory than the user's project.
+        """
+        return arguments.get(key) or self.storage.get_current_slot()
 
     async def call_tool_direct(self, name: str, arguments: dict[str, Any]) -> Sequence[TextContent]:
         """Direct tool calling method for testing purposes."""
@@ -532,6 +546,14 @@ class ChatMemoryServer:
                 name="memcord_zero",
                 description="Activate zero mode - no memory will be saved until switched to another slot",
                 inputSchema={"type": "object", "properties": {}},
+            ),
+            Tool(
+                name="memcord_close",
+                description=(
+                    "Deactivate the current memory slot. "
+                    "Use before ending a session to prevent cross-project contamination."
+                ),
+                inputSchema={"type": "object", "properties": {}, "required": []},
             ),
             Tool(
                 name="memcord_select_entry",
@@ -1100,7 +1122,7 @@ class ChatMemoryServer:
     async def _handle_savemem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle savemem tool call."""
         chat_text = arguments["chat_text"]
-        slot_name = self._resolve_slot(arguments)
+        slot_name = self._resolve_slot_for_write(arguments)
 
         if not slot_name:
             return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
@@ -1168,7 +1190,7 @@ class ChatMemoryServer:
     async def _handle_saveprogress(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle saveprogress tool call."""
         chat_text = arguments["chat_text"]
-        slot_name = self._resolve_slot(arguments)
+        slot_name = self._resolve_slot_for_write(arguments)
         compression_ratio = arguments.get("compression_ratio", 0.15)
 
         if not slot_name:
@@ -1255,6 +1277,27 @@ class ChatMemoryServer:
                 "ℹ️  Use 'memcord_name [slot_name]' to resume saving.",
             )
         ]
+
+    @handle_errors(default_error_message="Close operation failed")
+    async def _handle_closemem(self, arguments: dict[str, Any]) -> list[TextContent]:
+        """Handle memcord_close tool call - deactivate current slot."""
+        previous_slot = self.storage._state.clear_current_slot()
+
+        if previous_slot and previous_slot != "__ZERO__":
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Memory slot '{previous_slot}' deactivated. No slot is currently active.\n\n"
+                    "Use 'memcord_name <slot>' or 'memcord_use <slot>' to activate a slot.",
+                )
+            ]
+        else:
+            return [
+                TextContent(
+                    type="text",
+                    text="No slot was active. Use 'memcord_name <slot>' to activate a slot.",
+                )
+            ]
 
     @handle_errors(default_error_message="Error selecting entry")
     async def _handle_select_entry(self, arguments: dict[str, Any]) -> list[TextContent]:
