@@ -1,8 +1,0 @@
-name: CI
-
-on:
-  workflow_dispatch:  # Manual trigger only — automatic runs disabled to reduce costs
-
-jobs:
-  checks:
-    uses: ./.github/workflows/shared.yml

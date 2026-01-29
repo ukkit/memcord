@@ -136,4 +136,7 @@ dmypy.json
 .idea/
 
 # Ruff
-.ruff_cache/
+.ruff_cache/.github/workflows/
+.releaseexclude
+scripts/publish-to-main.sh
+scripts/publish-to-main.ps1
