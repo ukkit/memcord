@@ -1,15 +1,26 @@
 # publish-to-main.ps1 - Publish dev changes to public main branch excluding internal files
 #
-# Usage: .\scripts\publish-to-main.ps1 [-DryRun] [-Squash]
+# Usage: .\scripts\publish-to-main.ps1 [OPTIONS]
 #
 # Options:
-#   -DryRun   Show what would be done without making changes
-#   -Squash   Squash all commits into one (recommended for cleaner history)
+#   -DryRun                   Show what would be done without making changes
+#   -Squash                   Squash all commits into one (recommended for cleaner history)
+#   -TargetRemote <name>      Target remote to push to (default: origin)
+#   -SourceBranch <name>      Source branch with dev changes (default: main)
+#   -TargetBranch <name>      Target branch to publish to (default: main)
+#
+# Examples:
+#   .\scripts\publish-to-main.ps1 -DryRun
+#   .\scripts\publish-to-main.ps1 -TargetRemote upstream -TargetBranch main
+#   .\scripts\publish-to-main.ps1 -SourceBranch develop -TargetBranch release
 
 param(
     [switch]$DryRun,
     [switch]$Squash,
-    [switch]$Help
+    [switch]$Help,
+    [string]$TargetRemote = "origin",
+    [string]$SourceBranch = "main",
+    [string]$TargetBranch = "main"
 )
 
 # =============================================================================
@@ -18,22 +29,92 @@ param(
 
 # Files/patterns to exclude from public repo (relative to repo root)
 $ExcludeFiles = @(
+    # Git and CI
+    ".git/"
+    ".github/workflows/"
+    ".releaseexclude"
+
+    # Development files - NOT for public repo
     "OPTIMIZE_PLAN.md"
     "SMART_SAVE.md"
     "TODO.md"
+    "CLAUDE.md"
+    "CLAUDE-RECOVERY-PROMPT.md"
+    "SESSION-RECOVERY.md"
+    "TASK-MATRIX.md"
+    "DRY_MAINTAINABILITY_ANALYSIS.md"
+    "TESTING_METHODOLOGY_VALIDATION.md"
+    "PR-DESCRIPTION*.md"
+    "PR-READINESS*.md"
+
+    # Claude Code internal files
     ".claude/settings.local.json"
     ".claude/skills/"
     ".claude/agents/"
     ".claude/utils/"
+
+    # Scripts (internal dev tools)
+    "scripts/publish-to-main.sh"
+    "scripts/publish-to-main.ps1"
+
+    # Python artifacts
+    "__pycache__/"
+    "*.pyc"
+    "*.pyo"
+    ".pytest_cache/"
+    ".mypy_cache/"
+    ".ruff_cache/"
+    "*.egg-info/"
+    "dist/"
+    "build/"
+    ".eggs/"
+
+    # Virtual environments
+    ".venv/"
+    "venv/"
+    "env/"
+
+    # IDE and editor files
+    ".vscode/"
+    ".idea/"
+    "*.swp"
+    "*.swo"
+    "*~"
+
+    # OS files
+    ".DS_Store"
+    "Thumbs.db"
+
+    # Environment and secrets
+    ".env"
+    ".env.local"
+    ".env.development"
+    ".env.test"
+    ".env.production"
+
+    # Logs and temp files
+    "*.log"
+    "*.tmp"
+    "*.temp"
+    ".tmp/"
+    ".temp/"
+    "tmpclaude-*"
+
+    # Coverage and test artifacts
+    "coverage/"
+    ".coverage"
+    "htmlcov/"
+
+    # Data directories (user-specific)
+    "memory_slots/"
+    "shared_memories/"
+    "archives/"
+    "cache/"
+    "logs/"
 )
 
-# Remote names
-$DevRemote = "memcord_dev"      # Your dev remote
-$PublicRemote = "origin"        # Public repo remote
-
-# Branch names
-$SourceBranch = "main"          # Branch with dev changes
-$TargetBranch = "main"          # Branch to publish to
+# Use parameter values (defaults already set in param block)
+$PublicRemote = $TargetRemote
 
 # =============================================================================
 # SCRIPT LOGIC
@@ -47,11 +128,19 @@ function Write-Warn { param($msg) Write-Host "[WARN] " -ForegroundColor Yellow -
 function Write-Err { param($msg) Write-Host "[ERROR] " -ForegroundColor Red -NoNewline; Write-Host $msg }
 
 if ($Help) {
-    Write-Host "Usage: .\scripts\publish-to-main.ps1 [-DryRun] [-Squash]"
+    Write-Host "Usage: .\scripts\publish-to-main.ps1 [OPTIONS]"
     Write-Host ""
     Write-Host "Options:"
-    Write-Host "  -DryRun   Show what would be done without making changes"
-    Write-Host "  -Squash   Squash all commits into one"
+    Write-Host "  -DryRun                   Show what would be done without making changes"
+    Write-Host "  -Squash                   Squash all commits into one"
+    Write-Host "  -TargetRemote <name>      Target remote to push to (default: origin)"
+    Write-Host "  -SourceBranch <name>      Source branch with dev changes (default: main)"
+    Write-Host "  -TargetBranch <name>      Target branch to publish to (default: main)"
+    Write-Host ""
+    Write-Host "Examples:"
+    Write-Host "  .\scripts\publish-to-main.ps1 -DryRun"
+    Write-Host "  .\scripts\publish-to-main.ps1 -TargetRemote upstream -TargetBranch main"
+    Write-Host "  .\scripts\publish-to-main.ps1 -SourceBranch develop -TargetBranch release"
     exit 0
 }
 
@@ -66,6 +155,9 @@ $RepoRoot = git rev-parse --show-toplevel
 Set-Location $RepoRoot
 
 Write-Info "Repository: $RepoRoot"
+Write-Info "Target remote: $PublicRemote"
+Write-Info "Source branch: $SourceBranch"
+Write-Info "Target branch: $TargetBranch"
 Write-Info "Dry run: $DryRun"
 Write-Info "Squash: $Squash"
 Write-Host ""

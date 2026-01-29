@@ -1,34 +1,116 @@
 #!/bin/bash
 # publish-to-main.sh - Publish dev changes to public main branch excluding internal files
 #
-# Usage: ./scripts/publish-to-main.sh [--dry-run] [--squash]
+# Usage: ./scripts/publish-to-main.sh [OPTIONS]
 #
 # Options:
-#   --dry-run   Show what would be done without making changes
-#   --squash    Squash all commits into one (recommended for cleaner history)
+#   --dry-run                 Show what would be done without making changes
+#   --squash                  Squash all commits into one (recommended for cleaner history)
+#   --target-remote <name>    Target remote to push to (default: origin)
+#   --source-branch <name>    Source branch with dev changes (default: main)
+#   --target-branch <name>    Target branch to publish to (default: main)
+#
+# Examples:
+#   ./scripts/publish-to-main.sh --dry-run
+#   ./scripts/publish-to-main.sh --target-remote upstream --target-branch main
+#   ./scripts/publish-to-main.sh --source-branch develop --target-branch release
 
 set -e
 
 # =============================================================================
-# CONFIGURATION - Edit these as needed
+# CONFIGURATION - Defaults (can be overridden via command-line)
 # =============================================================================
 
 # Files/patterns to exclude from public repo (relative to repo root)
 EXCLUDE_FILES=(
+    # Git and CI
+    ".git/"
+    ".github/workflows/"
+    ".releaseexclude"
+
+    # Development files - NOT for public repo
     "OPTIMIZE_PLAN.md"
     "SMART_SAVE.md"
     "TODO.md"
+    "CLAUDE.md"
+    "CLAUDE-RECOVERY-PROMPT.md"
+    "SESSION-RECOVERY.md"
+    "TASK-MATRIX.md"
+    "DRY_MAINTAINABILITY_ANALYSIS.md"
+    "TESTING_METHODOLOGY_VALIDATION.md"
+    "PR-DESCRIPTION*.md"
+    "PR-READINESS*.md"
+
+    # Claude Code internal files
     ".claude/settings.local.json"
     ".claude/skills/"
     ".claude/agents/"
     ".claude/utils/"
+
+    # Scripts (internal dev tools)
+    "scripts/publish-to-main.sh"
+    "scripts/publish-to-main.ps1"
+
+    # Python artifacts
+    "__pycache__/"
+    "*.pyc"
+    "*.pyo"
+    ".pytest_cache/"
+    ".mypy_cache/"
+    ".ruff_cache/"
+    "*.egg-info/"
+    "dist/"
+    "build/"
+    ".eggs/"
+
+    # Virtual environments
+    ".venv/"
+    "venv/"
+    "env/"
+
+    # IDE and editor files
+    ".vscode/"
+    ".idea/"
+    "*.swp"
+    "*.swo"
+    "*~"
+
+    # OS files
+    ".DS_Store"
+    "Thumbs.db"
+
+    # Environment and secrets
+    ".env"
+    ".env.local"
+    ".env.development"
+    ".env.test"
+    ".env.production"
+
+    # Logs and temp files
+    "*.log"
+    "*.tmp"
+    "*.temp"
+    ".tmp/"
+    ".temp/"
+    "tmpclaude-*"
+
+    # Coverage and test artifacts
+    "coverage/"
+    ".coverage"
+    "htmlcov/"
+
+    # Data directories (user-specific)
+    "memory_slots/"
+    "shared_memories/"
+    "archives/"
+    "cache/"
+    "logs/"
 )
 
-# Remote names
-DEV_REMOTE="memcord_dev"      # Your dev remote
+# Remote names (defaults)
 PUBLIC_REMOTE="origin"         # Public repo remote
 
-# Branch names
+# Branch names (defaults)
 SOURCE_BRANCH="main"           # Branch with dev changes
 TARGET_BRANCH="main"           # Branch to publish to
 
@@ -40,17 +122,48 @@ DRY_RUN=false
 SQUASH=false
 
 # Parse arguments
-for arg in "$@"; do
-    case $arg in
-        --dry-run) DRY_RUN=true ;;
-        --squash) SQUASH=true ;;
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+        --squash)
+            SQUASH=true
+            shift
+            ;;
+        --target-remote)
+            PUBLIC_REMOTE="$2"
+            shift 2
+            ;;
+        --source-branch)
+            SOURCE_BRANCH="$2"
+            shift 2
+            ;;
+        --target-branch)
+            TARGET_BRANCH="$2"
+            shift 2
+            ;;
         --help|-h)
-            echo "Usage: $0 [--dry-run] [--squash]"
+            echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --dry-run   Show what would be done without making changes"
-            echo "  --squash    Squash all commits into one"
+            echo "  --dry-run                 Show what would be done without making changes"
+            echo "  --squash                  Squash all commits into one"
+            echo "  --target-remote <name>    Target remote to push to (default: origin)"
+            echo "  --source-branch <name>    Source branch with dev changes (default: main)"
+            echo "  --target-branch <name>    Target branch to publish to (default: main)"
+            echo ""
+            echo "Examples:"
+            echo "  $0 --dry-run"
+            echo "  $0 --target-remote upstream --target-branch main"
+            echo "  $0 --source-branch develop --target-branch release"
             exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
             ;;
     esac
 done
@@ -77,6 +190,9 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 cd "$REPO_ROOT"
 
 log_info "Repository: $REPO_ROOT"
+log_info "Target remote: $PUBLIC_REMOTE"
+log_info "Source branch: $SOURCE_BRANCH"
+log_info "Target branch: $TARGET_BRANCH"
 log_info "Dry run: $DRY_RUN"
 log_info "Squash: $SQUASH"
 echo ""
