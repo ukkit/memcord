@@ -417,9 +417,11 @@ class ChatMemoryServer:
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "slot_name": {"type": "string", "description": "Name of the existing memory slot to activate"}
+                        "slot_name": {
+                            "type": "string",
+                            "description": "Name of the existing memory slot to activate (optional, reads from .memcord file if not specified)",
+                        }
                     },
-                    "required": ["slot_name"],
                 },
             ),
             Tool(
@@ -1086,10 +1088,18 @@ class ChatMemoryServer:
     @handle_errors(default_error_message="Use operation failed")
     async def _handle_memuse(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle memuse tool call - activate existing memory slots only."""
-        slot_name = arguments["slot_name"]
+        slot_name = arguments.get("slot_name")
 
+        # If no slot_name provided, try to detect from .memcord file
         if not slot_name or not slot_name.strip():
-            return [TextContent(type="text", text="Error: Slot name cannot be empty")]
+            slot_name = self._detect_project_slot()
+            if not slot_name:
+                return [
+                    TextContent(
+                        type="text",
+                        text="Error: No slot name provided and no .memcord file found in current directory.",
+                    )
+                ]
 
         # Clean slot name
         slot_name = slot_name.strip().replace(" ", "_")

@@ -28,11 +28,10 @@ class OptimizedSchemas:
             ),
             Tool(
                 name="memcord_use",
-                description="Use existing slot",
+                description="Use existing slot (reads from .memcord if no slot specified)",
                 inputSchema={
                     "type": "object",
                     "properties": {"slot_name": {"type": "string"}},
-                    "required": ["slot_name"],
                 },
             ),
             Tool(
