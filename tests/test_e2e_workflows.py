@@ -522,6 +522,103 @@ class TestCommandInteractions:
         assert slot.entries[1].type == "auto_summary"
 
 
+class TestSaveProgressSummarizer:
+    """Integration tests for save_progress with the enhanced summarizer."""
+
+    @pytest.fixture
+    def temp_dir(self):
+        """Provide temporary directory."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield tmpdir
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_save_progress_with_realistic_chat(self, temp_dir):
+        """Test save_progress end-to-end with a realistic chat transcript."""
+        storage = StorageManager(
+            memory_dir=temp_dir,
+            shared_dir=str(Path(temp_dir) / "shared"),
+            enable_caching=False,
+        )
+
+        chat_text = """User: How should we handle the database migration?
+Assistant: I recommend using Alembic for database migrations with PostgreSQL.
+It provides version control for your database schema.
+
+User: What about rollback support?
+Assistant: Alembic supports both upgrade and downgrade operations.
+Each migration file contains both directions, so you can safely roll back.
+
+User: Should we run migrations in CI/CD?
+Assistant: Yes, integrate migrations into your CI/CD pipeline.
+Run them as a pre-deployment step with proper health checks.
+This ensures database schema is always in sync with application code."""
+
+        from memcord.summarizer import TextSummarizer
+        summarizer = TextSummarizer()
+        summary = summarizer.summarize(chat_text.strip(), 0.15)
+
+        await storage.add_summary_entry("migration-session", chat_text.strip(), summary)
+
+        slot = await storage.read_memory("migration-session")
+        assert slot is not None
+        assert len(slot.entries) == 1
+        assert slot.entries[0].type == "auto_summary"
+        assert slot.entries[0].original_length is not None
+        assert slot.entries[0].summary_length is not None
+        assert slot.entries[0].original_length > slot.entries[0].summary_length
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_save_progress_summary_is_searchable(self, temp_dir):
+        """Test that summaries from save_progress are searchable."""
+        storage = StorageManager(
+            memory_dir=temp_dir,
+            shared_dir=str(Path(temp_dir) / "shared"),
+            enable_caching=False,
+        )
+
+        chat_text = """We decided to implement Redis caching for the authentication tokens.
+The team agreed that a TTL of 3600 seconds is appropriate for access tokens.
+Refresh tokens will be stored in PostgreSQL with longer expiration.
+The critical outcome is improved response times by 300ms on average.
+Next step is to deploy the caching layer to the staging environment."""
+
+        from memcord.summarizer import TextSummarizer
+        summarizer = TextSummarizer()
+        summary = summarizer.summarize(chat_text.strip(), 0.3)
+
+        await storage.add_summary_entry("auth-caching", chat_text.strip(), summary)
+
+        results = await storage.search_memory(SearchQuery(query="Redis"))
+        assert len(results) > 0
+        assert any("auth-caching" in r.slot_name for r in results)
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_save_progress_entry_format_unchanged(self, temp_dir):
+        """Test that the stored entry format is unchanged."""
+        storage = StorageManager(
+            memory_dir=temp_dir,
+            shared_dir=str(Path(temp_dir) / "shared"),
+            enable_caching=False,
+        )
+
+        original_text = "Long discussion about architecture and implementation details. " * 20
+        summary_text = "Architecture and implementation decisions."
+
+        await storage.add_summary_entry("format-test", original_text, summary_text)
+
+        slot = await storage.read_memory("format-test")
+        entry = slot.entries[0]
+
+        assert entry.type == "auto_summary"
+        assert hasattr(entry, "original_length")
+        assert hasattr(entry, "summary_length")
+        assert entry.original_length == len(original_text)
+        assert entry.summary_length == len(summary_text)
+
+
 class TestEdgeCasesAndRegression:
     """Test edge cases that commonly cause bugs."""
 

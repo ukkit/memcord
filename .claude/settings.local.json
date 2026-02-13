@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__memcord__memcord_name",
+      "mcp__memcord__memcord_save_progress",
+      "mcp__memcord__memcord_use"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "memcord",
+    "memcord-advanced"
+  ],
+  "disabledMcpjsonServers": [
+    "memcord-advanced"
+  ]
+}

@@ -1,5 +1,4 @@
 # Claude Code internal files (not for repository)
-CLAUDE.md
 OPTIMIZE_PLAN.md
 SMART_SAVE.md
 
@@ -136,7 +135,8 @@ dmypy.json
 .idea/
 
 # Ruff
-.ruff_cache/.github/workflows/
-.releaseexclude
+.ruff_cache/
+
+# Dev-only scripts
 scripts/publish-to-main.sh
 scripts/publish-to-main.ps1
