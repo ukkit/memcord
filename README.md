@@ -4,7 +4,7 @@
       <img src="assets/image/memcord_1024.png" width="256">
     </td>
     <td>
-      <h3>MEMCORD v2.4.0 (mcp server)</h3>
+      <h3>MEMCORD v2.4.1 (mcp server)</h3>
       <p>
         This privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control.
       </p>
@@ -20,7 +20,6 @@
   <a href="https://antigravity.google"><img src="https://img.shields.io/badge/Google-Antigravity-4285F4" alt="Google Antigravity"></a>
   <a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.10+-green" alt="Python"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow" alt="License"></a>
-  <a href="https://github.com/ukkit/memcord/actions/workflows/ci.yml"><img src="https://github.com/ukkit/memcord/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://buymeacoffee.com/ukkit"><img src="https://img.shields.io/badge/Buy%20Me%20A-Coffee-white" alt="Buy Me a Coffee"></a>
 </p>
 
@@ -34,7 +33,7 @@
 * **Effortless Organization** - Smart tags and folders that organize themselves around your workflow
 * **Intelligent Merging** - Automatically combines related conversations while eliminating duplicates
 
-**[What's new in v2.4.0](docs/versions.md#v240---project-memory-binding--auto-detection)** — Project memory binding & auto-detection for Claude Code. See [Project Setup Workflow](#project-setup-workflow) for details.
+**[What's new in v2.4.1](docs/versions.md#v241---summarizer-enhancement--ci-improvements)** — Enhanced summarizer, CI workflows, and developer tooling. See [Project Setup Workflow](#project-setup-workflow) for details.
 
 ## Prerequisites
 

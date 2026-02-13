@@ -1,5 +1,18 @@
 # Version History
 
+## v2.4.1 - Summarizer Enhancement & CI Improvements
+
+```text
+  - Enhanced TextSummarizer with better scoring, MMR selection, and chat-aware summarization
+  - Added memcord_close tool to deactivate memory slots and end sessions
+  - Fixed memcord_use to auto-detect slot name from .memcord binding file
+  - Fixed slot state issues with separate read/write resolution
+  - Moved release exclusion patterns to .releaseexclude for easier maintenance
+  - Added CLAUDE.md project development guide
+  - Added GitHub Actions CI workflows (manual trigger, matrix testing across Python 3.10-3.12 and 3 OSes)
+  - CI runs disabled by default to reduce costs (workflow_dispatch only)
+```
+
 ## v2.4.0 - Project Memory Binding & Auto-Detection
 
 ```text
