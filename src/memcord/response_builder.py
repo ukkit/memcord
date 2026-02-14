@@ -5,6 +5,7 @@ for memcord tool handlers.
 """
 
 import functools
+import inspect
 from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
 
@@ -170,7 +171,10 @@ def validate_slot_selected(
         async def wrapper(self, arguments: dict[str, Any]) -> Sequence[TextContent]:
             # Try to resolve slot using the class method if available
             if hasattr(self, "_resolve_slot"):
-                slot_name = self._resolve_slot(arguments, slot_arg)
+                if inspect.iscoroutinefunction(self._resolve_slot):
+                    slot_name = await self._resolve_slot(arguments, slot_arg)
+                else:
+                    slot_name = self._resolve_slot(arguments, slot_arg)
             else:
                 slot_name = arguments.get(slot_arg)
 

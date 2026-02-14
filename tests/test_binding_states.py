@@ -14,11 +14,13 @@ Coverage:
 """
 
 import asyncio
+import secrets
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from mcp.types import ListRootsResult, Root
 
 from memcord.server import ChatMemoryServer
 
@@ -133,7 +135,7 @@ class TestSlotResolutionPriority:
         # No active slot, no project binding, no argument
         # Mock cwd to temp directory without .memcord file
         with patch.object(Path, "cwd", return_value=Path(temp_project_dir)):
-            result = server._resolve_slot({})
+            result = await server._resolve_slot({})
 
         assert result is None
 
@@ -146,7 +148,7 @@ class TestSlotResolutionPriority:
         await server.call_tool_direct("memcord_name", {"slot_name": "fallback-slot"})
 
         # Empty string should be falsy and fall through
-        result = server._resolve_slot({"slot_name": ""})
+        result = await server._resolve_slot({"slot_name": ""})
 
         assert result == "fallback-slot"
 
@@ -282,7 +284,7 @@ class TestProjectBindingDetection:
 
         # Mock cwd to be the temp directory
         with patch.object(Path, "cwd", return_value=Path(temp_project_dir)):
-            result = server._detect_project_slot()
+            result = await server._detect_project_slot()
 
         assert result == "detected-slot"
 
@@ -293,7 +295,7 @@ class TestProjectBindingDetection:
 
         # No .memcord file in temp directory
         with patch.object(Path, "cwd", return_value=Path(temp_project_dir)):
-            result = server._detect_project_slot()
+            result = await server._detect_project_slot()
 
         assert result is None
 
@@ -307,7 +309,7 @@ class TestProjectBindingDetection:
         memcord_file.write_text("")
 
         with patch.object(Path, "cwd", return_value=Path(temp_project_dir)):
-            result = server._detect_project_slot()
+            result = await server._detect_project_slot()
 
         assert result is None
 
@@ -321,7 +323,7 @@ class TestProjectBindingDetection:
         memcord_file.write_text("   \n  \t  ")
 
         with patch.object(Path, "cwd", return_value=Path(temp_project_dir)):
-            result = server._detect_project_slot()
+            result = await server._detect_project_slot()
 
         assert result is None
 
@@ -335,13 +337,13 @@ class TestProjectBindingDetection:
         memcord_file.write_text("  my-slot-name  \n")
 
         with patch.object(Path, "cwd", return_value=Path(temp_project_dir)):
-            result = server._detect_project_slot()
+            result = await server._detect_project_slot()
 
         assert result == "my-slot-name"
 
     @pytest.mark.asyncio
     async def test_detect_project_slot_handles_multiline_file(self, test_server, temp_project_dir):
-        """Test _detect_project_slot only reads first line if file has multiple lines."""
+        """Test _detect_project_slot only reads first line of multiline .memcord file."""
         server = test_server
 
         # Create .memcord file with multiple lines
@@ -349,11 +351,420 @@ class TestProjectBindingDetection:
         memcord_file.write_text("first-line-slot\nsecond-line\nthird-line")
 
         with patch.object(Path, "cwd", return_value=Path(temp_project_dir)):
-            result = server._detect_project_slot()
+            result = await server._detect_project_slot()
 
-        # strip() will keep all content, but that's the current behavior
-        # The file should ideally contain only slot name
-        assert "first-line-slot" in result
+        # Only the first line should be used as slot name
+        assert result == "first-line-slot"
+
+
+@pytest.fixture
+def mock_roots():
+    """Helper to create mock MCP client roots response."""
+
+    def _make_roots(dirs: list[Path]) -> MagicMock:
+        roots = [Root(uri=dir_.as_uri(), name=dir_.name) for dir_ in dirs]
+        result = ListRootsResult(roots=roots)
+
+        mock_ctx = MagicMock()
+        mock_ctx.session.list_roots = AsyncMock(return_value=result)
+        return mock_ctx
+
+    return _make_roots
+
+
+class TestClientRootsDetection:
+    """Test .memcord detection via MCP client roots instead of cwd."""
+
+    @pytest.mark.asyncio
+    async def test_get_client_roots_returns_directories(self, test_server, mock_roots):
+        """Test _get_client_roots returns valid directories from MCP roots."""
+        server = test_server
+
+        with tempfile.TemporaryDirectory() as dir1, tempfile.TemporaryDirectory() as dir2:
+            mock_ctx = mock_roots([Path(dir1), Path(dir2)])
+            with patch.object(type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)):
+                result = await server._get_client_roots()
+
+            assert len(result) == 2
+            assert Path(dir1) in result
+            assert Path(dir2) in result
+
+    @pytest.mark.asyncio
+    async def test_get_client_roots_skips_nonexistent_dirs(self, test_server, mock_roots):
+        """Test _get_client_roots filters out directories that don't exist."""
+        server = test_server
+
+        with tempfile.TemporaryDirectory() as real_dir:
+            fake_dir = Path(real_dir) / "nonexistent"
+            mock_ctx = mock_roots([Path(real_dir), fake_dir])
+            with patch.object(type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)):
+                result = await server._get_client_roots()
+
+            assert len(result) == 1
+            assert Path(real_dir) in result
+
+    @pytest.mark.asyncio
+    async def test_get_client_roots_returns_empty_on_error(self, test_server):
+        """Test _get_client_roots returns [] when no MCP session is available."""
+        server = test_server
+        # No mock — the real server has no request context in tests
+        result = await server._get_client_roots()
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_detect_project_slot_uses_client_roots(self, test_server, mock_roots):
+        """Test _detect_project_slot finds .memcord via client roots, not cwd."""
+        server = test_server
+
+        with tempfile.TemporaryDirectory() as project_dir, tempfile.TemporaryDirectory() as fake_cwd:
+            # Put .memcord in the project dir (client root), NOT in cwd
+            memcord_file = Path(project_dir) / ".memcord"
+            memcord_file.write_text("project-slot")
+
+            mock_ctx = mock_roots([Path(project_dir)])
+            with (
+                patch.object(type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)),
+                patch.object(Path, "cwd", return_value=Path(fake_cwd)),
+            ):
+                result = await server._detect_project_slot()
+
+            assert result == "project-slot"
+
+    @pytest.mark.asyncio
+    async def test_detect_project_slot_ignores_cwd_when_roots_available(self, test_server, mock_roots):
+        """Test that cwd is NOT searched when client roots are available."""
+        server = test_server
+
+        with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as cwd_dir:
+            # Put .memcord only in cwd (not in the root)
+            (Path(cwd_dir) / ".memcord").write_text("cwd-slot")
+
+            mock_ctx = mock_roots([Path(root_dir)])
+            with (
+                patch.object(type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)),
+                patch.object(Path, "cwd", return_value=Path(cwd_dir)),
+            ):
+                result = await server._detect_project_slot()
+
+            # Should NOT find the cwd .memcord since roots were available
+            assert result is None
+
+    @pytest.mark.asyncio
+    async def test_detect_project_slot_first_root_wins(self, test_server, mock_roots):
+        """Test that when multiple roots have .memcord, the first one wins."""
+        server = test_server
+
+        with tempfile.TemporaryDirectory() as dir1, tempfile.TemporaryDirectory() as dir2:
+            (Path(dir1) / ".memcord").write_text("first-slot")
+            (Path(dir2) / ".memcord").write_text("second-slot")
+
+            mock_ctx = mock_roots([Path(dir1), Path(dir2)])
+            with patch.object(type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)):
+                result = await server._detect_project_slot()
+
+            assert result == "first-slot"
+
+    @pytest.mark.asyncio
+    async def test_detect_project_slot_falls_back_to_cwd(self, test_server, temp_project_dir):
+        """Test fallback to cwd when no MCP roots are available."""
+        server = test_server
+
+        memcord_file = Path(temp_project_dir) / ".memcord"
+        memcord_file.write_text("cwd-fallback-slot")
+
+        # No mock for roots — will fail and fall back to cwd
+        with patch.object(Path, "cwd", return_value=Path(temp_project_dir)):
+            result = await server._detect_project_slot()
+
+        assert result == "cwd-fallback-slot"
+
+    @pytest.mark.asyncio
+    async def test_resolve_slot_uses_roots_as_fallback(self, test_server, mock_roots):
+        """Test _resolve_slot uses client roots when no argument or active slot."""
+        server = test_server
+
+        with tempfile.TemporaryDirectory() as project_dir:
+            (Path(project_dir) / ".memcord").write_text("root-resolved-slot")
+
+            mock_ctx = mock_roots([Path(project_dir)])
+            with patch.object(type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)):
+                result = await server._resolve_slot({})
+
+            assert result == "root-resolved-slot"
+
+
+class TestFileUriParsing:
+    """Test _file_uri_to_path for various URI formats."""
+
+    def test_posix_file_uri(self, test_server):
+        """Test standard POSIX file URI."""
+        with patch("memcord.server.os") as mock_os:
+            mock_os.name = "posix"
+            result = test_server._file_uri_to_path("file:///home/user/project")
+        assert result == Path("/home/user/project")
+
+    def test_windows_file_uri(self, test_server):
+        """Test Windows file URI with drive letter."""
+        with patch("memcord.server.os") as mock_os:
+            mock_os.name = "nt"
+            result = test_server._file_uri_to_path("file:///C:/Users/name/project")
+        assert result == Path("C:/Users/name/project")
+
+    def test_percent_encoded_spaces(self, test_server):
+        """Test file URI with percent-encoded spaces."""
+        with patch("memcord.server.os") as mock_os:
+            mock_os.name = "nt"
+            result = test_server._file_uri_to_path("file:///C:/My%20Projects/my%20app")
+        assert result == Path("C:/My Projects/my app")
+
+    def test_percent_encoded_special_chars(self, test_server):
+        """Test file URI with various percent-encoded characters."""
+        with patch("memcord.server.os") as mock_os:
+            mock_os.name = "posix"
+            result = test_server._file_uri_to_path("file:///home/user/project%20%28v2%29")
+        assert result == Path("/home/user/project (v2)")
+
+    def test_non_file_uri_returns_none(self, test_server):
+        """Test that non-file:// URIs return None."""
+        assert test_server._file_uri_to_path("http://example.com") is None
+        assert test_server._file_uri_to_path("https://github.com/repo") is None
+        assert test_server._file_uri_to_path("git://repo.git") is None
+        assert test_server._file_uri_to_path("ftp://files.example.com") is None
+
+    def test_empty_string_returns_none(self, test_server):
+        """Test that empty string returns None."""
+        assert test_server._file_uri_to_path("") is None
+
+
+class TestClientRootsEdgeCases:
+    """Test edge cases for MCP client roots handling."""
+
+    @pytest.mark.asyncio
+    async def test_get_client_roots_skips_non_file_uris(self, test_server):
+        """Test that non-file:// URIs in roots are silently skipped."""
+        server = test_server
+
+        # MCP Root model enforces file:// scheme at the Pydantic level,
+        # but _file_uri_to_path provides defense-in-depth for any URI string.
+        # Test the static method directly for non-file schemes.
+        assert server._file_uri_to_path("http://example.com/repo") is None
+        assert server._file_uri_to_path("git://repo.git") is None
+        assert server._file_uri_to_path("ftp://files.example.com/path") is None
+
+        # Also verify that _get_client_roots works with only valid file:// roots
+        with tempfile.TemporaryDirectory() as real_dir:
+            mock_ctx = MagicMock()
+            roots = [Root(uri=Path(real_dir).as_uri(), name="valid")]
+            mock_ctx.session.list_roots = AsyncMock(return_value=ListRootsResult(roots=roots))
+
+            with patch.object(type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)):
+                result = await server._get_client_roots()
+
+            assert len(result) == 1
+            assert Path(real_dir) in result
+
+    @pytest.mark.asyncio
+    async def test_detect_slot_rejects_path_traversal_in_memcord_file(self, test_server, temp_project_dir):
+        """Test that .memcord with path traversal slot name is rejected."""
+        server = test_server
+
+        memcord_file = Path(temp_project_dir) / ".memcord"
+        memcord_file.write_text("../../etc/passwd")
+
+        with patch.object(Path, "cwd", return_value=Path(temp_project_dir)):
+            result = await server._detect_project_slot()
+
+        # Path traversal should be rejected by validation
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_detect_slot_rejects_special_characters(self, test_server, temp_project_dir):
+        """Test that .memcord with special characters in slot name is rejected."""
+        server = test_server
+
+        for bad_name in ["slot;DROP TABLE", "slot$(cmd)", 'slot"name', "slot<script>"]:
+            memcord_file = Path(temp_project_dir) / ".memcord"
+            memcord_file.write_text(bad_name)
+
+            with patch.object(Path, "cwd", return_value=Path(temp_project_dir)):
+                result = await server._detect_project_slot()
+
+            assert result is None, f"Should have rejected slot name: {bad_name!r}"
+
+    @pytest.mark.asyncio
+    async def test_detect_slot_normalizes_spaces_to_underscores(self, test_server, temp_project_dir):
+        """Test that spaces in .memcord slot name are converted to underscores."""
+        server = test_server
+
+        memcord_file = Path(temp_project_dir) / ".memcord"
+        memcord_file.write_text("my project slot")
+
+        with patch.object(Path, "cwd", return_value=Path(temp_project_dir)):
+            result = await server._detect_project_slot()
+
+        assert result == "my_project_slot"
+
+    @pytest.mark.asyncio
+    async def test_detect_slot_skips_unreadable_memcord_file(self, test_server, temp_project_dir):
+        """Test that unreadable .memcord file is gracefully skipped."""
+        server = test_server
+
+        memcord_file = Path(temp_project_dir) / ".memcord"
+        memcord_file.write_text("some-slot")
+
+        with (
+            patch.object(Path, "cwd", return_value=Path(temp_project_dir)),
+            patch.object(Path, "read_text", side_effect=PermissionError("Access denied")),
+        ):
+            result = await server._detect_project_slot()
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_get_client_roots_with_percent_encoded_dir(self, test_server):
+        """Test _get_client_roots handles percent-encoded directory paths."""
+        server = test_server
+
+        with tempfile.TemporaryDirectory() as real_dir:
+            # Simulate a URI that would be percent-encoded (the dir exists as-is)
+            uri = Path(real_dir).as_uri()
+
+            mock_ctx = MagicMock()
+            roots = [Root(uri=uri, name="test")]
+            mock_ctx.session.list_roots = AsyncMock(return_value=ListRootsResult(roots=roots))
+
+            with patch.object(type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)):
+                result = await server._get_client_roots()
+
+            assert len(result) == 1
+            assert Path(real_dir) in result
+
+
+class TestMemcordUseWithProjectBinding:
+    """Integration tests: memcord_use picking up .memcord from real temp directories."""
+
+    @pytest.mark.asyncio
+    async def test_memcord_use_detects_slot_from_random_directory(self, test_server, mock_roots):
+        """Create .memcord in a random temp dir, then memcord_use should detect it."""
+        server = test_server
+
+        with tempfile.TemporaryDirectory() as project_dir:
+            slot_name = f"test-slot-{secrets.token_hex(4)}"
+
+            # First create the slot so memcord_use can find it
+            await server.call_tool_direct("memcord_name", {"slot_name": slot_name})
+            # Clear active slot so we rely on .memcord detection
+            server.storage._state.set_current_slot(None)
+
+            # Write .memcord file in the random directory
+            memcord_file = Path(project_dir) / ".memcord"
+            memcord_file.write_text(slot_name)
+
+            mock_ctx = mock_roots([Path(project_dir)])
+            with patch.object(type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)):
+                result = await server.call_tool_direct("memcord_use", {})
+
+            assert "active" in result[0].text.lower()
+            assert slot_name in result[0].text
+            assert server.storage.get_current_slot() == slot_name
+
+    @pytest.mark.asyncio
+    async def test_memcord_init_then_use_via_roots(self, test_server, mock_roots):
+        """Full flow: memcord_init creates .memcord, then memcord_use picks it up via roots."""
+        server = test_server
+
+        with tempfile.TemporaryDirectory() as project_dir:
+            slot_name = f"init-test-{secrets.token_hex(4)}"
+
+            # Init binds the directory to a slot (creates .memcord file)
+            init_result = await server.call_tool_direct(
+                "memcord_init", {"project_path": project_dir, "slot_name": slot_name}
+            )
+            assert ".memcord" in init_result[0].text
+
+            # Verify the file was created with correct content
+            memcord_file = Path(project_dir) / ".memcord"
+            assert memcord_file.exists()
+            assert memcord_file.read_text().strip() == slot_name
+
+            # Clear active slot to force detection via roots
+            server.storage._state.set_current_slot(None)
+
+            mock_ctx = mock_roots([Path(project_dir)])
+            with patch.object(type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)):
+                use_result = await server.call_tool_direct("memcord_use", {})
+
+            assert "active" in use_result[0].text.lower()
+            assert slot_name in use_result[0].text
+
+    @pytest.mark.asyncio
+    async def test_memcord_use_prefers_roots_over_cwd(self, test_server, mock_roots):
+        """When both roots and cwd have .memcord, roots should win."""
+        server = test_server
+
+        with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as cwd_dir:
+            root_slot = f"root-slot-{secrets.token_hex(4)}"
+            cwd_slot = f"cwd-slot-{secrets.token_hex(4)}"
+
+            # Create both slots
+            await server.call_tool_direct("memcord_name", {"slot_name": root_slot})
+            await server.call_tool_direct("memcord_name", {"slot_name": cwd_slot})
+            server.storage._state.set_current_slot(None)
+
+            # .memcord in both directories with different slot names
+            (Path(root_dir) / ".memcord").write_text(root_slot)
+            (Path(cwd_dir) / ".memcord").write_text(cwd_slot)
+
+            mock_ctx = mock_roots([Path(root_dir)])
+            with (
+                patch.object(type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)),
+                patch.object(Path, "cwd", return_value=Path(cwd_dir)),
+            ):
+                result = await server.call_tool_direct("memcord_use", {})
+
+            assert root_slot in result[0].text
+            assert server.storage.get_current_slot() == root_slot
+
+    @pytest.mark.asyncio
+    async def test_memcord_use_falls_back_to_cwd_without_roots(self, test_server):
+        """Without MCP roots, memcord_use should still work via cwd fallback."""
+        server = test_server
+
+        with tempfile.TemporaryDirectory() as cwd_dir:
+            slot_name = f"cwd-only-{secrets.token_hex(4)}"
+
+            await server.call_tool_direct("memcord_name", {"slot_name": slot_name})
+            server.storage._state.set_current_slot(None)
+
+            (Path(cwd_dir) / ".memcord").write_text(slot_name)
+
+            # No roots mock — falls back to cwd
+            with patch.object(Path, "cwd", return_value=Path(cwd_dir)):
+                result = await server.call_tool_direct("memcord_use", {})
+
+            assert "active" in result[0].text.lower()
+            assert slot_name in result[0].text
+
+    @pytest.mark.asyncio
+    async def test_memcord_read_uses_roots_to_find_slot(self, test_server, mock_roots):
+        """Test that memcord_read resolves slot via client roots."""
+        server = test_server
+
+        with tempfile.TemporaryDirectory() as project_dir:
+            slot_name = f"read-test-{secrets.token_hex(4)}"
+
+            # Create slot and save some content
+            await server.call_tool_direct("memcord_name", {"slot_name": slot_name})
+            await server.call_tool_direct("memcord_save", {"chat_text": "Hello from roots test"})
+            server.storage._state.set_current_slot(None)
+
+            (Path(project_dir) / ".memcord").write_text(slot_name)
+
+            mock_ctx = mock_roots([Path(project_dir)])
+            with patch.object(type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)):
+                result = await server.call_tool_direct("memcord_read", {})
+
+            assert "Hello from roots test" in result[0].text
 
 
 class TestSlotResolutionInteractions:
@@ -671,7 +1082,7 @@ class TestWriteSlotResolution:
         # Mock cwd to be the temp directory
         with patch.object(Path, "cwd", return_value=Path(temp_project_dir)):
             # Verify .memcord file is detected (for read operations)
-            assert server._detect_project_slot() == "fallback-slot"
+            assert await server._detect_project_slot() == "fallback-slot"
 
             # But write should fail because no active slot is set
             result = await server.call_tool_direct("memcord_save", {"chat_text": "Test content"})
