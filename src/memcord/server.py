@@ -15,11 +15,14 @@ When adding new tools:
 
 import asyncio
 import functools
+import logging
 import os
+import re
 import secrets
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import unquote, urlparse
 
 from mcp.server import Server
 from mcp.types import Resource, TextContent, Tool
@@ -34,6 +37,11 @@ from .response_builder import handle_errors
 from .security import SecurityMiddleware
 from .status_monitoring import StatusMonitoringSystem
 from .storage import StorageManager
+
+logger = logging.getLogger(__name__)
+
+# Pattern for valid slot names: alphanumeric, hyphens, underscores, dots
+VALID_SLOT_NAME_PATTERN = re.compile(r"^[\w\-. ]+$")
 
 
 def with_timeout_check(operation_id_key: str = "operation_id"):
@@ -291,31 +299,82 @@ class ChatMemoryServer:
             self._select_entry_service = SelectEntryService(self.storage)
         return self._select_entry_service
 
-    def _detect_project_slot(self) -> str | None:
-        """Check for .memcord file in current working directory.
+    @staticmethod
+    def _file_uri_to_path(uri: str) -> Path | None:
+        """Convert a file:// URI to a local Path, handling percent-encoding.
 
-        Returns the slot name from the .memcord file if it exists,
-        otherwise returns None.
+        Returns None for non-file URIs or malformed URIs.
         """
-        memcord_file = Path.cwd() / ".memcord"
-        if memcord_file.exists():
-            try:
-                slot_name = memcord_file.read_text().strip()
-                if slot_name:
-                    return slot_name
-            except OSError:
-                pass
+        parsed = urlparse(uri)
+        if parsed.scheme != "file":
+            return None
+
+        raw_path = unquote(parsed.path)
+        # On Windows, file:///C:/path has parsed.path = "/C:/path"
+        # Strip the leading slash before the drive letter
+        if os.name == "nt" and len(raw_path) >= 3 and raw_path[0] == "/" and raw_path[2] == ":":
+            raw_path = raw_path[1:]
+
+        return Path(raw_path)
+
+    async def _get_client_roots(self) -> list[Path]:
+        """Get project directories from MCP client roots.
+
+        Returns a list of local directory paths provided by the client,
+        or an empty list if roots are unavailable.
+        """
+        try:
+            ctx = self.app.request_context
+            result = await ctx.session.list_roots()
+            paths = []
+            for root in result.roots:
+                path = self._file_uri_to_path(str(root.uri))
+                if path and path.is_dir():
+                    paths.append(path)
+            return paths
+        except Exception as e:
+            logger.debug("Failed to get client roots: %s", e)
+            return []
+
+    async def _detect_project_slot(self) -> str | None:
+        """Check for .memcord file in client project directories, falling back to cwd.
+
+        Searches for .memcord in directories provided by the MCP client (roots),
+        then falls back to the current working directory.
+
+        Returns the slot name from the .memcord file if found, otherwise None.
+        """
+        # Try MCP client roots first (actual project directories)
+        search_dirs = await self._get_client_roots()
+
+        # Fall back to cwd if no roots available
+        if not search_dirs:
+            search_dirs = [Path.cwd()]
+
+        for directory in search_dirs:
+            memcord_file = directory / ".memcord"
+            if memcord_file.exists():
+                try:
+                    # Read only the first line, normalize spaces
+                    content = memcord_file.read_text().splitlines()[0].strip() if memcord_file.stat().st_size > 0 else ""
+                    slot_name = content.replace(" ", "_")
+                    if slot_name and VALID_SLOT_NAME_PATTERN.match(slot_name):
+                        return slot_name
+                    elif slot_name:
+                        logger.warning("Invalid slot name in .memcord file at %s: %r", directory, slot_name)
+                except (OSError, IndexError):
+                    pass
         return None
 
-    def _resolve_slot(self, arguments: dict[str, Any], key: str = "slot_name") -> str | None:
+    async def _resolve_slot(self, arguments: dict[str, Any], key: str = "slot_name") -> str | None:
         """Resolve slot name from arguments, current slot, or project binding.
 
         Priority order:
         1. Explicit slot_name in arguments
         2. Currently active slot (via memcord_use/memcord_name)
-        3. Project binding (.memcord file in cwd)
+        3. Project binding (.memcord file in client project directories)
         """
-        return arguments.get(key) or self.storage.get_current_slot() or self._detect_project_slot()
+        return arguments.get(key) or self.storage.get_current_slot() or await self._detect_project_slot()
 
     def _resolve_slot_for_write(self, arguments: dict[str, Any], key: str = "slot_name") -> str | None:
         """Resolve slot for write operations (no .memcord fallback).
@@ -1042,25 +1101,17 @@ class ChatMemoryServer:
     @handle_errors(default_error_message="Naming operation failed")
     async def _handle_memname(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle memname tool call."""
-        import logging
-
-        logging.basicConfig(level=logging.DEBUG)
-        logger = logging.getLogger(__name__)
-
         slot_name = arguments["slot_name"]
-        logger.debug(f"DEBUG: memcord_name called with slot_name: {slot_name}")
 
         if not slot_name or not slot_name.strip():
             return [TextContent(type="text", text="Error: Slot name cannot be empty")]
 
         # Clean slot name
         slot_name = slot_name.strip().replace(" ", "_")
-        logger.debug(f"DEBUG: cleaned slot_name: {slot_name}")
 
         # Check if slot already exists before creating
         existing_slot = await self.storage._load_slot(slot_name)
         if existing_slot:
-            logger.debug("DEBUG: slot already exists, just setting current")
             self.storage._state.set_current_slot(slot_name)
             return [
                 TextContent(
@@ -1072,9 +1123,7 @@ class ChatMemoryServer:
                 )
             ]
 
-        logger.debug("DEBUG: creating new slot")
         slot = await self.storage.create_or_get_slot(slot_name)
-        logger.debug("DEBUG: slot created/retrieved successfully")
 
         return [
             TextContent(
@@ -1092,7 +1141,7 @@ class ChatMemoryServer:
 
         # If no slot_name provided, try to detect from .memcord file
         if not slot_name or not slot_name.strip():
-            slot_name = self._detect_project_slot()
+            slot_name = await self._detect_project_slot()
             if not slot_name:
                 return [
                     TextContent(
@@ -1159,7 +1208,7 @@ class ChatMemoryServer:
     @handle_errors(default_error_message="Read failed")
     async def _handle_readmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle readmem tool call."""
-        slot_name = self._resolve_slot(arguments)
+        slot_name = await self._resolve_slot(arguments)
 
         if not slot_name:
             return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
@@ -1315,7 +1364,7 @@ class ChatMemoryServer:
         from .services import SelectionRequest
 
         # Get slot name (use current if not specified, or project binding)
-        slot_name = self._resolve_slot(arguments)
+        slot_name = await self._resolve_slot(arguments)
         if not slot_name:
             return [
                 TextContent(
@@ -1482,7 +1531,7 @@ class ChatMemoryServer:
     async def _handle_tagmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle tagmem tool call."""
         action = arguments["action"]
-        slot_name = self._resolve_slot(arguments)
+        slot_name = await self._resolve_slot(arguments)
         tags = arguments.get("tags", [])
 
         if action in ["add", "remove"] and not slot_name:
@@ -1553,7 +1602,7 @@ class ChatMemoryServer:
     async def _handle_groupmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle groupmem tool call."""
         action = arguments["action"]
-        slot_name = self._resolve_slot(arguments)
+        slot_name = await self._resolve_slot(arguments)
         group_path = arguments.get("group_path")
 
         if action in ["set", "remove"] and not slot_name:
@@ -1615,7 +1664,7 @@ class ChatMemoryServer:
     async def _handle_importmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle importmem tool call - delegates to ImportService."""
         source = arguments["source"]
-        slot_name = self._resolve_slot(arguments)
+        slot_name = await self._resolve_slot(arguments)
         description = arguments.get("description")
         tags = arguments.get("tags", [])
         group_path = arguments.get("group_path")
@@ -1758,7 +1807,7 @@ class ChatMemoryServer:
     async def _handle_compressmem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle compress tool call - delegates to CompressionService."""
         action = arguments.get("action", "analyze")
-        slot_name = self._resolve_slot(arguments)
+        slot_name = await self._resolve_slot(arguments)
         force = arguments.get("force", False)
 
         if action == "stats":
@@ -1874,7 +1923,7 @@ class ChatMemoryServer:
     async def _handle_archivemem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle archive tool call - delegates to ArchiveService."""
         action = arguments.get("action")
-        slot_name = self._resolve_slot(arguments)
+        slot_name = await self._resolve_slot(arguments)
         reason = arguments.get("reason", "manual")
         days_inactive = arguments.get("days_inactive", 30)
 

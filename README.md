@@ -4,7 +4,7 @@
       <img src="assets/image/memcord_1024.png" width="256">
     </td>
     <td>
-      <h3>MEMCORD v2.4.1 (mcp server)</h3>
+      <h3>MEMCORD v2.4.2 (mcp server)</h3>
       <p>
         This privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control.
       </p>
@@ -33,7 +33,7 @@
 * **Effortless Organization** - Smart tags and folders that organize themselves around your workflow
 * **Intelligent Merging** - Automatically combines related conversations while eliminating duplicates
 
-**[What's new in v2.4.1](docs/versions.md#v241---summarizer-enhancement--ci-improvements)** — Enhanced summarizer, CI workflows, and developer tooling. See [Project Setup Workflow](#project-setup-workflow) for details.
+**[What's new in v2.4.2](docs/versions.md#v242---project-detection--code-quality-fixes)** — MCP client roots detection, URI parsing fixes, and slot validation hardening. See [ versions.md ](docs/versions.md) for details.
 
 ## Prerequisites
 

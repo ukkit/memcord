@@ -13,7 +13,7 @@ PR-READINESS*.md
 TODO.md
 .claude/agents/
 .claude/utils/
-.claude/skill/
+.claude/skills/
 tmpclaude-*
 
 # Python

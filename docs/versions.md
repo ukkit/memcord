@@ -1,5 +1,19 @@
 # Version History
 
+## v2.4.2 - Project Detection & Code Quality Fixes
+
+```text
+  - Fixed .memcord detection to use MCP client roots instead of server cwd
+  - Proper file URI parsing with percent-decoding (spaces, special chars in paths)
+  - Cross-platform URI-to-path conversion using urllib.parse (Windows & POSIX)
+  - Slot name validation on .memcord files (rejects path traversal, injection chars)
+  - Multiline .memcord files now read only the first line
+  - Space-to-underscore normalization consistent across all detection paths
+  - Removed debug logging left in _handle_memname handler
+  - Replaced asyncio.iscoroutine with inspect.iscoroutinefunction for robust async detection
+  - Added 25 new tests for URI parsing, roots detection, and edge cases
+```
+
 ## v2.4.1 - Summarizer Enhancement & CI Improvements
 
 ```text
