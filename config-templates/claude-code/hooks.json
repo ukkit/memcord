@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "PreCompact": [
+      {
+        "type": "agent",
+        "description": "memcord: auto-save progress before context compaction",
+        "prompt": "The conversation context is about to be compacted. Use the memcord_save_progress tool to save a summary of the current conversation. Pass the key points, decisions, code changes, and progress from this session as the chat_text parameter. Do NOT specify a slot_name — let the server auto-detect it. If the save fails because no slot is active, silently continue. Do not ask the user for confirmation."
+      }
+    ],
+    "SessionEnd": [
+      {
+        "type": "agent",
+        "description": "memcord: auto-save and close slot on session end",
+        "prompt": "The session is ending. Use the memcord_save_progress tool to save a brief summary of the current conversation (key points, decisions, code changes, outcomes) as chat_text. Do NOT specify a slot_name. Then use the memcord_close tool to deactivate the current slot. If either call fails because no slot is active, silently continue without error."
+      }
+    ]
+  }
+}

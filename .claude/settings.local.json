@@ -3,7 +3,8 @@
     "allow": [
       "mcp__memcord__memcord_name",
       "mcp__memcord__memcord_save_progress",
-      "mcp__memcord__memcord_use"
+      "mcp__memcord__memcord_use",
+      "mcp__memcord__memcord_close"
     ]
   },
   "enableAllProjectMcpServers": true,

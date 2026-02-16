@@ -110,6 +110,89 @@ def save_config(config: dict, output_path: Path, dry_run: bool = False) -> bool:
         return False
 
 
+def load_hooks_template(templates_dir: Path) -> dict[str, Any]:
+    """Load the Claude Code hooks template."""
+    hooks_path = templates_dir / "claude-code" / "hooks.json"
+    if not hooks_path.exists():
+        print(f"  {color('Error:', 'red')} Hooks template not found: {hooks_path}")
+        return {}
+    return load_template(hooks_path)
+
+
+def merge_hooks(existing: dict[str, Any], new_hooks: dict[str, Any]) -> dict[str, Any]:
+    """Merge memcord hooks into existing Claude Code settings.
+
+    Deduplicates by checking for 'memcord:' prefix in hook descriptions.
+    Preserves all non-memcord hooks and other settings.
+    """
+    result = existing.copy()
+
+    if "hooks" not in new_hooks:
+        return result
+
+    if "hooks" not in result:
+        result["hooks"] = {}
+
+    for event_key, hook_entries in new_hooks["hooks"].items():
+        if event_key not in result["hooks"]:
+            result["hooks"][event_key] = []
+
+        # Remove existing memcord hooks (deduplication)
+        result["hooks"][event_key] = [
+            hook for hook in result["hooks"][event_key]
+            if not hook.get("description", "").startswith("memcord:")
+        ]
+
+        # Add new memcord hooks
+        result["hooks"][event_key].extend(hook_entries)
+
+    return result
+
+
+def install_hooks(
+    memcord_path: Path,
+    templates_dir: Path,
+    dry_run: bool = False,
+    verbose: bool = True,
+) -> bool:
+    """Install Claude Code agent hooks for auto-save."""
+    if verbose:
+        print(f"\n{color('[Hooks]', 'green')} Claude Code Auto-Save Hooks")
+
+    hooks_template = load_hooks_template(templates_dir)
+    if not hooks_template:
+        return False
+
+    settings_path = memcord_path / ".claude" / "settings.json"
+
+    # Load existing settings or start fresh
+    existing = {}
+    if settings_path.exists():
+        try:
+            existing = load_template(settings_path)
+        except Exception as e:
+            if verbose:
+                print(f"  {color('Warning:', 'yellow')} Could not read existing settings: {e}")
+            existing = {}
+
+    merged = merge_hooks(existing, hooks_template)
+
+    if dry_run:
+        print(f"  {color('[DRY RUN]', 'yellow')} Would write hooks to: {settings_path}")
+        if verbose:
+            hook_events = list(hooks_template.get("hooks", {}).keys())
+            print(f"  Hook events: {', '.join(hook_events)}")
+        return True
+
+    if save_config(merged, settings_path):
+        if verbose:
+            print(f"  {color('Installed:', 'green')} {settings_path}")
+            hook_events = list(hooks_template.get("hooks", {}).keys())
+            print(f"  Hook events: {', '.join(hook_events)}")
+        return True
+    return False
+
+
 def merge_mcp_servers(existing: dict, new_servers: dict) -> dict:
     """Merge new MCP servers into existing config without overwriting other servers."""
     result = existing.copy()
@@ -280,6 +363,10 @@ Examples:
 
     parser.add_argument("--no-claude-code", action="store_true", help="Skip Claude Code .mcp.json configuration")
 
+    parser.add_argument(
+        "--install-hooks", action="store_true", help="Install Claude Code agent hooks for auto-save on compaction and session end"
+    )
+
     args = parser.parse_args()
 
     # Determine memcord path
@@ -307,6 +394,18 @@ Examples:
         dry_run=args.dry_run,
         verbose=not args.quiet,
     )
+
+    # Install hooks if requested
+    if args.install_hooks:
+        templates_dir = memcord_path / "config-templates"
+        hooks_ok = install_hooks(
+            memcord_path=memcord_path,
+            templates_dir=templates_dir,
+            dry_run=args.dry_run,
+            verbose=not args.quiet,
+        )
+        if not hooks_ok:
+            success = False
 
     sys.exit(0 if success else 1)
 

@@ -110,6 +110,35 @@ Set via environment variable:
 | `MEMCORD_LOG_LEVEL` | `WARNING` | Logging level (DEBUG, INFO, WARNING, ERROR) |
 | `PYTHONPATH` | - | Should point to `{memcord}/src` |
 
+## Auto-Save Hooks (Optional)
+
+Memcord can automatically save your conversation progress when Claude Code compacts context or when a session ends. This uses Claude Code **agent hooks** — lightweight prompts that fire on specific events.
+
+### What the hooks do
+
+| Event | Action |
+|-------|--------|
+| `PreCompact` | Saves a summary of the current conversation before context compaction |
+| `SessionEnd` | Saves a summary and closes the active memory slot |
+
+### Install hooks
+
+```bash
+uv run python scripts/generate-config.py --install-hooks
+```
+
+This merges hook entries into `.claude/settings.json`. It's idempotent — safe to run multiple times.
+
+### Remove hooks
+
+Edit `.claude/settings.json` and remove the entries with descriptions starting with `"memcord:"` from the `hooks.PreCompact` and `hooks.SessionEnd` arrays.
+
+### Notes
+
+- Agent hooks have full conversation context and call MCP tools directly — no shell scripts needed
+- Token cost is minimal: `PreCompact` fires rarely, `SessionEnd` fires once per session
+- Hooks are opt-in and do not install automatically
+
 ## Windows-Specific Notes
 
 Windows requires wrapping the `uv` command with `cmd /c` for proper process spawning:

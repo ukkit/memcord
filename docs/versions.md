@@ -1,5 +1,19 @@
 # Version History
 
+## v2.5.0 - Auto-Save Hooks for Claude Code
+
+```text
+  - Opt-in Claude Code agent hooks for automatic progress saving
+  - PreCompact hook: saves conversation summary before context compaction
+  - SessionEnd hook: saves summary and closes the active memory slot
+  - New --install-hooks flag for generate-config.py (idempotent, safe to run multiple times)
+  - Hooks template at config-templates/claude-code/hooks.json
+  - merge_hooks() logic preserves existing hooks and deduplicates memcord entries
+  - Added memcord_close to default permissions whitelist
+  - Install scripts (install.sh, install.ps1) now mention hooks availability
+  - Tests for hook merge logic and template validation
+```
+
 ## v2.4.2 - Project Detection & Code Quality Fixes
 
 ```text

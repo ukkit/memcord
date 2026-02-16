@@ -97,6 +97,22 @@ By default, the `.mcp.json` configuration enables all 19 tools (11 basic + 8 adv
 claude mcp configure memcord -e MEMCORD_ENABLE_ADVANCED=false
 ```
 
+#### Auto-Save Hooks (Optional)
+
+Memcord can automatically save conversation progress when Claude Code compacts context or when a session ends:
+
+```bash
+uv run python scripts/generate-config.py --install-hooks
+```
+
+This installs agent hooks into `.claude/settings.json`:
+- **PreCompact** — saves a summary before context compaction
+- **SessionEnd** — saves a summary and closes the active memory slot
+
+**Verify installation:** Check `.claude/settings.json` for `hooks.PreCompact` and `hooks.SessionEnd` entries with `"memcord:"` descriptions.
+
+**Remove hooks:** Edit `.claude/settings.json` and delete the memcord hook entries from the `PreCompact` and `SessionEnd` arrays.
+
 ### Claude Desktop
 
 MemCord offers two tool modes. Choose the configuration that fits your needs:
@@ -277,6 +293,9 @@ cd /path/to/memcord
 git pull
 uv pip install -e .
 uv run python scripts/generate-config.py  # Regenerate configs
+
+# Optional: Enable auto-save hooks
+uv run python scripts/generate-config.py --install-hooks
 ```
 
 ## Security & Privacy

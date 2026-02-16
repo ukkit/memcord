@@ -4,7 +4,7 @@
       <img src="assets/image/memcord_1024.png" width="256">
     </td>
     <td>
-      <h3>MEMCORD v2.4.2 (mcp server)</h3>
+      <h3>MEMCORD v2.5.0 (mcp server)</h3>
       <p>
         This privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control.
       </p>
@@ -33,7 +33,7 @@
 * **Effortless Organization** - Smart tags and folders that organize themselves around your workflow
 * **Intelligent Merging** - Automatically combines related conversations while eliminating duplicates
 
-**[What's new in v2.4.2](docs/versions.md#v242---project-detection--code-quality-fixes)** — MCP client roots detection, URI parsing fixes, and slot validation hardening. See [ versions.md ](docs/versions.md) for details.
+**[What's new in v2.5.0](docs/versions.md#v250---auto-save-hooks-for-claude-code)** — Opt-in Claude Code agent hooks for automatic progress saving on context compaction and session end.
 
 ## Prerequisites
 
@@ -116,6 +116,28 @@ memcord_init "my_project_name"
 /memcord-save           # Saves to bound slot automatically
 /memcord-save-progress  # Summarizes and saves automatically
 ```
+
+### Enable Auto-Save (Optional)
+
+```bash
+uv run python scripts/generate-config.py --install-hooks
+```
+
+Automatically saves conversation progress before context compaction and on session end. See [config-templates/README.md](config-templates/README.md#auto-save-hooks-optional) for details.
+
+### Updating Existing Installations
+
+```bash
+cd /path/to/memcord
+git pull
+uv pip install -e .
+uv run python scripts/generate-config.py  # Regenerate configs
+
+# Optional: Enable auto-save hooks (new in v2.5.0)
+uv run python scripts/generate-config.py --install-hooks
+```
+
+The `--install-hooks` flag is idempotent — it merges into existing `.claude/settings.json` without overwriting other settings or hooks.
 
 ### How Auto-Detection Works
 

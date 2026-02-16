@@ -124,6 +124,9 @@ Write-Host "   - claude_desktop_config.json (Claude Desktop)" -ForegroundColor G
 Write-Host "   - .vscode\mcp.json (VSCode/GitHub Copilot)" -ForegroundColor Gray
 Write-Host "   - .antigravity\mcp_config.json (Google Antigravity IDE)" -ForegroundColor Gray
 Write-Host ""
+Write-Host "💡 Optional: Enable auto-save hooks for Claude Code:" -ForegroundColor Yellow
+Write-Host "   uv run python scripts/generate-config.py --install-hooks" -ForegroundColor Gray
+Write-Host ""
 Write-Host "📋 Claude Desktop config location:" -ForegroundColor Yellow
 Write-Host "   Copy claude_desktop_config.json to:" -ForegroundColor Gray
 Write-Host "   $env:APPDATA\Claude\claude_desktop_config.json" -ForegroundColor Cyan
