@@ -120,7 +120,7 @@ class ChatMemoryServer:
         if self.enable_advanced_tools:
             self._tool_cache.extend(self._get_advanced_tools())
 
-        # Pre-load summarizer for faster first save_progress call
+        # Keep a fallback NLTK summarizer for stats; actual summarization is per-call
         from .summarizer import TextSummarizer
 
         self._summarizer = TextSummarizer()
@@ -152,6 +152,7 @@ class ChatMemoryServer:
             "memcord_save": (self._handle_savemem, False),
             "memcord_read": (self._handle_readmem, False),
             "memcord_save_progress": (self._handle_saveprogress, False),
+            "memcord_configure": (self._handle_configure, False),
             "memcord_list": (self._handle_listmems, False),
             "memcord_ping": (self._handle_ping, False),
             "memcord_search": (self._handle_searchmem, False),
@@ -531,6 +532,41 @@ class ChatMemoryServer:
                         },
                     },
                     "required": ["chat_text"],
+                },
+            ),
+            Tool(
+                name="memcord_configure",
+                description=(
+                    "Get or set the per-slot summarizer configuration. "
+                    "action='get' returns current config; action='set' updates a key; "
+                    "action='reset' restores defaults."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "action": {
+                            "type": "string",
+                            "description": "Action to perform: 'get', 'set', or 'reset'",
+                            "enum": ["get", "set", "reset"],
+                            "default": "get",
+                        },
+                        "key": {
+                            "type": "string",
+                            "description": (
+                                "Config key to update (required for action='set'). "
+                                "E.g. 'summarizer_backend', 'sumy_algorithm', 'default_compression_ratio'"
+                            ),
+                        },
+                        "value": {
+                            "type": "string",
+                            "description": "New value for the config key (required for action='set')",
+                        },
+                        "slot_name": {
+                            "type": "string",
+                            "description": "Memory slot name (optional, uses current slot if not specified)",
+                        },
+                    },
+                    "required": ["action"],
                 },
             ),
             Tool(
@@ -1248,9 +1284,10 @@ class ChatMemoryServer:
     @handle_errors(default_error_message="Save progress failed")
     async def _handle_saveprogress(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle saveprogress tool call."""
+        from .summarizer_factory import build_summarizer
+
         chat_text = arguments["chat_text"]
         slot_name = self._resolve_slot_for_write(arguments)
-        compression_ratio = arguments.get("compression_ratio", 0.15)
 
         if not slot_name:
             return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
@@ -1262,23 +1299,126 @@ class ChatMemoryServer:
         if not chat_text.strip():
             return [TextContent(type="text", text=self.ERROR_EMPTY_CHAT_TEXT)]
 
+        # Load per-slot config (auto-creates if absent)
+        config = await self.storage.load_slot_config(slot_name)
+        compression_ratio = arguments.get("compression_ratio", config.default_compression_ratio)
+
+        # Build summarizer for this call (no global state — config changes take effect immediately)
+        summarizer = build_summarizer(config)
+
         # Generate summary
-        summary = self.summarizer.summarize(chat_text.strip(), compression_ratio)
+        summary = await summarizer.summarize(chat_text.strip(), compression_ratio)
+
+        # Build metadata for the entry
+        llm_meta = self._extract_summarizer_metadata(summarizer, config)
 
         # Save summary to slot
-        entry = await self.storage.add_summary_entry(slot_name, chat_text.strip(), summary)
+        entry = await self.storage.add_summary_entry(slot_name, chat_text.strip(), summary, metadata=llm_meta)
 
         # Get statistics
-        stats = self.summarizer.get_summary_stats(chat_text, summary)
+        stats = summarizer.get_summary_stats(chat_text, summary)
 
+        backend = config.summarizer_backend
         return [
             TextContent(
                 type="text",
                 text=f"Progress saved to '{slot_name}' at {entry.timestamp.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
                 f"Summary ({stats['summary_length']}/{stats['original_length']} chars, "
-                f"{stats['compression_ratio']:.1%} compression):\n\n{summary}",
+                f"{stats['compression_ratio']:.1%} compression, backend: {backend}):\n\n{summary}",
             )
         ]
+
+    @staticmethod
+    def _extract_summarizer_metadata(summarizer: Any, config: Any) -> dict[str, Any]:
+        """Build a metadata dict describing which summarizer produced the summary."""
+        from .llm_summarizer import SemanticSummarizer, SumySummarizer, TransformersSummarizer
+        from .summarizer import NLTKSummarizer
+
+        meta: dict[str, Any] = {"summarizer": config.summarizer_backend}
+
+        if isinstance(summarizer, SumySummarizer):
+            meta["algorithm"] = summarizer.algorithm
+        elif isinstance(summarizer, SemanticSummarizer):
+            meta["model"] = summarizer.model_name
+        elif isinstance(summarizer, TransformersSummarizer):
+            meta["model"] = summarizer.model_name
+        # NLTKSummarizer: no extra fields needed
+
+        return meta
+
+    @handle_errors(default_error_message="Configure operation failed")
+    async def _handle_configure(self, arguments: dict[str, Any]) -> list[TextContent]:
+        """Handle memcord_configure tool call — get/set/reset per-slot summarizer config."""
+        action = arguments.get("action", "get").lower()
+        slot_name = self._resolve_slot_for_write(arguments)
+
+        if not slot_name:
+            return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
+
+        config = await self.storage.load_slot_config(slot_name)
+
+        if action == "get":
+            lines = [f"Config for slot '{slot_name}':"]
+            for field_name, value in config.model_dump().items():
+                lines.append(f"  {field_name}: {value}")
+            return [TextContent(type="text", text="\n".join(lines))]
+
+        if action == "set":
+            key = arguments.get("key", "").strip()
+            value = arguments.get("value", "").strip()
+            if not key:
+                return [TextContent(type="text", text="Error: 'key' is required for action='set'")]
+            if not hasattr(config, key):
+                valid = list(config.model_dump().keys())
+                return [
+                    TextContent(
+                        type="text",
+                        text=f"Error: Unknown config key '{key}'. Valid keys: {', '.join(valid)}",
+                    )
+                ]
+            # Coerce value type to match field
+            field_info = config.model_fields[key]
+            try:
+                annotation = field_info.annotation
+                if annotation is float or annotation == "float":
+                    typed_value: Any = float(value)
+                elif annotation is int or annotation == "int":
+                    typed_value = int(value)
+                elif annotation is bool or annotation == "bool":
+                    typed_value = value.lower() in ("true", "1", "yes")
+                else:
+                    typed_value = value
+            except (ValueError, TypeError):
+                typed_value = value
+
+            updated = config.model_dump()
+            updated[key] = typed_value
+            from .models import SlotConfig
+
+            config = SlotConfig(**updated)
+            await self.storage.save_slot_config(slot_name, config)
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Updated '{slot_name}' config: {key} → {typed_value}",
+                )
+            ]
+
+        if action == "reset":
+            from .models import SlotConfig
+
+            slot_exists = (self.storage.memory_dir / f"{slot_name}.json").exists()
+            default_backend = "nltk" if slot_exists else "sumy"
+            config = SlotConfig(summarizer_backend=default_backend)
+            await self.storage.save_slot_config(slot_name, config)
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Reset '{slot_name}' config to defaults (summarizer_backend={default_backend})",
+                )
+            ]
+
+        return [TextContent(type="text", text=f"Error: Unknown action '{action}'. Valid values: get, set, reset")]
 
     @handle_errors(default_error_message="List operation failed")
     async def _handle_listmems(self, arguments: dict[str, Any]) -> list[TextContent]:

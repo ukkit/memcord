@@ -1,6 +1,6 @@
 # Import & Merge Guide
 
-Comprehensive guide for Phase 3 features: importing content from various sources and merging memory slots with intelligent duplicate detection.
+Guide for importing content from various sources and merging memory slots with intelligent duplicate detection.
 
 ## Table of Contents
 
@@ -465,4 +465,4 @@ done
 memcord_merge ... delete_sources=true  # Remove temporary slots
 ```
 
-This comprehensive guide covers all aspects of using the Phase 3 import and merge features effectively. For additional help, refer to the [Tools Reference](tools-reference.md) for detailed parameter specifications and the [Examples](examples.md) for practical workflows.
+This guide covers all aspects of using the import and merge features effectively. For additional help, refer to the [Tools Reference](tools-reference.md) for detailed parameter specifications and the [Examples](examples.md) for practical workflows.

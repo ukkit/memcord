@@ -1,11 +1,11 @@
 # Usage Examples & Workflows
 
-Practical examples and common workflows for using the Chat Memory MCP Server effectively.
+Practical examples and common workflows for using Memcord effectively.
 
-> **📋 Tool Modes**: 
-> - **Basic Tools** (always available): `memcord_name`, `memcord_save`, `memcord_read`, `memcord_save_progress`, `memcord_list`, `memcord_search`, `memcord_query`
-> - **Advanced Tools** (require `MEMCORD_ENABLE_ADVANCED=true`): `memcord_tag`, `memcord_group`, `memcord_list_tags`, `memcord_import`, `memcord_merge`, `memcord_export`, `memcord_share`
-> 
+> **📋 Tool Modes**:
+> - **Basic Tools** (15, always available): `memcord_name`, `memcord_use`, `memcord_save`, `memcord_read`, `memcord_save_progress`, `memcord_list`, `memcord_configure`, `memcord_search`, `memcord_query`, `memcord_zero`, `memcord_select_entry`, `memcord_merge`, `memcord_init`, `memcord_unbind`, `memcord_ping`
+> - **Advanced Tools** (8, require `MEMCORD_ENABLE_ADVANCED=true`): `memcord_tag`, `memcord_list_tags`, `memcord_group`, `memcord_import`, `memcord_compress`, `memcord_archive`, `memcord_export`, `memcord_share`
+>
 > Most examples below use advanced tools. For basic-only workflows, focus on the core memory operations.
 
 ## Basic Workflows

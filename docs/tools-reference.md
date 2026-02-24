@@ -1,14 +1,15 @@
 # Tools Reference
 
-Complete reference for all 22 tools available in the Chat Memory MCP Server.
+Complete reference for all 23 tools available in Memcord.
 
 ## Tool Availability
 
 MemCord offers **two modes** with different tool sets:
 
-### 🔧 Basic Mode (Default - 14 Tools)
+### 🔧 Basic Mode (Default - 15 Tools)
 Available without configuration:
 - Core: `memcord_name`, `memcord_use`, `memcord_save`, `memcord_read`, `memcord_save_progress`, `memcord_list`
+- Configuration: `memcord_configure`
 - Search: `memcord_search`, `memcord_query`
 - Privacy: `memcord_zero`
 - Selection: `memcord_select_entry`
@@ -16,7 +17,7 @@ Available without configuration:
 - Project Binding: `memcord_init`, `memcord_unbind`
 - Utility: `memcord_ping`
 
-### ⚡ Advanced Mode (All 22 Tools)
+### ⚡ Advanced Mode (All 23 Tools)
 Requires `MEMCORD_ENABLE_ADVANCED=true`:
 - **All Basic tools** plus:
 - Organization: `memcord_tag`, `memcord_list_tags`, `memcord_group`
@@ -84,15 +85,46 @@ Generates a summary and appends it to memory slot with timestamp.
 **Parameters:**
 - `chat_text`: Text to summarize
 - `slot_name` (optional): Target memory slot. If not provided, uses current slot
-- `compression_ratio` (optional): Target compression (0.05-0.5, default 0.15)
+- `compression_ratio` (optional): Target compression (0.05-0.5). Defaults to the slot's `default_compression_ratio` config value (0.15)
 
 **Auto-detection:** When using Claude Code slash commands, if no slot name is provided, the command will automatically check for a `.memcord` file in the current working directory and use the slot name specified there.
+
+**Summarizer backend:** Uses the backend configured for the slot via `memcord_configure`. New slots default to `sumy` (graph-based, zero model files); existing slots default to `nltk` (unchanged prior behavior). Override globally with `MEMCORD_SUMMARIZER` env var.
 
 **Examples:**
 - "Summarize our progress and save it"
 - "Save progress with 10% compression"
 
-### 6. `memcord_list`
+### 6. `memcord_configure`
+Get or set the per-slot summarizer configuration.
+
+**Parameters:**
+- `action`: `get` (show config), `set` (update a key), or `reset` (restore defaults)
+- `key` (required for `set`): Config key to update. Valid keys:
+  - `summarizer_backend` — `"sumy"` | `"semantic"` | `"transformers"` | `"nltk"`
+  - `sumy_algorithm` — `"lexrank"` | `"lsa"` | `"edmundson"`
+  - `semantic_model` — sentence-transformers model name (default: `"all-MiniLM-L6-v2"`)
+  - `transformers_model` — HuggingFace model name (default: `"philschmid/bart-large-cnn-samsum"`)
+  - `hf_device` — `"auto"` | `"cpu"` | `"cuda"` | `"mps"`
+  - `default_compression_ratio` — float between 0.05 and 0.5
+- `value` (required for `set`): New value for the key
+- `slot_name` (optional): Target slot. Uses current slot if not specified
+
+**Config is per-slot** and stored as a sidecar JSON file (`{slot}_config.json`). Changes take effect on the very next `memcord_save_progress` call — no restart required.
+
+**Auto-creation rules:**
+- New slot (no `.json` file yet) → `summarizer_backend = "sumy"` (smarter default)
+- Existing slot (`.json` file present) → `summarizer_backend = "nltk"` (preserves prior behavior)
+
+**Examples:**
+- `memcord_configure action="get"` — Show current slot config
+- `memcord_configure action="set" key="summarizer_backend" value="transformers"` — Switch to abstractive BART
+- `memcord_configure action="set" key="default_compression_ratio" value="0.25"` — Set compression to 25%
+- `memcord_configure action="reset"` — Restore defaults for current slot
+
+**Env var override:** `MEMCORD_SUMMARIZER=nltk` overrides per-slot config for all slots (useful for Docker/CI).
+
+### 7. `memcord_list`
 Lists all available memory slots with metadata.
 
 **Parameters:** None
@@ -101,7 +133,7 @@ Lists all available memory slots with metadata.
 - "Show me all my memory slots"
 - "List all available memories"
 
-### 7. `memcord_ping`
+### 8. `memcord_ping`
 Lightweight health check for server warm-up. Returns minimal response to confirm server is running.
 
 **Parameters:** None
@@ -119,7 +151,7 @@ Lightweight health check for server warm-up. Returns minimal response to confirm
 
 See [Server Warm-up](claude-code-guide.md#server-warm-up-avoid-cold-start-delays) for hook configuration.
 
-### 8. `memcord_search <query> [options]`
+### 9. `memcord_search <query> [options]`
 Search across all memory slots with advanced filtering.
 
 **Parameters:**
@@ -133,7 +165,7 @@ Search across all memory slots with advanced filtering.
 - "Search for 'API integration'"
 - "Search for 'database' excluding tag 'archived'"
 
-### 9. `memcord_query <question>`
+### 10. `memcord_query <question>`
 Ask natural language questions about your stored memories.
 
 **Parameters:**
@@ -146,7 +178,7 @@ Ask natural language questions about your stored memories.
 
 ### Privacy Control
 
-### 10. `memcord_zero`
+### 11. `memcord_zero`
 Activate zero mode - no memory will be saved until switched to another slot.
 
 **Parameters:**
@@ -173,7 +205,7 @@ Activate zero mode - no memory will be saved until switched to another slot.
 
 ### Entry Selection & Timeline Navigation
 
-### 11. `memcord_select_entry`
+### 12. `memcord_select_entry`
 Select and retrieve a specific memory entry by timestamp, relative time, or index within a memory slot.
 
 **Parameters:**
@@ -217,7 +249,7 @@ Select and retrieve a specific memory entry by timestamp, relative time, or inde
 
 ### Memory Integration
 
-### 12. `memcord_merge <source_slots> <target_slot> [options]`
+### 13. `memcord_merge <source_slots> <target_slot> [options]`
 Merge multiple memory slots into one with intelligent duplicate detection.
 
 **Parameters:**
@@ -252,7 +284,7 @@ Merge multiple memory slots into one with intelligent duplicate detection.
 
 ### Project Binding
 
-### 13. `memcord_init <project_path> [slot_name]`
+### 14. `memcord_init <project_path> [slot_name]`
 Initialize memcord for a project directory by binding it to a memory slot. Creates a `.memcord` file in the project root.
 
 **Parameters:**
@@ -275,7 +307,7 @@ Initialize memcord for a project directory by binding it to a memory slot. Creat
 - **Team collaboration**: `.memcord` file can be committed to version control
 - **Auto-detection**: Claude Code slash commands automatically use the bound slot
 
-### 14. `memcord_unbind <project_path>`
+### 15. `memcord_unbind <project_path>`
 Remove the `.memcord` binding file from a project directory.
 
 **Parameters:**
@@ -296,7 +328,7 @@ Remove the `.memcord` binding file from a project directory.
 
 ### Storage Optimization
 
-### 15. `memcord_compress`
+### 16. `memcord_compress`
 Compress memory slot content to save storage space with intelligent gzip compression.
 
 **Parameters:**
@@ -324,7 +356,7 @@ Compress memory slot content to save storage space with intelligent gzip compres
 
 ### Organization Tools
 
-### 16. `memcord_tag <action> [tags]`
+### 17. `memcord_tag <action> [tags]`
 Manage tags for memory slots.
 
 **Parameters:**
@@ -342,7 +374,7 @@ Manage tags for memory slots.
 - Hierarchical tags using dot notation (e.g., "project.alpha.backend")
 - Auto-completion suggestions
 
-### 17. `memcord_list_tags`
+### 18. `memcord_list_tags`
 List all tags used across all memory slots.
 
 **Parameters:** None
@@ -356,7 +388,7 @@ List all tags used across all memory slots.
 - Usage count
 - Associated memory slots
 
-### 18. `memcord_group <action> [group_path]`
+### 19. `memcord_group <action> [group_path]`
 Manage memory slot groups and folders.
 
 **Parameters:**
@@ -376,7 +408,7 @@ Manage memory slot groups and folders.
 
 ### Import & Integration
 
-### 19. `memcord_import <source> [options]`
+### 20. `memcord_import <source> [options]`
 Import content from various sources including files, PDFs, web URLs, and structured data.
 
 **Parameters:**
@@ -407,7 +439,7 @@ Import content from various sources including files, PDFs, web URLs, and structu
 
 ### Archival & Long-term Storage
 
-### 20. `memcord_archive <action> [options]`
+### 21. `memcord_archive <action> [options]`
 Archive or restore memory slots for long-term storage with automatic compression.
 
 **Parameters:**
@@ -439,7 +471,7 @@ Archive or restore memory slots for long-term storage with automatic compression
 
 ### Export & Sharing
 
-### 21. `memcord_export <slot_name> <format>`
+### 22. `memcord_export <slot_name> <format>`
 Exports memory slot as an MCP file resource.
 
 **Parameters:**
@@ -450,7 +482,7 @@ Exports memory slot as an MCP file resource.
 - "Export project_alpha as markdown"
 - "Export meeting_notes as JSON"
 
-### 22. `memcord_share <slot_name> [formats]`
+### 23. `memcord_share <slot_name> [formats]`
 Generates shareable files in multiple formats.
 
 **Parameters:**
@@ -509,6 +541,8 @@ Common error messages and solutions:
 - **"No memory slot selected"**: Use `memcord_name` first
 - **"Memory slot not found"**: Check spelling with `memcord_list`
 - **"Invalid compression ratio"**: Use value between 0.05 and 0.5
+- **"Unknown config key"**: Run `memcord_configure action="get"` to see valid keys
+- **"Unknown action"**: Use `get`, `set`, or `reset` for `memcord_configure`
 - **"No search results"**: Try broader terms or check spelling
 - **"Tag not found"**: Verify with `memcord_list_tags`
 - **"Invalid group path"**: Use forward slashes for hierarchy

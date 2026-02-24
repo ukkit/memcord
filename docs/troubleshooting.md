@@ -46,7 +46,7 @@ memcord_save "conversation content"
 **Problem**: MCP server fails to launch.
 
 **Troubleshooting steps**:
-1. Check Python version: `python --version` (3.8+ required)
+1. Check Python version: `python --version` (3.10+ required)
 2. Verify installation: `uv run memcord --help`
 3. Check file permissions in the project directory
 4. Verify PYTHONPATH environment variable
@@ -58,10 +58,10 @@ uv pip install -e .
 
 # Check MCP configuration
 claude mcp list
-claude mcp get chat-memory
+claude mcp get memcord
 
 # Run with debug output
-PYTHONPATH=src python -m chat_memory.server --debug
+PYTHONPATH=src python -m memcord.server --debug
 ```
 
 #### 4. "Command not found: uv"
@@ -74,7 +74,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Or use pip instead
 pip install -e .
-python -m chat_memory.server
+uv run memcord
 ```
 
 ### Search & Query Issues
@@ -112,7 +112,7 @@ memcord_search "meeting" --include-tags "urgent"
 memcord_search "project" --max-results 10
 
 # Restart server to rebuild index
-claude mcp restart chat-memory
+claude mcp restart memcord
 ```
 
 #### 7. "Tags not working"
@@ -135,10 +135,10 @@ claude mcp restart chat-memory
 claude mcp list
 
 # Add if missing
-claude mcp add chat-memory uv --directory /path/to/memcord run memcord -e PYTHONPATH=/path/to/memcord/src
+claude mcp add memcord uv --directory /path/to/memcord run memcord -e PYTHONPATH=/path/to/memcord/src
 
 # Check configuration
-claude mcp get chat-memory
+claude mcp get memcord
 ```
 
 #### 9. "Permission denied" errors
@@ -164,14 +164,14 @@ claude mcp get chat-memory
 
 ```bash
 # Run server with debug logging
-PYTHONPATH=src python -m chat_memory.server --debug
+PYTHONPATH=src python -m memcord.server --debug
 
 # Set log level
 export LOG_LEVEL=DEBUG
 uv run memcord
 
 # Check specific component
-python -c "from src.chat_memory.search import SearchEngine; print('Search OK')"
+python -c "from src.memcord.search import SearchEngine; print('Search OK')"
 ```
 
 ### Debug Information
@@ -215,7 +215,7 @@ tail -f ./logs/chat_memory.log
 3. **Optimize search index**:
    ```bash
    # Restart server to rebuild index
-   claude mcp restart chat-memory
+   claude mcp restart memcord
    ```
 
 ### Disk Space Issues
@@ -278,7 +278,7 @@ rm -rf .cache/search_index.json
 rm -rf .cache/term_frequencies.json
 
 # Restart server to rebuild
-claude mcp restart chat-memory
+claude mcp restart memcord
 ```
 
 ## Network & Connectivity
@@ -290,17 +290,17 @@ claude mcp restart chat-memory
 **Troubleshooting**:
 1. **Check MCP server status**:
    ```bash
-   claude mcp status chat-memory
+   claude mcp status memcord
    ```
 
 2. **Restart MCP server**:
    ```bash
-   claude mcp restart chat-memory
+   claude mcp restart memcord
    ```
 
 3. **Verify configuration**:
    ```bash
-   claude mcp get chat-memory
+   claude mcp get memcord
    cat ~/.mcp.json  # Check project config
    ```
 
@@ -351,21 +351,21 @@ claude mcp restart chat-memory
 ```bash
 # Test search functionality
 python -c "
-from src.chat_memory.search import SearchEngine
+from src.memcord.search import SearchEngine
 engine = SearchEngine()
 print('Search engine: OK')
 "
 
-# Test query processing  
+# Test query processing
 python -c "
-from src.chat_memory.query import SimpleQueryProcessor
+from src.memcord.query import SimpleQueryProcessor
 processor = SimpleQueryProcessor()
 print('Query processor: OK')
 "
 
 # Validate data models
 python -c "
-from src.chat_memory.models import MemorySlot, SearchQuery
+from src.memcord.models import MemorySlot, SearchQuery
 print('Data models: OK')
 "
 ```
@@ -441,5 +441,5 @@ If all else fails:
 4. **Rebuild index**:
    ```bash
    rm -rf .cache/
-   claude mcp restart chat-memory
+   claude mcp restart memcord
    ```

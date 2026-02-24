@@ -202,7 +202,7 @@ You can customize memcord behavior using environment variables:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `PYTHONPATH` | Path to memcord source | Required |
-| `MEMCORD_ENABLE_ADVANCED` | Enable advanced tools (19 total) | `false` (11 basic tools) |
+| `MEMCORD_ENABLE_ADVANCED` | Enable advanced tools (23 total) | `false` (15 basic tools) |
 | `MEMCORD_MEMORY_DIR` | Custom memory slots directory | `memory_slots/` |
 | `MEMCORD_SHARED_DIR` | Custom shared memories directory | `shared_memories/` |
 
@@ -284,7 +284,7 @@ Copilot: [Uses memcord_merge tool]
 
 ### Available Tools in Agent Mode
 
-**Basic Mode (11 tools):**
+**Basic Mode (15 tools):**
 - `memcord_name` - Create/select memory slots
 - `memcord_use` - Switch to existing slot
 - `memcord_save` - Save content directly
@@ -665,8 +665,8 @@ Add to `.gitignore`:
 
 ## Next Steps
 
-- **[Usage Examples](vscode-copilot-workflows.md)** - Real-world workflows with GitHub Copilot
-- **[Tools Reference](tools-reference.md)** - Complete documentation of all 19 tools
+- **[Usage Examples](examples.md)** - Real-world workflows and practical use cases
+- **[Tools Reference](tools-reference.md)** - Complete documentation of all 23 tools
 - **[Security Guide](security-vscode.md)** - Security best practices for VSCode integration
 - **[Troubleshooting Guide](troubleshooting.md)** - General troubleshooting
 

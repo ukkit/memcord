@@ -27,7 +27,7 @@ memcord/
 │   ├── troubleshooting.md # Support documentation
 │   └── examples.md       # Usage examples
 └── src/memcord/           # Source code
-    ├── server.py         # Main MCP server with 18 tools
+    ├── server.py         # Main MCP server with 23 tools
     ├── storage.py        # Enhanced storage with compression/archive support
     ├── models.py         # Enhanced data models with compression metadata
     ├── compression.py    # Content compression utilities

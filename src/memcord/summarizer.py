@@ -4,6 +4,8 @@ import math
 import re
 from collections import Counter
 
+from .summarizer_base import BaseSummarizer
+
 
 class TextSummarizer:
     """Simple extractive text summarizer."""
@@ -412,3 +414,16 @@ class TextSummarizer:
             "words_summary": len(summary.split()),  # Alternative name for backward compatibility
             "compression_ratio": len(summary) / len(original) if original else 0.0,
         }
+
+
+class NLTKSummarizer(BaseSummarizer):
+    """BaseSummarizer adapter wrapping the existing NLTK-based TextSummarizer."""
+
+    def __init__(self) -> None:
+        self._inner = TextSummarizer()
+
+    async def summarize(self, text: str, target_ratio: float = 0.15) -> str:
+        return self._inner.summarize(text, target_ratio=target_ratio)
+
+    def get_summary_stats(self, original: str, summary: str) -> dict[str, int | float]:
+        return self._inner.get_summary_stats(original, summary)

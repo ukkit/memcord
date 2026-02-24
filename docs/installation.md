@@ -4,7 +4,7 @@ This guide covers the complete installation and configuration process for the Me
 
 ## Prerequisites
 
-- Python 3.8 or higher
+- Python 3.10 or higher
 - `uv` package manager (recommended) or `pip`
 
 ## Installation
@@ -13,10 +13,10 @@ This guide covers the complete installation and configuration process for the Me
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/ukkit/memcord.git
 cd memcord
 
-# Install with uv
+# Install with uv (core deps including sumy)
 uv pip install -e .
 ```
 
@@ -24,11 +24,31 @@ uv pip install -e .
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/ukkit/memcord.git
 cd memcord
 
 # Install dependencies
 pip install -e .
+```
+
+### Optional Summarizer Backends
+
+The default summarizer is `sumy` (graph-based, zero model files, included in core deps). Two heavier backends are available as optional extras:
+
+```bash
+# Semantic backend — sentence-transformers + MMR (~80MB one-time download)
+uv pip install -e ".[semantic]"
+pip install -e ".[semantic]"
+
+# Transformers backend — HuggingFace BART abstractive summarizer (~400MB one-time download)
+uv pip install -e ".[transformers]"
+pip install -e ".[transformers]"
+```
+
+After installing, configure a slot to use the new backend:
+```
+memcord_configure action="set" key="summarizer_backend" value="semantic"
+memcord_configure action="set" key="summarizer_backend" value="transformers"
 ```
 
 ## Configuration
@@ -90,12 +110,32 @@ claude mcp test memcord
 
 #### Advanced Tools
 
-By default, the `.mcp.json` configuration enables all 19 tools (11 basic + 8 advanced). To use only basic tools, set:
+By default, the `.mcp.json` configuration enables all 23 tools (15 basic + 8 advanced). To use only basic tools, set:
 
 ```bash
 # Disable advanced tools
 claude mcp configure memcord -e MEMCORD_ENABLE_ADVANCED=false
 ```
+
+#### Summarizer Backend (Optional)
+
+Set `MEMCORD_SUMMARIZER` to override the per-slot summarizer config for all slots. Useful for Docker/CI where you want a fixed backend regardless of individual slot settings:
+
+```bash
+# Force sumy for all slots (default for new slots anyway)
+claude mcp configure memcord -e MEMCORD_SUMMARIZER=sumy
+
+# Force NLTK for all slots (backward-compatible, no extra deps)
+claude mcp configure memcord -e MEMCORD_SUMMARIZER=nltk
+
+# Force semantic backend (requires: pip install memcord[semantic])
+claude mcp configure memcord -e MEMCORD_SUMMARIZER=semantic
+
+# Force transformers backend (requires: pip install memcord[transformers])
+claude mcp configure memcord -e MEMCORD_SUMMARIZER=transformers
+```
+
+When not set, each slot uses its own backend as configured via `memcord_configure`.
 
 #### Auto-Save Hooks (Optional)
 
@@ -121,7 +161,7 @@ MemCord offers two tool modes. Choose the configuration that fits your needs:
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
-#### Basic Mode (Default - 11 Tools)
+#### Basic Mode (Default - 15 Tools)
 Essential memory management features:
 
 ```json
@@ -143,7 +183,7 @@ Essential memory management features:
 }
 ```
 
-#### Advanced Mode (All 19 Tools)
+#### Advanced Mode (All 23 Tools)
 Includes organization, import/export, and advanced features:
 
 ```json

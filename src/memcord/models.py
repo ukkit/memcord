@@ -408,6 +408,53 @@ class MemorySlot(BaseModel):
         return [entry.timestamp.isoformat() for entry in self.entries]
 
 
+class SummaryMetadata(BaseModel):
+    """Typed schema for LLM-enriched MemoryEntry.metadata.
+
+    Not enforced on the field itself (stays dict[str, Any]) — use this to
+    construct/validate summarizer metadata before storing it.
+    """
+
+    summarizer: str = "nltk"  # "nltk" | "sumy" | "semantic" | "transformers"
+    model: str | None = None  # e.g. "philschmid/bart-large-cnn-samsum"
+    algorithm: str | None = None  # e.g. "lexrank", "lsa"
+    keywords: list[str] = Field(default_factory=list)
+    entities: list[str] = Field(default_factory=list)
+    action_items: list[str] = Field(default_factory=list)
+    importance: float | None = None  # 0.0–1.0, future use
+
+
+class SlotConfig(BaseModel):
+    """Per-slot summarizer configuration, stored as a sidecar JSON file."""
+
+    summarizer_backend: str = Field(
+        "sumy",
+        description="Summarizer backend: 'sumy' | 'semantic' | 'transformers' | 'nltk'",
+    )
+    sumy_algorithm: str = Field(
+        "lexrank",
+        description="sumy algorithm: 'lexrank' | 'lsa' | 'edmundson'",
+    )
+    semantic_model: str = Field(
+        "all-MiniLM-L6-v2",
+        description="sentence-transformers model name",
+    )
+    transformers_model: str = Field(
+        "philschmid/bart-large-cnn-samsum",
+        description="HuggingFace seq2seq model name",
+    )
+    hf_device: str = Field(
+        "auto",
+        description="Device for transformers: 'cpu' | 'cuda' | 'mps' | 'auto'",
+    )
+    default_compression_ratio: float = Field(
+        0.15,
+        ge=0.05,
+        le=0.5,
+        description="Default target compression ratio for save_progress",
+    )
+
+
 class ExportConfig(BaseModel):
     """Configuration for exporting memory slots."""
 

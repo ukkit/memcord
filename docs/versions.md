@@ -1,5 +1,23 @@
 # Version History
 
+## v3.0.0 - Pluggable Summarizer Backends & Per-Slot Config
+
+```text
+  - New default summarizer for fresh slots: sumy (graph-based LexRank, zero model downloads)
+  - Existing slots auto-assigned nltk config on first access — no behavior change for current users
+  - Per-slot sidecar config: {slot_name}_config.json stores backend, algorithm, model, compression ratio
+  - New memcord_configure MCP tool: get/set/reset per-slot summarizer config without restarting
+  - MEMCORD_SUMMARIZER env var overrides per-slot config for deployment-level control (Docker, CI)
+  - Optional semantic backend: sentence-transformers + MMR sentence selection (~80MB, install with [semantic])
+  - Optional transformers backend: HuggingFace BART dialogue-trained abstractive summarizer (~400MB, install with [transformers])
+  - Summarizer built per-call so config changes take effect immediately on the next save_progress
+  - SummaryMetadata Pydantic model for typed LLM-enriched entry metadata
+  - SlotConfig Pydantic model for validated per-slot configuration
+  - add_summary_entry now stores which backend produced the summary in entry.metadata
+  - sumy added to core dependencies; sentence-transformers and transformers remain optional extras
+  - 59 new tests covering backends, factory, filesystem sidecar auto-creation, and configure tool
+```
+
 ## v2.5.0 - Auto-Save Hooks for Claude Code
 
 ```text
@@ -105,7 +123,7 @@
   - Better Documentation: Clearer documentation, intelligent default settings that adapt to your preferences.
 ```
 
-### v2.2.0 - What's new
+## v2.2.0 - What's New
 
 ```text
   - Timeline Navigation - memcord_select_entry

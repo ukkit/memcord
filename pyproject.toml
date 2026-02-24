@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "memcord"
-version = "2.5.0"
+version = "3.0.0"
 description = "privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control."
 authors = [
     {name = "MemCord", email = "memcord@ultrafastidio.us"}
@@ -13,7 +13,7 @@ license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "mcp>=1.25.0",  # MCP SDK - latest stable
+    "mcp>=1.25.0,<2",  # MCP SDK - latest stable v1.x; cap at v2 (breaking)
     "nltk>=3.8",
     "aiofiles>=23.0",
     "pydantic>=2.0.0",
@@ -24,9 +24,17 @@ dependencies = [
     "pandas>=2.0.0",
     "trafilatura>=1.8.0",
     "python-magic>=0.4.27",
+    "sumy>=0.11.0",  # Default summarizer backend (graph-based, zero model files)
 ]
 
 [project.optional-dependencies]
+semantic = [
+    "sentence-transformers>=3.0.0",
+]
+transformers = [
+    "transformers>=4.40.0",
+    "torch>=2.0.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
@@ -156,6 +164,22 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "nltk.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "sumy.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "sentence_transformers.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "transformers.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "torch.*"
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]

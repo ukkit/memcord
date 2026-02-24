@@ -22,11 +22,35 @@ Create organized containers for different types of conversations:
 - Prevents information overload and context mixing
 
 #### Auto-Summarization
-Intelligent content compression that preserves key information:
+Intelligent content compression that preserves key information, powered by a pluggable backend system:
 - **85-95% compression** while maintaining essential details
 - **Configurable compression ratios** (0.05-0.5)
 - **Preserves decisions, action items, and key insights**
 - **Maintains chronological order** of important events
+
+**Summarizer Backends** (configured per slot via `memcord_configure`):
+
+| Backend | Key | Size | Best For |
+|---------|-----|------|----------|
+| sumy LexRank | `sumy` | ~0 | **Default for new slots** — graph-based, zero model files |
+| sentence-transformers | `semantic` | ~80MB | Meaning-aware extraction, optional install |
+| HuggingFace BART | `transformers` | ~400MB | Abstractive, dialogue-trained, optional install |
+| NLTK (legacy) | `nltk` | ~0 | **Default for existing slots** — preserves prior behavior |
+
+All backends run fully locally — no external APIs, no data leaves your machine.
+
+**Configure per slot:**
+```
+memcord_configure action="set" key="summarizer_backend" value="sumy"
+memcord_configure action="get"   # see current config
+memcord_configure action="reset" # restore defaults
+```
+
+**Install optional backends:**
+```bash
+uv pip install "memcord[semantic]"      # sentence-transformers (~80MB)
+uv pip install "memcord[transformers]"  # BART abstractive (~400MB)
+```
 
 **Use Cases:**
 - Long project discussions that need periodic summaries
@@ -291,7 +315,7 @@ Robust data handling:
 
 ## Feature Comparison: Basic vs Advanced Mode
 
-### Basic Mode (8 Tools)
+### Basic Mode (15 Tools)
 **Target Users**: New users, simple workflows, performance-sensitive environments
 
 **Available Features:**
@@ -307,7 +331,7 @@ Robust data handling:
 - Basic search and query needs
 - Minimal setup requirements
 
-### Advanced Mode (17 Tools)
+### Advanced Mode (23 Tools)
 **Target Users**: Power users, complex workflows, team collaboration
 
 **Additional Features:**
@@ -543,6 +567,5 @@ memcord_share "client_project_x" "md,txt"
 - **MCP ecosystem**: Enhanced compatibility with other MCP tools
 - **External APIs**: Integration with project management tools
 - **Automation**: Scheduled operations and batch processing
-- **AI enhancements**: Improved summarization and query processing
 
 MemCord continues to evolve based on user feedback and emerging needs in the MCP ecosystem. Regular updates bring new features, performance improvements, and enhanced compatibility with the broader AI tooling landscape.

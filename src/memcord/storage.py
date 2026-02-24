@@ -2,10 +2,13 @@
 
 import asyncio
 import json
+import logging
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 import aiofiles
 import aiofiles.os
@@ -27,6 +30,7 @@ from .models import (
     SearchQuery,
     SearchResult,
     ServerState,
+    SlotConfig,
 )
 from .search import SearchEngine
 from .storage_efficiency import (
@@ -395,7 +399,13 @@ class StorageManager:
 
         return sorted(slots_info, key=lambda x: x["updated_at"], reverse=True)
 
-    async def add_summary_entry(self, slot_name: str, original_content: str, summary: str) -> MemoryEntry:
+    async def add_summary_entry(
+        self,
+        slot_name: str,
+        original_content: str,
+        summary: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> MemoryEntry:
         """Add a summary entry to a memory slot."""
         async with self._lock:
             slot = await self._load_slot(slot_name)
@@ -409,12 +419,48 @@ class StorageManager:
                 timestamp=datetime.now(),
                 original_length=len(original_content),
                 summary_length=len(summary),
+                metadata=metadata or {},
             )
 
             slot.add_entry(entry)
             await self._save_slot(slot)
             self._search_engine.add_slot(slot)  # Update search index
             return entry
+
+    def _slot_config_path(self, slot_name: str) -> Path:
+        """Return the path to the sidecar config file for a slot."""
+        return self.memory_dir / f"{slot_name}_config.json"
+
+    async def load_slot_config(self, slot_name: str) -> SlotConfig:
+        """Load per-slot config, auto-creating it if absent.
+
+        Auto-creation rules:
+        - Existing slot ({slot_name}.json exists) → nltk backend (preserve behavior)
+        - New slot ({slot_name}.json absent)      → sumy backend (smarter default)
+        """
+        config_path = self._slot_config_path(slot_name)
+
+        if config_path.exists():
+            try:
+                async with aiofiles.open(config_path, encoding="utf-8") as f:
+                    data = json.loads(await f.read())
+                return SlotConfig(**data)
+            except Exception as exc:
+                logger.warning("Corrupt slot config for '%s', resetting: %s", slot_name, exc)
+
+        # Auto-create
+        slot_exists = (self.memory_dir / f"{slot_name}.json").exists()
+        default_backend = "nltk" if slot_exists else "sumy"
+        config = SlotConfig(summarizer_backend=default_backend)
+        await self.save_slot_config(slot_name, config)
+        return config
+
+    async def save_slot_config(self, slot_name: str, config: SlotConfig) -> None:
+        """Persist per-slot config sidecar."""
+        config_path = self._slot_config_path(slot_name)
+        self.memory_dir.mkdir(exist_ok=True)
+        async with aiofiles.open(config_path, "w", encoding="utf-8") as f:
+            await f.write(config.model_dump_json(indent=2))
 
     def get_current_slot(self) -> str | None:
         """Get the currently active slot name."""
