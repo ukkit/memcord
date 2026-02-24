@@ -442,10 +442,14 @@ Add a hook that warms up the server on the first user message:
   "hooks": {
     "UserPromptSubmit": [
       {
-        "type": "command",
-        "command": "claude mcp call memcord memcord_ping '{}'",
-        "timeout": 5000,
-        "onFailure": "ignore"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude mcp call memcord memcord_ping '{}'",
+            "timeout": 5000,
+            "onFailure": "ignore"
+          }
+        ]
       }
     ]
   }

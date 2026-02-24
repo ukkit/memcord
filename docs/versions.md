@@ -1,5 +1,15 @@
 # Version History
 
+## v3.0.1 - Claude Code Hooks Format Compatibility
+
+```text
+  - Updated hooks template to new Claude Code hooks schema (hooks array nested inside each entry)
+  - merge_hooks() now detects and deduplicates memcord entries in both old and new format
+    — re-running --install-hooks on existing installs migrates cleanly without duplicates
+  - Updated UserPromptSubmit warm-up example in docs/claude-code-guide.md to new format
+  - Existing users: run `uv run python scripts/generate-config.py --install-hooks` to migrate
+```
+
 ## v3.0.0 - Pluggable Summarizer Backends & Per-Slot Config
 
 ```text

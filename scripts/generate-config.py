@@ -119,11 +119,28 @@ def load_hooks_template(templates_dir: Path) -> dict[str, Any]:
     return load_template(hooks_path)
 
 
+def _is_memcord_hook(hook: dict[str, Any]) -> bool:
+    """Detect a memcord hook in either old or new Claude Code format.
+
+    Old format: {"type": "agent", "description": "memcord: ...", "prompt": "..."}
+    New format: {"hooks": [{"type": "agent", "description": "memcord: ...", "prompt": "..."}]}
+    """
+    # Old format: description directly on the outer object
+    if hook.get("description", "").startswith("memcord:"):
+        return True
+    # New format: description inside nested hooks array
+    for h in hook.get("hooks", []):
+        if h.get("description", "").startswith("memcord:"):
+            return True
+    return False
+
+
 def merge_hooks(existing: dict[str, Any], new_hooks: dict[str, Any]) -> dict[str, Any]:
     """Merge memcord hooks into existing Claude Code settings.
 
     Deduplicates by checking for 'memcord:' prefix in hook descriptions.
-    Preserves all non-memcord hooks and other settings.
+    Handles both old format (description on outer object) and new format
+    (description inside nested hooks array). Preserves all non-memcord hooks.
     """
     result = existing.copy()
 
@@ -137,10 +154,10 @@ def merge_hooks(existing: dict[str, Any], new_hooks: dict[str, Any]) -> dict[str
         if event_key not in result["hooks"]:
             result["hooks"][event_key] = []
 
-        # Remove existing memcord hooks (deduplication)
+        # Remove existing memcord hooks in either format (deduplication)
         result["hooks"][event_key] = [
             hook for hook in result["hooks"][event_key]
-            if not hook.get("description", "").startswith("memcord:")
+            if not _is_memcord_hook(hook)
         ]
 
         # Add new memcord hooks
