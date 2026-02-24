@@ -39,7 +39,7 @@ class TestHooksTemplate:
 
         hooks = data["hooks"]
         assert "PreCompact" in hooks
-        assert "SessionEnd" in hooks
+        assert "SessionEnd" not in hooks
 
     def test_hooks_template_entries_have_required_fields(self):
         template_path = Path(__file__).parent.parent / "config-templates" / "claude-code" / "hooks.json"
@@ -49,10 +49,14 @@ class TestHooksTemplate:
         for event_key, entries in data["hooks"].items():
             assert isinstance(entries, list), f"{event_key} should be a list"
             for entry in entries:
-                assert entry.get("type") == "agent", f"{event_key} entry should be agent type"
-                assert "description" in entry, f"{event_key} entry must have description"
-                assert "prompt" in entry, f"{event_key} entry must have prompt"
-                assert entry["description"].startswith("memcord:"), f"{event_key} description should start with 'memcord:'"
+                # Entries use the nested format: {"hooks": [{"type": "agent", ...}]}
+                inner_hooks = entry.get("hooks", [])
+                assert len(inner_hooks) > 0, f"{event_key} entry should have inner hooks"
+                for hook in inner_hooks:
+                    assert hook.get("type") == "agent", f"{event_key} hook should be agent type"
+                    assert "description" in hook, f"{event_key} hook must have description"
+                    assert "prompt" in hook, f"{event_key} hook must have prompt"
+                    assert hook["description"].startswith("memcord:"), f"{event_key} description should start with 'memcord:'"
 
 
 class TestMergeHooks:
@@ -68,13 +72,6 @@ class TestMergeHooks:
                         "prompt": "Save progress.",
                     }
                 ],
-                "SessionEnd": [
-                    {
-                        "type": "agent",
-                        "description": "memcord: auto-save and close slot on session end",
-                        "prompt": "Save and close.",
-                    }
-                ],
             }
         }
 
@@ -86,7 +83,7 @@ class TestMergeHooks:
 
         assert "hooks" in result
         assert len(result["hooks"]["PreCompact"]) == 1
-        assert len(result["hooks"]["SessionEnd"]) == 1
+        assert "SessionEnd" not in result["hooks"]
 
     def test_merge_preserves_existing_settings(self):
         existing = {"permissions": {"allow": ["some_tool"]}, "other_key": True}
@@ -130,7 +127,7 @@ class TestMergeHooks:
         result = merge_hooks(result, new_hooks)
 
         assert len(result["hooks"]["PreCompact"]) == 1
-        assert len(result["hooks"]["SessionEnd"]) == 1
+        assert "SessionEnd" not in result["hooks"]
 
     def test_deduplication_preserves_non_memcord(self):
         existing = {
@@ -152,6 +149,29 @@ class TestMergeHooks:
         assert "memcord: auto-save progress before context compaction" in descriptions
         # Old memcord hook should be replaced
         assert "memcord: old hook" not in descriptions
+
+    def test_stale_memcord_hooks_removed_from_unlisted_events(self):
+        existing = {
+            "hooks": {
+                "PreCompact": [
+                    {"type": "agent", "description": "memcord: old compact hook", "prompt": "x"},
+                ],
+                "SessionEnd": [
+                    {"type": "agent", "description": "memcord: auto-save and close slot on session end", "prompt": "y"},
+                    {"type": "command", "description": "other: keep me", "command": "echo hi"},
+                ],
+            }
+        }
+        new_hooks = self._sample_hooks()
+
+        result = merge_hooks(existing, new_hooks)
+
+        # Memcord SessionEnd hook should be removed (event no longer in template)
+        session_end = result["hooks"].get("SessionEnd", [])
+        descriptions = [h.get("description", "") for h in session_end]
+        assert not any(d.startswith("memcord:") for d in descriptions)
+        # Non-memcord hooks in SessionEnd must be preserved
+        assert "other: keep me" in descriptions
 
     def test_no_hooks_in_new_returns_existing(self):
         existing = {"permissions": {"allow": []}}

@@ -139,7 +139,7 @@ When not set, each slot uses its own backend as configured via `memcord_configur
 
 #### Auto-Save Hooks (Optional)
 
-Memcord can automatically save conversation progress when Claude Code compacts context or when a session ends:
+Memcord can automatically save conversation progress when Claude Code compacts context:
 
 ```bash
 uv run python scripts/generate-config.py --install-hooks
@@ -147,11 +147,12 @@ uv run python scripts/generate-config.py --install-hooks
 
 This installs agent hooks into `.claude/settings.json`:
 - **PreCompact** — saves a summary before context compaction
-- **SessionEnd** — saves a summary and closes the active memory slot
 
-**Verify installation:** Check `.claude/settings.json` for `hooks.PreCompact` and `hooks.SessionEnd` entries with `"memcord:"` descriptions.
+> **Note:** `SessionEnd` with `type: "agent"` is not supported by Claude Code. Re-running `--install-hooks` will automatically remove any stale `SessionEnd` hook from a previous install.
 
-**Remove hooks:** Edit `.claude/settings.json` and delete the memcord hook entries from the `PreCompact` and `SessionEnd` arrays.
+**Verify installation:** Check `.claude/settings.json` for a `hooks.PreCompact` entry with a `"memcord:"` description.
+
+**Remove hooks:** Edit `.claude/settings.json` and delete the memcord hook entry from the `PreCompact` array.
 
 ### Claude Desktop
 

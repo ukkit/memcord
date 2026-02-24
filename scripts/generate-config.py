@@ -141,6 +141,9 @@ def merge_hooks(existing: dict[str, Any], new_hooks: dict[str, Any]) -> dict[str
     Deduplicates by checking for 'memcord:' prefix in hook descriptions.
     Handles both old format (description on outer object) and new format
     (description inside nested hooks array). Preserves all non-memcord hooks.
+
+    Also removes memcord hooks from events no longer present in the template,
+    so re-running --install-hooks cleans up stale hooks from removed events.
     """
     result = existing.copy()
 
@@ -149,6 +152,16 @@ def merge_hooks(existing: dict[str, Any], new_hooks: dict[str, Any]) -> dict[str
 
     if "hooks" not in result:
         result["hooks"] = {}
+
+    template_events = set(new_hooks["hooks"].keys())
+
+    # Remove memcord hooks from events no longer in the template (cleanup pass)
+    for event_key in list(result["hooks"].keys()):
+        if event_key not in template_events:
+            result["hooks"][event_key] = [
+                hook for hook in result["hooks"][event_key]
+                if not _is_memcord_hook(hook)
+            ]
 
     for event_key, hook_entries in new_hooks["hooks"].items():
         if event_key not in result["hooks"]:

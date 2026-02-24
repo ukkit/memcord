@@ -119,7 +119,8 @@ Memcord can automatically save your conversation progress when Claude Code compa
 | Event | Action |
 |-------|--------|
 | `PreCompact` | Saves a summary of the current conversation before context compaction |
-| `SessionEnd` | Saves a summary and closes the active memory slot |
+
+> **Note:** `SessionEnd` with `type: "agent"` is not supported by Claude Code. Re-running `--install-hooks` will automatically remove any stale `SessionEnd` hook from previous installs.
 
 ### Install hooks
 
@@ -127,16 +128,16 @@ Memcord can automatically save your conversation progress when Claude Code compa
 uv run python scripts/generate-config.py --install-hooks
 ```
 
-This merges hook entries into `.claude/settings.json`. It's idempotent — safe to run multiple times.
+This merges hook entries into `.claude/settings.json`. It's idempotent — safe to run multiple times. It also cleans up any memcord hooks from events no longer in the template (e.g. `SessionEnd`).
 
 ### Remove hooks
 
-Edit `.claude/settings.json` and remove the entries with descriptions starting with `"memcord:"` from the `hooks.PreCompact` and `hooks.SessionEnd` arrays.
+Edit `.claude/settings.json` and remove the entries with descriptions starting with `"memcord:"` from the `hooks.PreCompact` array.
 
 ### Notes
 
 - Agent hooks have full conversation context and call MCP tools directly — no shell scripts needed
-- Token cost is minimal: `PreCompact` fires rarely, `SessionEnd` fires once per session
+- Token cost is minimal: `PreCompact` fires only when context is compacted
 - Hooks are opt-in and do not install automatically
 
 ## Windows-Specific Notes

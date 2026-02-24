@@ -1031,7 +1031,7 @@ wheels = [
 
 [[package]]
 name = "memcord"
-version = "2.5.0"
+version = "3.0.2"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -1098,7 +1098,7 @@ requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.12.0" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
     { name = "factory-boy", marker = "extra == 'dev'", specifier = ">=3.3.0" },
-    { name = "mcp", specifier = ">=1.25.0" },
+    { name = "mcp", specifier = ">=1.25.0,<2" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "nltk", specifier = ">=3.8" },
     { name = "pandas", specifier = ">=2.0.0" },

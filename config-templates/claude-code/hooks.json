@@ -10,17 +10,6 @@
           }
         ]
       }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "agent",
-            "description": "memcord: auto-save and close slot on session end",
-            "prompt": "The session is ending. Use the memcord_save_progress tool to save a brief summary of the current conversation (key points, decisions, code changes, outcomes) as chat_text. Do NOT specify a slot_name. Then use the memcord_close tool to deactivate the current slot. If either call fails because no slot is active, silently continue without error."
-          }
-        ]
-      }
     ]
   }
 }

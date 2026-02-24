@@ -1,6 +1,6 @@
 <div align="center">
   <img src="assets/image/memcord_1024.png" width="256">
-  <h3>MEMCORD v3.0.1 (mcp server)</h3>
+  <h3>MEMCORD v3.0.2 (mcp server)</h3>
   <p>This privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control.</p>
 </div>
 
@@ -18,7 +18,7 @@
 <h2 align="center">Never Lose Context Again</h2>
 <p align="center"><em>Transform your Claude conversations into a searchable, organized knowledge base that grows with you</em></p>
 
-> **[What's new in v3.0.1](docs/versions.md#v301---claude-code-hooks-format-compatibility)** — Fixes hooks compatibility with the updated Claude Code hooks schema. Run `generate-config.py --install-hooks` to upgrade existing hook installs to the new format.
+> **[What's new in v3.0.2](docs/versions.md#v302---remove-unsupported-sessionend-hook)** — Removes the broken `SessionEnd` agent hook. Re-run `generate-config.py --install-hooks` to clean it from existing installs automatically.
 
 ## Table of Contents
 

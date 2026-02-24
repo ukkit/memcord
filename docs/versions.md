@@ -1,5 +1,19 @@
 # Version History
 
+## v3.0.2 - Remove Unsupported SessionEnd Hook
+
+```text
+  - Dropped SessionEnd from hooks.json template — Claude Code does not support type:agent
+    for stop/session-end hooks ("Agent stop hooks are not yet supported outside REPL")
+  - merge_hooks() now runs a cleanup pass: re-running --install-hooks removes stale memcord
+    hooks from events no longer in the template, fixing existing installs automatically
+  - Fixed test_hooks_template_entries_have_required_fields to walk the nested hooks format
+  - Added test covering stale hook removal behaviour
+  - Updated docs: installation.md and config-templates/README.md
+  - Existing users: run `uv run python scripts/generate-config.py --install-hooks` to remove
+    the stale SessionEnd hook from .claude/settings.json
+```
+
 ## v3.0.1 - Claude Code Hooks Format Compatibility
 
 ```text
