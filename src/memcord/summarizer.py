@@ -4,6 +4,7 @@ import math
 import re
 from collections import Counter
 
+from .constants import STOP_WORDS_FULL
 from .summarizer_base import BaseSummarizer
 
 
@@ -11,22 +12,7 @@ class TextSummarizer:
     """Simple extractive text summarizer."""
 
     def __init__(self):
-        # Common stop words for filtering
-        self.stop_words = {
-            "the", "a", "an", "and", "or", "but", "in", "on", "at", "to",
-            "for", "of", "with", "by", "is", "are", "was", "were", "be",
-            "been", "being", "have", "has", "had", "do", "does", "did",
-            "will", "would", "could", "should", "i", "you", "he", "she",
-            "it", "we", "they", "me", "him", "her", "us", "them", "this",
-            "that", "these", "those", "my", "your", "his", "its", "our",
-            "their",
-            # Short common words (visible after removing len>2 filter)
-            "so", "no", "if", "as", "up", "am", "go", "not", "all", "can",
-            "just", "more", "also", "than", "then", "when", "what", "how",
-            "very", "some", "here", "there", "from", "into", "about",
-            "which", "each", "other", "much", "such", "only", "own",
-            "same", "any", "both", "new", "now",
-        }
+        self.stop_words = STOP_WORDS_FULL
 
     def summarize(self, text: str, target_ratio: float = 0.15, compression_ratio: float | None = None) -> str:
         """

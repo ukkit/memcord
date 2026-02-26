@@ -513,14 +513,14 @@ class TestMergeServiceDebugInfo:
         """Create MergeService instance."""
         return MergeService(MagicMock(), MagicMock())
 
-    def test_build_debug_info_includes_traceback(self, merge_service):
-        """Test debug info includes traceback."""
+    def test_build_debug_info_excludes_traceback(self, merge_service):
+        """Test debug info does not include traceback (tracebacks are sent to logger.error instead)."""
         slots = [MockMemorySlot("test_slot")]
         error = ValueError("Test error")
 
         debug_info = merge_service._build_debug_info(slots, error)
 
-        assert "traceback" in debug_info.lower() or "Traceback" in debug_info
+        assert "traceback" not in debug_info.lower()
         assert "Debug info" in debug_info
 
     def test_build_debug_info_includes_slot_info(self, merge_service):

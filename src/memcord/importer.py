@@ -17,6 +17,8 @@ import trafilatura
 from bs4 import BeautifulSoup
 from pydantic import BaseModel
 
+from .security import InputValidator
+
 HAS_MAGIC = False
 
 logger = logging.getLogger(__name__)
@@ -126,17 +128,20 @@ class PDFHandler(ImportHandler):
             if not path.exists():
                 return ImportResult(success=False, error=f"PDF file not found: {source}")
 
-            # Extract text from PDF
-            text_content = []
-            page_count = 0
+            # Extract text from PDF in a thread pool to avoid blocking the event loop
+            def extract_pdf():
+                extracted: list[str] = []
+                count = 0
+                with pdfplumber.open(path) as pdf:
+                    count = len(pdf.pages)
+                    for page_num, page in enumerate(pdf.pages, 1):
+                        page_text = page.extract_text()
+                        if page_text:
+                            extracted.append(f"--- Page {page_num} ---\n{page_text}")
+                return extracted, count
 
-            with pdfplumber.open(path) as pdf:
-                page_count = len(pdf.pages)
-
-                for page_num, page in enumerate(pdf.pages, 1):
-                    page_text = page.extract_text()
-                    if page_text:
-                        text_content.append(f"--- Page {page_num} ---\n{page_text}")
+            loop = asyncio.get_running_loop()
+            text_content, page_count = await loop.run_in_executor(None, extract_pdf)
 
             content = "\n\n".join(text_content)
 
@@ -181,12 +186,26 @@ class WebURLHandler(ImportHandler):
     async def import_content(self, source: str, **kwargs) -> ImportResult:
         """Import content from web URL."""
         try:
-            # Use requests in thread pool to avoid blocking
-            loop = asyncio.get_event_loop()
+            # Use requests in thread pool to avoid blocking the event loop
+            loop = asyncio.get_running_loop()
 
             def fetch_url():
                 headers = {"User-Agent": "MemCord Content Importer 1.0"}
-                response = requests.get(source, headers=headers, timeout=30)
+
+                # Validate every redirect destination to prevent SSRF via open redirects
+                def _check_redirect(response, *args, **kwargs):
+                    if response.is_redirect:
+                        location = response.headers.get("Location", "")
+                        if location:
+                            valid, err = InputValidator.validate_url(location)
+                            if not valid:
+                                raise requests.exceptions.InvalidURL(
+                                    f"Redirect to blocked URL rejected: {err}"
+                                )
+
+                session = requests.Session()
+                session.hooks["response"].append(_check_redirect)
+                response = session.get(source, headers=headers, timeout=30)
                 response.raise_for_status()
                 return response
 
@@ -282,8 +301,9 @@ class StructuredDataHandler(ImportHandler):
                 # Handle CSV/TSV files
                 separator = "," if extension == ".csv" else "\t"
 
-                # Read with pandas for better handling
-                df = pd.read_csv(path, sep=separator)
+                # Offload to thread pool to avoid blocking the event loop
+                loop = asyncio.get_running_loop()
+                df = await loop.run_in_executor(None, lambda: pd.read_csv(path, sep=separator))
 
                 # Convert to readable format
                 content = f"Dataset with {len(df)} rows and {len(df.columns)} columns:\n\n"

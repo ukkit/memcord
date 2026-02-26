@@ -88,15 +88,15 @@ class TestMemoryEntryContracts:
 
         assert "String should have at most 10485760 characters" in str(exc_info.value)
 
-    def test_memory_entry_xss_protection(self):
-        """Test XSS protection in content validation."""
+    def test_memory_entry_xss_content_stored_without_rejection(self):
+        """HTML/script content must be stored as-is; XSS prevention belongs at the rendering layer."""
         from .conftest import TestDataHelper
 
         for malicious_content in TestDataHelper.get_malicious_content_samples():
-            with pytest.raises(ValidationError) as exc_info:
-                MemoryEntry(type="manual_save", content=malicious_content)
-
-            assert "potentially unsafe script elements" in str(exc_info.value)
+            # Content containing script tags/event handlers must be accepted for storage —
+            # users legitimately save code reviews, security discussions, etc.
+            entry = MemoryEntry(type="manual_save", content=malicious_content)
+            assert entry.content == malicious_content
 
     def test_memory_entry_unicode_content(self):
         """Test that Unicode content is properly handled."""
@@ -181,33 +181,37 @@ class TestMemorySlotContracts:
                 MemorySlot(slot_name=dangerous_name)
 
     def test_memory_slot_name_sql_injection_protection(self):
-        """Test SQL injection protection in slot names."""
-        # Test cases that should be REJECTED
+        """Slot name validation for SQL-like input.
+
+        memcord has no SQL backend, so SQL keywords alone do not need to be
+        blocked.  Shell-dangerous chars (;  '  "  |  &  `  $) and path
+        separators are still rejected.
+        """
+        # Names containing shell-dangerous characters must be REJECTED
         rejected_cases = [
-            ("test'; DROP TABLE slots; --", "unsafe characters"),  # Contains ; and '
-            ("test UNION SELECT * FROM users", "SQL keyword or pattern: UNION"),
-            ("test; DELETE FROM slots", "unsafe characters"),  # Contains ;
-            ("test/* comment */", "SQL keyword or pattern"),  # Contains /*
-            ("test-- comment", "SQL keyword or pattern"),  # Contains --
+            "test'; DROP TABLE slots; --",   # Contains ' and ;
+            "test; DELETE FROM slots",       # Contains ;
         ]
 
-        for case, expected_error in rejected_cases:
-            with pytest.raises(ValidationError) as exc_info:
+        for case in rejected_cases:
+            with pytest.raises(ValidationError):
                 MemorySlot(slot_name=case)
 
-            assert expected_error in str(exc_info.value)
-
-        # Test cases that should be ALLOWED (actual behavior validation)
-        # Note: SQL keywords are checked with 'in' operator, so they're strict
+        # SQL keywords without dangerous chars must be ALLOWED
+        # (no SQL database — these are just file names)
         allowed_cases = [
-            "testword",  # Simple word
-            "my_project",  # Underscore allowed
-            "project-alpha",  # Dash allowed
-            "notes2025",  # Numbers allowed
+            "testword",
+            "my_project",
+            "project-alpha",
+            "notes2025",
+            "UNION",
+            "SELECT",
+            "test UNION SELECT users",
+            "test-- comment",
+            "DROP TABLE memories",
         ]
 
         for case in allowed_cases:
-            # Should not raise exception
             slot = MemorySlot(slot_name=case)
             assert slot.slot_name == case
 

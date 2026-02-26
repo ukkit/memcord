@@ -277,6 +277,9 @@ class OperationTimeoutManager:
         """Start tracking an operation."""
         deadline = time.time() + self.get_timeout(operation)
         self.active_operations[operation_id] = deadline
+        # Periodically evict expired entries to bound memory growth
+        if len(self.active_operations) % 50 == 0:
+            self.cleanup_expired()
         return deadline
 
     def check_timeout(self, operation_id: str) -> tuple[bool, str | None]:

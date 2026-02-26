@@ -114,8 +114,8 @@ memcord_unbind project_path="."
 ### How It Works
 
 1. **Initialize project**: `memcord_init` creates a `.memcord` file in your project root
-2. **Auto-detection**: Slash commands (`/memcord-read`, `/memcord-save`, `/memcord-save-progress`) automatically detect the `.memcord` file
-3. **No slot name needed**: When the file exists, commands use the bound slot without requiring explicit slot names
+2. **Auto-detection**: All tools (`memcord_save`, `memcord_save_progress`, `memcord_configure`, `memcord_read`) resolve the slot using this priority order: explicit argument → active slot → `.memcord` binding in cwd
+3. **No slot name needed**: When the `.memcord` file is found and the slot exists, it is used automatically and also activated for the rest of the session
 
 ### Example Workflow
 

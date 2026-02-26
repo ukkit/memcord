@@ -4,6 +4,7 @@ import json
 import tempfile
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -378,7 +379,9 @@ class TestConfigureToolGet:
     async def test_get_no_slot_returns_error(self, server_with_temp_dir):
         server = server_with_temp_dir
         server.storage._state.current_slot = None
-        result = await server._handle_configure({"action": "get"})
+        # Patch _detect_project_slot to avoid picking up any .memcord in the project root
+        with patch.object(server, "_detect_project_slot", new=AsyncMock(return_value=None)):
+            result = await server._handle_configure({"action": "get"})
         assert "Error" in result[0].text
 
 

@@ -61,7 +61,7 @@ Manually saves exact chat text to current memory slot (overwrites existing conte
 - `chat_text`: The conversation text to save
 - `slot_name` (optional): Target memory slot. If not provided, uses current slot
 
-**Auto-detection:** When using Claude Code slash commands, if no slot name is provided, the command will automatically check for a `.memcord` file in the current working directory and use the slot name specified there.
+**Slot resolution priority:** explicit `slot_name` → active slot → `.memcord` binding file in cwd. If the bound slot exists, it is also auto-activated for the rest of the session.
 
 **Examples:**
 - "Save this conversation to memory"
@@ -73,7 +73,7 @@ Retrieves full content from memory slot.
 **Parameters:**
 - `slot_name` (optional): Name of slot to read. If not provided, uses current slot
 
-**Auto-detection:** When using Claude Code slash commands, if no slot name is provided, the command will automatically check for a `.memcord` file in the current working directory and use the slot name specified there.
+**Slot resolution priority:** explicit `slot_name` → active slot → `.memcord` binding file in cwd.
 
 **Examples:**
 - "What did we discuss in the last session?"
@@ -87,7 +87,7 @@ Generates a summary and appends it to memory slot with timestamp.
 - `slot_name` (optional): Target memory slot. If not provided, uses current slot
 - `compression_ratio` (optional): Target compression (0.05-0.5). Defaults to the slot's `default_compression_ratio` config value (0.15)
 
-**Auto-detection:** When using Claude Code slash commands, if no slot name is provided, the command will automatically check for a `.memcord` file in the current working directory and use the slot name specified there.
+**Slot resolution priority:** explicit `slot_name` → active slot → `.memcord` binding file in cwd. If the bound slot exists, it is also auto-activated for the rest of the session.
 
 **Summarizer backend:** Uses the backend configured for the slot via `memcord_configure`. New slots default to `sumy` (graph-based, zero model files); existing slots default to `nltk` (unchanged prior behavior). Override globally with `MEMCORD_SUMMARIZER` env var.
 
@@ -109,6 +109,8 @@ Get or set the per-slot summarizer configuration.
   - `default_compression_ratio` — float between 0.05 and 0.5
 - `value` (required for `set`): New value for the key
 - `slot_name` (optional): Target slot. Uses current slot if not specified
+
+**Slot resolution priority:** explicit `slot_name` → active slot → `.memcord` binding file in cwd.
 
 **Config is per-slot** and stored as a sidecar JSON file (`{slot}_config.json`). Changes take effect on the very next `memcord_save_progress` call — no restart required.
 

@@ -2,9 +2,10 @@
 
 import math
 import re
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from typing import Any
 
+from .constants import STOP_WORDS_INDEX
 from .models import MemorySlot, SearchQuery, SearchResult
 
 
@@ -142,53 +143,28 @@ class SearchIndex:
 
         # Filter out single-letter words and common stop words
         # Changed from len > 2 to len > 1 to support common acronyms (CI, CD, UI, UX, DB, etc.)
-        stop_words = {
-            "the",
-            "a",
-            "an",
-            "and",
-            "or",
-            "but",
-            "in",
-            "on",
-            "at",
-            "to",
-            "for",
-            "of",
-            "with",
-            "by",
-            "is",
-            "are",
-            "was",
-            "were",
-            "be",
-            "been",
-            "being",
-            "have",
-            "has",
-            "had",
-            "do",
-            "does",
-            "did",
-            "will",
-            "would",
-            "could",
-            "should",
-        }
-
-        return [word for word in words if len(word) > 1 and word not in stop_words]
+        return [word for word in words if len(word) > 1 and word not in STOP_WORDS_INDEX]
 
 
 class SearchEngine:
     """Advanced search engine for memory slots."""
 
+    # Maximum number of full slot objects to keep in the in-memory LRU cache.
+    # Oldest entries are evicted once this limit is reached to bound memory use.
+    MAX_CACHE_SIZE = 200
+
     def __init__(self):
         self.index = SearchIndex()
-        self.slots_cache: dict[str, MemorySlot] = {}
+        self.slots_cache: OrderedDict[str, MemorySlot] = OrderedDict()
 
     def add_slot(self, slot: MemorySlot) -> None:
         """Add or update a slot in the search engine."""
+        if slot.slot_name in self.slots_cache:
+            self.slots_cache.move_to_end(slot.slot_name)
         self.slots_cache[slot.slot_name] = slot
+        # Evict the least-recently-used entry when over capacity
+        while len(self.slots_cache) > self.MAX_CACHE_SIZE:
+            self.slots_cache.popitem(last=False)
         self.index.add_slot(slot)
 
     def remove_slot(self, slot_name: str) -> None:

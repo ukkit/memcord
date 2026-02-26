@@ -7,6 +7,7 @@ memcord tools to provide enhanced user experience with progress indicators.
 
 import asyncio
 import inspect
+import time
 from collections.abc import Callable
 from functools import wraps
 from pathlib import Path
@@ -110,7 +111,7 @@ class MemcordProgressIntegration:
 
         # Add function-specific context
         context["function_name"] = func.__name__
-        context["timestamp"] = asyncio.get_event_loop().time()
+        context["timestamp"] = time.monotonic()
 
         return context
 

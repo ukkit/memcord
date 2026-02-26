@@ -377,18 +377,32 @@ class ChatMemoryServer:
         """
         return arguments.get(key) or self.storage.get_current_slot() or await self._detect_project_slot()
 
-    def _resolve_slot_for_write(self, arguments: dict[str, Any], key: str = "slot_name") -> str | None:
-        """Resolve slot for write operations (no .memcord fallback).
+    async def _resolve_slot_for_write(self, arguments: dict[str, Any], key: str = "slot_name") -> str | None:
+        """Resolve slot for write operations.
 
         Priority:
         1. Explicit slot_name in arguments
         2. Currently active slot (via memcord_use/memcord_name)
-
-        Returns None if no slot selected (caller should return error).
-        This prevents accidental writes to wrong slots when MCP server
-        runs from a different directory than the user's project.
+        3. Project binding (.memcord file) — auto-activates the slot if found and it exists
         """
-        return arguments.get(key) or self.storage.get_current_slot()
+        explicit = arguments.get(key)
+        if explicit:
+            return explicit
+
+        current = self.storage.get_current_slot()
+        if current:
+            return current
+
+        # Fall back to .memcord binding
+        detected = await self._detect_project_slot()
+        if detected:
+            existing = await self.storage._load_slot(detected)
+            if existing:
+                # Auto-activate so subsequent calls in this session work without re-detection
+                self.storage._state.set_current_slot(detected)
+            return detected
+
+        return None
 
     async def call_tool_direct(self, name: str, arguments: dict[str, Any]) -> Sequence[TextContent]:
         """Direct tool calling method for testing purposes."""
@@ -1217,7 +1231,7 @@ class ChatMemoryServer:
     async def _handle_savemem(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle savemem tool call."""
         chat_text = arguments["chat_text"]
-        slot_name = self._resolve_slot_for_write(arguments)
+        slot_name = await self._resolve_slot_for_write(arguments)
 
         if not slot_name:
             return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
@@ -1287,7 +1301,7 @@ class ChatMemoryServer:
         from .summarizer_factory import build_summarizer
 
         chat_text = arguments["chat_text"]
-        slot_name = self._resolve_slot_for_write(arguments)
+        slot_name = await self._resolve_slot_for_write(arguments)
 
         if not slot_name:
             return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
@@ -1350,7 +1364,7 @@ class ChatMemoryServer:
     async def _handle_configure(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle memcord_configure tool call — get/set/reset per-slot summarizer config."""
         action = arguments.get("action", "get").lower()
-        slot_name = self._resolve_slot_for_write(arguments)
+        slot_name = await self._resolve_slot_for_write(arguments)
 
         if not slot_name:
             return [TextContent(type="text", text=self.ERROR_NO_SLOT_SELECTED)]
@@ -1376,6 +1390,23 @@ class ChatMemoryServer:
                         text=f"Error: Unknown config key '{key}'. Valid keys: {', '.join(valid)}",
                     )
                 ]
+            # Allowlist for enum-like string fields
+            _ALLOWED_VALUES: dict[str, set[str]] = {
+                "summarizer_backend": {"nltk", "sumy", "semantic", "transformers"},
+                "sumy_algorithm": {"lexrank", "lsa", "edmundson"},
+                "hf_device": {"cpu", "cuda", "mps", "auto"},
+            }
+            if key in _ALLOWED_VALUES and value not in _ALLOWED_VALUES[key]:
+                return [
+                    TextContent(
+                        type="text",
+                        text=(
+                            f"Error: Invalid value '{value}' for '{key}'. "
+                            f"Valid values: {', '.join(sorted(_ALLOWED_VALUES[key]))}"
+                        ),
+                    )
+                ]
+
             # Coerce value type to match field
             field_info = config.model_fields[key]
             try:

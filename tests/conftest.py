@@ -134,7 +134,7 @@ class MockStorageManager:
         self.slots[slot_name] = entry
         return entry
 
-    async def read_memory(self, slot_name: str) -> MemorySlot:
+    async def read_memory(self, slot_name: str) -> MemorySlot | None:
         """Mock read_memory for testing."""
         if slot_name in self.slots:
             return MemorySlot(slot_name=slot_name, entries=[self.slots[slot_name]])

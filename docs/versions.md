@@ -1,5 +1,18 @@
 # Version History
 
+## v3.1.0 - Write Operations Honor .memcord Binding
+
+```text
+  - Write operations now honor .memcord binding as a fallback slot source
+  - _resolve_slot_for_write() follows the same priority as reads:
+    explicit argument → active slot → .memcord binding in cwd
+  - When the bound slot exists, it is auto-activated for the session so
+    subsequent calls skip re-detection (no memcord_use required after restart)
+  - Affected tools: memcord_save, memcord_save_progress, memcord_configure
+  - Updated docs: README.md, tools-reference.md, troubleshooting.md,
+    claude-code-guide.md to reflect unified slot resolution behavior
+```
+
 ## v3.0.2 - Remove Unsupported SessionEnd Hook
 
 ```text

@@ -28,11 +28,16 @@ Common issues, solutions, and debugging guidance for the Chat Memory MCP Server.
 
 **Solution**:
 ```bash
-# Always create/select a memory slot first
+# Option A: Create/select a slot explicitly
 memcord_name "my_project"
-# Then use other memory operations
 memcord_save "conversation content"
+
+# Option B: Initialize a .memcord binding for the project (one-time setup)
+# After this, all operations auto-detect the slot — no memcord_use needed
+memcord_init "." "my_project"
 ```
+
+All operations (`memcord_save`, `memcord_save_progress`, `memcord_configure`, `memcord_read`) share the same slot resolution order: explicit argument → active slot → `.memcord` binding in cwd. If the `.memcord` file is found and the slot exists, it is also auto-activated for the session.
 
 #### 2. "Memory slot not found"
 **Problem**: Referencing a memory slot that doesn't exist.
@@ -157,6 +162,41 @@ claude mcp get memcord
 - Use values between 0.05 and 0.5
 - Default is 0.15 (15% compression)
 - Examples: `memcord_save_progress "content" 0.1` (10% compression)
+
+#### 11. `memcord_save_progress` fails — "NLTK tokenizers are missing"
+**Problem**: `save_progress` errors with a message like:
+
+```
+Resource punkt_tab not found.
+Download them by running: python -c "import nltk; nltk.download('punkt')"
+```
+
+**Cause**: The `nltk` and `sumy` summarizer backends require NLTK tokenizer data (`punkt_tab`) which must be downloaded separately. This data is missing from the Python environment the MCP server is running in.
+
+**Solution**: Download the data into the correct environment — the venv used by the MCP server (not the dev venv):
+
+```bash
+# Find your memcord install path (shown in `claude mcp get memcord`)
+# Then run:
+/path/to/memcord/.venv/Scripts/python -c "import nltk; nltk.download('punkt_tab')"
+
+# On macOS/Linux:
+/path/to/memcord/.venv/bin/python -c "import nltk; nltk.download('punkt_tab')"
+```
+
+No restart required — the data is loaded at runtime.
+
+**Alternative**: Switch to the `semantic` summarizer backend which does not use NLTK:
+
+```bash
+memcord_configure action="set" key="summarizer_backend" value="semantic"
+```
+
+Note: `semantic` requires `sentence-transformers` (~80 MB) installed in the server venv:
+```bash
+/path/to/memcord/.venv/Scripts/pip install sentence-transformers
+```
+Then restart Claude Code to pick up the new package.
 
 ## Debug Mode
 

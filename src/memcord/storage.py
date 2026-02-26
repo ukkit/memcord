@@ -102,6 +102,18 @@ class StorageManager:
         self.memory_dir.mkdir(exist_ok=True)
         self.shared_dir.mkdir(exist_ok=True)
 
+        # Recover any .json.bak files left by a crash during _save_slot.
+        # If a .bak exists but the corresponding .json does not, the write
+        # never completed — restore the backup so the slot is not silently lost.
+        for bak_path in self.memory_dir.glob("*.json.bak"):
+            primary = bak_path.with_suffix("")  # strips .bak → *.json
+            if not primary.exists():
+                try:
+                    bak_path.rename(primary)
+                    logger.warning("Recovered orphaned backup: %s → %s", bak_path.name, primary.name)
+                except OSError as exc:
+                    logger.error("Failed to recover backup %s: %s", bak_path.name, exc)
+
         # Flag to track if subsystems are initialized
         self._search_initialized = False
         self._cache_initialized = False
@@ -110,6 +122,9 @@ class StorageManager:
 
         # Track file modification times for search index staleness detection
         self._index_mtime_snapshot: dict[str, float] = {}
+
+        # Track active search cache keys so they can be invalidated on slot writes
+        self._search_cache_keys: set[str] = set()
 
     async def _ensure_cache_initialized(self):
         """Initialize cache manager if not already initialized."""
@@ -139,9 +154,20 @@ class StorageManager:
         if self._memory_manager:
             await self._memory_manager.stop_monitoring()
 
+    def _iter_slot_files(self):
+        """Yield .json files in memory_dir, excluding *_config.json sidecars."""
+        for p in self.memory_dir.glob("*.json"):
+            if not p.name.endswith("_config.json"):
+                yield p
+
     async def _get_slot_path(self, slot_name: str) -> Path:
-        """Get the file path for a memory slot."""
-        return self.memory_dir / f"{slot_name}.json"
+        """Get the file path for a memory slot, rejecting path-traversal attempts."""
+        if "/" in slot_name or "\\" in slot_name:
+            raise ValueError(f"Invalid slot name: '{slot_name}' contains path separators")
+        candidate = self.memory_dir / f"{slot_name}.json"
+        if not candidate.resolve().is_relative_to(self.memory_dir.resolve()):
+            raise ValueError(f"Invalid slot name: '{slot_name}' would escape memory directory")
+        return candidate
 
     async def _load_slot(self, slot_name: str) -> MemorySlot | None:
         """Load memory slot from file with cache invalidation on file changes."""
@@ -295,19 +321,17 @@ class StorageManager:
             raise ValueError(f"Error saving slot '{slot.slot_name}': {e}") from e
 
     async def _invalidate_search_caches(self, slot_name: str):
-        """Invalidate search caches that might be affected by slot changes."""
-        if not self._cache_manager:
+        """Invalidate all search cache entries accumulated since server start."""
+        if not self._cache_manager or not self._search_cache_keys:
             return
 
-        # This is a simplified invalidation strategy
-        # In production, you might want to be more selective about which caches to invalidate
-        # For now, we'll clear all search-related cache entries
-        # A more sophisticated approach would track which searches return specific slots
-
-        # Note: This is a placeholder implementation
-        # The actual cache doesn't provide a way to iterate through keys,
-        # so we'll rely on TTL expiration for search cache invalidation
-        pass
+        keys_to_remove = set(self._search_cache_keys)
+        self._search_cache_keys.clear()
+        for cache_key in keys_to_remove:
+            try:
+                await self._cache_manager.remove(cache_key)
+            except Exception:
+                pass
 
     def _serialize_datetime(self, obj: Any) -> Any:
         """Convert datetime objects and sets to JSON-serializable format."""
@@ -323,9 +347,8 @@ class StorageManager:
 
     async def create_or_get_slot(self, slot_name: str) -> MemorySlot:
         """Create a new slot or get existing one."""
-        # Validate slot name
-        if not slot_name or not slot_name.strip():
-            raise ValueError("Slot name cannot be empty")
+        # Run the same validation as MemorySlot.validate_slot_name before any I/O
+        MemorySlot.validate_slot_name(slot_name)
 
         async with self._lock:
             slot = await self._load_slot(slot_name)
@@ -347,7 +370,7 @@ class StorageManager:
 
     async def save_memory(self, slot_name: str, content: str, entry_type: str = "manual_save") -> MemoryEntry:
         """Save content to memory slot."""
-        # Validate content
+        MemorySlot.validate_slot_name(slot_name)
         if not content or not content.strip():
             raise ValueError("Content cannot be empty")
 
@@ -378,7 +401,7 @@ class StorageManager:
         """List all available memory slots with metadata."""
         slots_info = []
 
-        for slot_file in self.memory_dir.glob("*.json"):
+        for slot_file in self._iter_slot_files():
             slot_name = slot_file.stem
             try:
                 slot = await self._load_slot(slot_name)
@@ -428,8 +451,13 @@ class StorageManager:
             return entry
 
     def _slot_config_path(self, slot_name: str) -> Path:
-        """Return the path to the sidecar config file for a slot."""
-        return self.memory_dir / f"{slot_name}_config.json"
+        """Return the path to the sidecar config file for a slot, rejecting path-traversal attempts."""
+        if "/" in slot_name or "\\" in slot_name:
+            raise ValueError(f"Invalid slot name: '{slot_name}' contains path separators")
+        candidate = self.memory_dir / f"{slot_name}_config.json"
+        if not candidate.resolve().is_relative_to(self.memory_dir.resolve()):
+            raise ValueError(f"Invalid slot name: '{slot_name}' would escape memory directory")
+        return candidate
 
     async def load_slot_config(self, slot_name: str) -> SlotConfig:
         """Load per-slot config, auto-creating it if absent.
@@ -609,7 +637,7 @@ class StorageManager:
         """
         try:
             current_files = {}
-            for slot_file in self.memory_dir.glob("*.json"):
+            for slot_file in self._iter_slot_files():
                 slot_name = slot_file.stem
                 try:
                     current_files[slot_name] = slot_file.stat().st_mtime
@@ -639,7 +667,7 @@ class StorageManager:
         """Update the modification time snapshot after indexing."""
         self._index_mtime_snapshot.clear()
         try:
-            for slot_file in self.memory_dir.glob("*.json"):
+            for slot_file in self._iter_slot_files():
                 slot_name = slot_file.stem
                 try:
                     self._index_mtime_snapshot[slot_name] = slot_file.stat().st_mtime
@@ -651,7 +679,7 @@ class StorageManager:
     async def _initialize_search_index(self) -> None:
         """Initialize search index with existing memory slots."""
         try:
-            for slot_file in self.memory_dir.glob("*.json"):
+            for slot_file in self._iter_slot_files():
                 slot_name = slot_file.stem
                 slot = await self._load_slot(slot_name)
                 if slot:
@@ -695,6 +723,8 @@ class StorageManager:
         # Cache the search results if caching is enabled
         if self._cache_manager and results:
             cache_key = generate_search_cache_key(query)
+            # Track key so it can be purged when any slot is saved
+            self._search_cache_keys.add(cache_key)
             # Convert SearchResult objects to dicts for caching
             cached_data = [result.model_dump() for result in results]
             await self._cache_manager.put(
@@ -731,14 +761,14 @@ class StorageManager:
                 await self._save_slot(slot)
                 self._search_engine.add_slot(slot)  # Update search index
 
-                # Check if tag is still used by other slots
-                tag_still_used = False
-                for slot_file in self.memory_dir.glob("*.json"):
-                    if slot_file.stem != slot_name:
-                        other_slot = await self._load_slot(slot_file.stem)
-                        if other_slot and other_slot.has_tag(tag):
-                            tag_still_used = True
-                            break
+                # Check tag usage using the in-memory search cache to avoid holding
+                # the lock while doing O(n) disk reads across all slots.
+                tag_lower = tag.lower().strip()
+                tag_still_used = any(
+                    cached_slot.has_tag(tag_lower)
+                    for name, cached_slot in self._search_engine.slots_cache.items()
+                    if name != slot_name
+                )
 
                 if not tag_still_used:
                     self._state.remove_tag_from_global_set(tag)
@@ -784,7 +814,7 @@ class StorageManager:
         """List all memory groups."""
         # Dynamically update member counts
         group_counts: dict[str, int] = {}
-        for slot_file in self.memory_dir.glob("*.json"):
+        for slot_file in self._iter_slot_files():
             slot_name = slot_file.stem
             try:
                 slot = await self._load_slot(slot_name)
@@ -978,7 +1008,7 @@ class StorageManager:
                 "slot_stats": slot_stats,
             }
 
-            for slot_file in self.memory_dir.glob("*.json"):
+            for slot_file in self._iter_slot_files():
                 slot_name = slot_file.stem
                 try:
                     slot = await self._load_slot(slot_name)
@@ -1268,7 +1298,7 @@ class StorageManager:
                 await self._incremental_index.initialize()
 
                 # Re-index all slots
-                for slot_file in self.memory_dir.glob("*.json"):
+                for slot_file in self._iter_slot_files():
                     slot_name = slot_file.stem
                     slot = await self._load_slot(slot_name)
                     if slot:

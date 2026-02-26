@@ -4,9 +4,12 @@ Extracts business logic from the merge handler for better testability
 and separation of concerns.
 """
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..models import MemorySlot
@@ -162,7 +165,7 @@ class MergeService:
             )
 
         except Exception as e:
-            # Build debug info
+            logger.error("Merge preview failed", exc_info=True)
             debug_info = self._build_debug_info(slots, e)
             return MergePreviewResult(
                 success=False,
@@ -262,18 +265,15 @@ class MergeService:
             )
 
         except Exception as e:
-            import traceback
-
+            logger.error("Merge operation failed", exc_info=True)
             return MergeExecuteResult(
                 success=False,
-                error=f"Merge operation failed: {e}\n{traceback.format_exc()}",
+                error=f"Merge operation failed: {e}",
             )
 
     def _build_debug_info(self, slots: list["MemorySlot"], error: Exception) -> str:
-        """Build debug information for merge errors."""
-        import traceback
-
-        debug_lines = [f"Full traceback:\n{traceback.format_exc()}", "", "Debug info:"]
+        """Build debug information for merge errors (no tracebacks — those go to logger.error)."""
+        debug_lines = ["Debug info:"]
 
         for i, slot in enumerate(slots):
             debug_lines.append(f"Slot {i} ({slot.slot_name}):")

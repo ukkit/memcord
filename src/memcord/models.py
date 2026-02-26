@@ -48,19 +48,6 @@ class MemoryEntry(BaseModel):
         if byte_size > 10_485_760:  # 10MB
             raise ValueError(f"Content too large: {byte_size} bytes (max 10MB)")
 
-        # Check for potentially malicious content
-        suspicious_patterns = [
-            r"<script[^>]*>",
-            r"javascript:",
-            r"data:text/html",
-            r"vbscript:",
-            r"<[^>]*\son\w+\s*=",  # HTML event handlers like <div onclick=...>
-        ]
-
-        for pattern in suspicious_patterns:
-            if re.search(pattern, v, re.IGNORECASE):
-                raise ValueError("Content contains potentially unsafe script elements")
-
         return v
 
 
@@ -109,25 +96,6 @@ class MemorySlot(BaseModel):
         # Remove null bytes and dangerous control characters
         cleaned = "".join(char for char in cleaned if char != "\x00")
         cleaned = "".join(char for char in cleaned if ord(char) >= 32 or char in "\r\n\t")
-
-        # Check for SQL injection patterns and reject them
-        sql_patterns = [
-            "DROP",
-            "UNION",
-            "SELECT",
-            "DELETE",
-            "INSERT",
-            "UPDATE",
-            "CREATE",
-            "ALTER",
-            "--",
-            "/*",
-            "*/",
-            ";",
-        ]
-        for pattern in sql_patterns:
-            if pattern in cleaned.upper():
-                raise ValueError(f"Slot name contains SQL keyword or pattern: {pattern}")
 
         # Prevent path traversal
         if "../" in cleaned or "..\\" in cleaned:

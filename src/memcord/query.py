@@ -4,6 +4,7 @@ import re
 from datetime import datetime, timedelta
 from typing import Any
 
+from .constants import STOP_WORDS_FULL
 from .models import SearchQuery, SearchResult
 from .search import SearchEngine
 
@@ -128,65 +129,11 @@ class QueryProcessor:
         """Extract meaningful terms from text groups."""
         all_text = " ".join(text_groups)
 
-        # Remove common stop words and extract meaningful terms
-        stop_words = {
-            "the",
-            "a",
-            "an",
-            "and",
-            "or",
-            "but",
-            "in",
-            "on",
-            "at",
-            "to",
-            "for",
-            "of",
-            "with",
-            "by",
-            "is",
-            "are",
-            "was",
-            "were",
-            "be",
-            "been",
-            "being",
-            "have",
-            "has",
-            "had",
-            "do",
-            "does",
-            "did",
-            "will",
-            "would",
-            "could",
-            "should",
-            "may",
-            "might",
-            "can",
-            "this",
-            "that",
-            "these",
-            "those",
-            "i",
-            "you",
-            "he",
-            "she",
-            "it",
-            "we",
-            "they",
-            "me",
-            "him",
-            "her",
-            "us",
-            "them",
-        }
-
         # Extract words, remove punctuation
         words = re.findall(r"\b\w+\b", all_text.lower())
 
         # Filter meaningful terms
-        key_terms = [word for word in words if len(word) > 2 and word not in stop_words]
+        key_terms = [word for word in words if len(word) > 2 and word not in STOP_WORDS_FULL]
 
         return key_terms[:10]  # Limit to top 10 terms
 
@@ -327,49 +274,5 @@ class SimpleQueryProcessor:
 
     def _extract_key_terms(self, text: str) -> list[str]:
         """Extract key terms from text."""
-        stop_words = {
-            "the",
-            "a",
-            "an",
-            "and",
-            "or",
-            "but",
-            "in",
-            "on",
-            "at",
-            "to",
-            "for",
-            "of",
-            "with",
-            "by",
-            "is",
-            "are",
-            "was",
-            "were",
-            "be",
-            "been",
-            "being",
-            "have",
-            "has",
-            "had",
-            "do",
-            "does",
-            "did",
-            "will",
-            "would",
-            "could",
-            "should",
-            "what",
-            "when",
-            "where",
-            "who",
-            "why",
-            "how",
-            "can",
-            "tell",
-            "me",
-            "about",
-        }
-
         words = re.findall(r"\b\w+\b", text.lower())
-        return [word for word in words if len(word) > 2 and word not in stop_words]
+        return [word for word in words if len(word) > 2 and word not in STOP_WORDS_FULL]

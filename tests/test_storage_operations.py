@@ -199,14 +199,14 @@ class TestStorageManagerFileOperations:
         """Test slot file path generation."""
         storage = clean_storage_manager
 
-        # Test path generation for different slot names
+        # Test path generation for a valid slot name
         path1 = await storage._get_slot_path("simple_name")
         assert path1.name == "simple_name.json"
         assert path1.parent == storage.memory_dir
 
-        # Test with special characters (should be sanitized)
-        path2 = await storage._get_slot_path("slot/with/slashes")
-        assert path2.suffix == ".json"
+        # Slot names with path separators must be rejected to prevent path traversal
+        with pytest.raises(ValueError, match="path separators"):
+            await storage._get_slot_path("slot/with/slashes")
 
     @pytest.mark.asyncio
     async def test_slot_load_and_save_file_operations(self, clean_storage_manager):

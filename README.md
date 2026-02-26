@@ -1,6 +1,6 @@
 <div align="center">
   <img src="assets/image/memcord_1024.png" width="256">
-  <h3>MEMCORD v3.0.2 (mcp server)</h3>
+  <h3>MEMCORD v3.1.0 (mcp server)</h3>
   <p>This privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control.</p>
 </div>
 
@@ -18,7 +18,7 @@
 <h2 align="center">Never Lose Context Again</h2>
 <p align="center"><em>Transform your Claude conversations into a searchable, organized knowledge base that grows with you</em></p>
 
-> **[What's new in v3.0.2](docs/versions.md#v302---remove-unsupported-sessionend-hook)** — Removes the broken `SessionEnd` agent hook. Re-run `generate-config.py --install-hooks` to clean it from existing installs automatically.
+> **[What's new in v3.1.0](docs/versions.md#v310---write-operations-honor-memcord-binding)** — Write operations (`memcord_save`, `memcord_save_progress`, `memcord_configure`) now auto-detect the slot from `.memcord` binding, matching read behavior. No more `memcord_use` required after a session restart.
 
 ## Table of Contents
 
@@ -155,10 +155,15 @@ Automatically saves conversation progress before context compaction and on sessi
 
 ### How Auto-Detection Works
 
-1. When you run `/memcord-read` (or save/save-progress) without arguments
-2. Claude checks for `.memcord` file in the current working directory
-3. If found, reads the slot name and uses it automatically
-4. No need to remember or type slot names!
+All read **and write** operations follow the same slot resolution priority:
+
+1. Explicit `slot_name` argument (always wins)
+2. Currently active slot (set by `memcord_use` or `memcord_name`)
+3. `.memcord` binding file in the current working directory
+
+When the `.memcord` binding is used and the slot already exists, it is also **auto-activated** for the rest of the session — so subsequent operations skip re-detection automatically.
+
+This means after `memcord_init`, a fresh session (no `memcord_use` call needed) will correctly route `memcord_save`, `memcord_save_progress`, `memcord_configure`, and `memcord_read` to the bound slot.
 
 ## Basic Usage
 
