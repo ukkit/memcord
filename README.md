@@ -1,6 +1,6 @@
 <div align="center">
   <img src="assets/image/memcord_1024.png" width="256">
-  <h3>MEMCORD v3.1.0 (mcp server)</h3>
+  <h3>MEMCORD v3.2.0 (mcp server)</h3>
   <p>This privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control.</p>
 </div>
 
@@ -18,7 +18,7 @@
 <h2 align="center">Never Lose Context Again</h2>
 <p align="center"><em>Transform your Claude conversations into a searchable, organized knowledge base that grows with you</em></p>
 
-> **[What's new in v3.1.0](docs/versions.md#v310---write-operations-honor-memcord-binding)** — Write operations (`memcord_save`, `memcord_save_progress`, `memcord_configure`) now auto-detect the slot from `.memcord` binding, matching read behavior. No more `memcord_use` required after a session restart.
+> **[What's new in v3.2.0](docs/versions.md#v320---fix-event-loop-blocking-in-async-summarizers)** — Async summarizers (`SemanticSummarizer`, `TransformersSummarizer`) now offload model loading and inference to `asyncio.to_thread`, keeping the event loop responsive. Merge now preserves individual entries instead of flattening to a single blob.
 
 ## Table of Contents
 

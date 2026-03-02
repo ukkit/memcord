@@ -5,11 +5,10 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from .models import MemorySlot
+from .models import MemoryEntry, MemorySlot
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +38,7 @@ class MergeResult(BaseModel):
     tags_merged: list[str]
     groups_merged: list[str]
     error: str | None = None
+    merged_entries: list[MemoryEntry] = Field(default_factory=list)
 
 
 class ContentSimilarityAnalyzer:
@@ -113,46 +113,40 @@ class MemorySlotMerger:
         if not slots:
             raise ValueError("No slots provided for merge preview")
 
-        # Collect all content
-        all_content: list[str] = []
-        all_tags: set[str] = set()
-        all_groups = set()
-        chronological_entries = []
+        # Collect merged entries for accurate stats
+        merged_entries = self._collect_entries(slots, similarity_threshold)
 
+        # Count duplicates
+        total_entry_count = sum(len(slot.entries) for slot in slots)
+        duplicates_count = total_entry_count - len(merged_entries)
+
+        # Total content length across all merged entries
+        total_content_length = sum(len(e.content) for e in merged_entries)
+
+        # Tags and groups
+        all_tags: set[str] = set()
+        all_groups: set[str] = set()
         for slot in slots:
-            # Direct MemorySlot access instead of using compatibility properties
-            content = "\n\n".join(entry.content for entry in slot.entries)
-            all_content.append(content)
             all_tags.update(slot.tags or [])
             if slot.group_path:
                 all_groups.add(slot.group_path)
 
-            # Use slot_name directly
-            chronological_entries.append((slot.slot_name, slot.updated_at))
+        # Chronological order by slot updated_at
+        chronological_entries = sorted(
+            [(slot.slot_name, slot.updated_at) for slot in slots],
+            key=lambda x: x[1],
+        )
 
-        # Sort chronologically
-        chronological_entries.sort(key=lambda x: x[1])
-
-        # Analyze duplicates
-        content_blocks = []
-        for content in all_content:
-            # Split content into paragraphs for analysis
-            paragraphs = [p.strip() for p in content.split("\n\n") if p.strip()]
-            content_blocks.extend(paragraphs)
-
-        duplicate_groups = self.similarity_analyzer.find_duplicate_paragraphs(content_blocks, similarity_threshold)
-
-        # Calculate duplicate content to be removed
-        duplicates_count = sum(len(group) - 1 for group in duplicate_groups)
-
-        # Create preview content (first 500 chars)
-        merged_content = self._merge_content(slots, similarity_threshold)
-        content_preview = merged_content[:500] + "..." if len(merged_content) > 500 else merged_content
+        # Content preview from first merged entry
+        content_preview = ""
+        if merged_entries:
+            first_content = merged_entries[0].content
+            content_preview = first_content[:500] + "..." if len(first_content) > 500 else first_content
 
         return MergePreview(
             source_slots=[slot.slot_name for slot in slots],
             target_slot=target_name,
-            total_content_length=len(merged_content),
+            total_content_length=total_content_length,
             duplicate_content_removed=duplicates_count,
             merged_tags=all_tags,
             merged_groups=all_groups,
@@ -175,27 +169,29 @@ class MemorySlotMerger:
                     error="No slots provided for merging",
                 )
 
-            # Create preview to get merge statistics
-            preview = self.create_merge_preview(slots, target_name, similarity_threshold)
+            # Collect and deduplicate entries, preserving individual MemoryEntry objects
+            merged_entries = self._collect_entries(slots, similarity_threshold)
 
-            # Merge content
-            merged_content = self._merge_content(slots, similarity_threshold)
+            # Count duplicates removed
+            total_entry_count = sum(len(slot.entries) for slot in slots)
+            duplicates_removed = total_entry_count - len(merged_entries)
+
+            # Total content length
+            content_length = sum(len(e.content) for e in merged_entries)
 
             # Merge metadata
-            merged_tags = list(preview.merged_tags)
-            merged_groups = list(preview.merged_groups)
-
-            # Create merged slot (return the content and metadata)
-            # The actual slot creation will be handled by the storage manager
+            merged_tags = list(set().union(*(set(slot.tags or []) for slot in slots)))
+            merged_groups = list({slot.group_path for slot in slots if slot.group_path})
 
             return MergeResult(
                 success=True,
                 merged_slot_name=target_name,
                 source_slots=[slot.slot_name for slot in slots],
-                content_length=len(merged_content),
-                duplicates_removed=preview.duplicate_content_removed,
+                content_length=content_length,
+                duplicates_removed=duplicates_removed,
                 tags_merged=merged_tags,
                 groups_merged=merged_groups,
+                merged_entries=merged_entries,
             )
 
         except Exception as e:
@@ -211,84 +207,30 @@ class MemorySlotMerger:
                 error=str(e),
             )
 
-    def _merge_content(self, slots: list[MemorySlot], similarity_threshold: float = 0.8) -> str:
-        """Merge content from multiple slots, removing duplicates."""
+    def _collect_entries(self, slots: list[MemorySlot], similarity_threshold: float = 0.8) -> list[MemoryEntry]:
+        """Collect all entries from slots, deduplicate by content similarity, and sort by timestamp."""
         if not slots:
-            return ""
-
-        # Sort slots chronologically
-        sorted_slots = sorted(slots, key=lambda x: x.updated_at)
-
-        # Collect content sections with metadata
-        content_sections = []
-
-        for slot in sorted_slots:
-            timestamp = slot.updated_at.strftime("%Y-%m-%d %H:%M:%S")
-            content = "\n\n".join(entry.content for entry in slot.entries)
-
-            header = f"\n--- From {slot.slot_name} ({timestamp}) ---\n"
-
-            content_sections.append(
-                {"header": header, "content": content, "slot_name": slot.slot_name, "timestamp": slot.updated_at}
-            )
-
-        # Remove duplicate content sections
-        deduplicated_sections = self._remove_duplicate_sections(content_sections, similarity_threshold)
-
-        # Combine into final content
-        merged_parts = []
-
-        # Add merge header
-        merge_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        source_names = [slot.slot_name for slot in sorted_slots]
-
-        merge_header = (
-            f"=== MERGED MEMORY SLOT ===\n"
-            f"Created: {merge_timestamp}\n"
-            f"Source Slots: {', '.join(source_names)}\n"
-            f"Total Sources: {len(source_names)}\n"
-            f"=========================\n\n"
-        )
-
-        merged_parts.append(merge_header)
-
-        # Add deduplicated content
-        for section in deduplicated_sections:
-            merged_parts.append(section["header"])
-            merged_parts.append(section["content"])
-            merged_parts.append("\n")
-
-        return "".join(merged_parts)
-
-    def _remove_duplicate_sections(
-        self, sections: list[dict[str, Any]], similarity_threshold: float
-    ) -> list[dict[str, Any]]:
-        """Remove duplicate content sections."""
-        if not sections:
             return []
 
-        deduplicated: list[dict[str, Any]] = []
+        # Gather all entries from all source slots
+        all_entries: list[MemoryEntry] = []
+        for slot in slots:
+            all_entries.extend(slot.entries)
 
-        for current_section in sections:
-            is_duplicate = False
+        # Sort by timestamp ascending so the oldest entry is always encountered first
+        all_entries.sort(key=lambda e: e.timestamp)
 
-            # Check against already added sections
-            for existing_section in deduplicated:
-                similarity = self.similarity_analyzer.calculate_similarity(
-                    current_section["content"], existing_section["content"]
-                )
-
-                if similarity >= similarity_threshold:
-                    is_duplicate = True
-                    # Keep the older section (chronologically first)
-                    if current_section["timestamp"] < existing_section["timestamp"]:
-                        # Replace with older section
-                        deduplicated.remove(existing_section)
-                        deduplicated.append(current_section)
-                    break
-
+        # Deduplicate: since entries are sorted oldest-first, the already-accepted entry
+        # is always the older one — we simply skip any later candidate that is too similar.
+        deduplicated: list[MemoryEntry] = []
+        for candidate in all_entries:
+            is_duplicate = any(
+                self.similarity_analyzer.calculate_similarity(candidate.content, existing.content)
+                >= similarity_threshold
+                for existing in deduplicated
+            )
             if not is_duplicate:
-                deduplicated.append(current_section)
+                deduplicated.append(candidate)
 
         return deduplicated
 

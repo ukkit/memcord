@@ -9,10 +9,11 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from ..models import MemorySlot
+
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from ..models import MemorySlot
     from ..storage import StorageManager
 
 
@@ -212,7 +213,7 @@ class MergeService:
             )
 
         try:
-            # Execute the merge
+            # Execute the merge — returns individual MemoryEntry objects
             merge_result = self.merger.merge_slots(slots, cleaned_target, similarity_threshold)
 
             if not merge_result.success:
@@ -221,24 +222,22 @@ class MergeService:
                     error=f"Merge failed: {merge_result.error}",
                 )
 
-            # Get merged content
-            merged_content = self.merger._merge_content(slots, similarity_threshold)
+            # Load or create the target slot
+            target_memory_slot = await self.storage.read_memory(cleaned_target)
+            if target_memory_slot is None:
+                target_memory_slot = MemorySlot(slot_name=cleaned_target)
 
-            # Create or update the target slot
-            entry = await self.storage.save_memory(cleaned_target, merged_content)
+            # Assign the merged entries directly, preserving individual timestamps and types
+            target_memory_slot.entries = list(merge_result.merged_entries)
+            target_memory_slot.updated_at = datetime.now()
 
             # Apply merged metadata
-            target_memory_slot = await self.storage.read_memory(cleaned_target)
-            if target_memory_slot and (merge_result.tags_merged or merge_result.groups_merged):
-                if merge_result.tags_merged:
-                    target_memory_slot.tags = merge_result.tags_merged
+            if merge_result.tags_merged:
+                target_memory_slot.tags = set(merge_result.tags_merged)
+            if merge_result.groups_merged:
+                target_memory_slot.group_path = merge_result.groups_merged[0]
 
-                if merge_result.groups_merged:
-                    target_memory_slot.group_path = (
-                        merge_result.groups_merged[0] if merge_result.groups_merged else None
-                    )
-
-                await self.storage._save_slot(target_memory_slot)
+            await self.storage._save_slot(target_memory_slot)
 
             # Delete source slots if requested
             deleted_sources = []
@@ -258,7 +257,7 @@ class MergeService:
                 source_slots=cleaned_sources,
                 content_length=merge_result.content_length,
                 duplicates_removed=merge_result.duplicates_removed,
-                merged_at=entry.timestamp,
+                merged_at=target_memory_slot.updated_at,
                 tags_merged=list(merge_result.tags_merged) if merge_result.tags_merged else [],
                 groups_merged=list(merge_result.groups_merged) if merge_result.groups_merged else [],
                 deleted_sources=deleted_sources,

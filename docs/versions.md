@@ -1,5 +1,17 @@
 # Version History
 
+## v3.2.0 - Fix Event Loop Blocking in Async Summarizers
+
+```text
+  - SemanticSummarizer and TransformersSummarizer offload model loading and
+    inference to asyncio.to_thread — event loop stays responsive during heavy
+    CPU/IO work; MCP requests no longer queue behind model downloads
+  - Merge now preserves individual slot entries instead of flattening to a
+    single blob, retaining per-entry timestamps and metadata
+  - Ruff formatting applied across codebase
+  - Release-sync workflow extended with X/Twitter announcement step
+```
+
 ## v3.1.0 - Write Operations Honor .memcord Binding
 
 ```text

@@ -62,6 +62,10 @@ class MockMergeResult:
         self.duplicates_removed = 50
         self.tags_merged = {"merged_tag"}
         self.groups_merged = ["group/path"]
+        self.merged_entries = [
+            MemoryEntry(type="manual_save", content="Entry from slot1", timestamp=datetime.now()),
+            MemoryEntry(type="manual_save", content="Entry from slot2", timestamp=datetime.now()),
+        ]
 
 
 class TestMergePreviewResult:
@@ -162,7 +166,6 @@ class TestMergeServiceValidation:
         merger = MagicMock()
         merger.create_merge_preview = MagicMock(return_value=MockMergePreview())
         merger.merge_slots = MagicMock(return_value=MockMergeResult())
-        merger._merge_content = MagicMock(return_value="Merged content")
         return merger
 
     @pytest.fixture
@@ -393,7 +396,6 @@ class TestMergeServiceExecute:
         """Create mock merger."""
         merger = MagicMock()
         merger.merge_slots = MagicMock(return_value=MockMergeResult())
-        merger._merge_content = MagicMock(return_value="Merged content here")
         return merger
 
     @pytest.fixture
@@ -428,10 +430,11 @@ class TestMergeServiceExecute:
         slot1 = MockMemorySlot("slot1", tags={"tag1"})
         slot2 = MockMemorySlot("slot2", tags={"tag2"})
 
+        # read_memory: slot1, slot2 (source loading), then target lookup
         mock_storage.read_memory.side_effect = [
             slot1,
             slot2,
-            MockMemorySlot("merged"),  # After save
+            None,  # target doesn't exist yet — will be created fresh
         ]
 
         result = await merge_service.execute_merge(["slot1", "slot2"], "merged")
@@ -440,7 +443,9 @@ class TestMergeServiceExecute:
         assert result.target_slot == "merged"
         assert result.content_length == 900
         assert result.duplicates_removed == 50
-        mock_storage.save_memory.assert_called_once()
+        # Entries are written via _save_slot, not save_memory
+        mock_storage._save_slot.assert_called_once()
+        mock_storage.save_memory.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_execute_with_delete_sources(self, merge_service, mock_storage, mock_merger):
@@ -448,7 +453,7 @@ class TestMergeServiceExecute:
         mock_storage.read_memory.side_effect = [
             MockMemorySlot("slot1"),
             MockMemorySlot("slot2"),
-            MockMemorySlot("merged"),
+            None,  # target doesn't exist yet
         ]
 
         result = await merge_service.execute_merge(["slot1", "slot2"], "merged", delete_sources=True)
@@ -464,7 +469,7 @@ class TestMergeServiceExecute:
         mock_storage.read_memory.side_effect = [
             MockMemorySlot("slot1"),
             MockMemorySlot("slot2"),
-            MockMemorySlot("merged"),
+            None,  # target doesn't exist yet
         ]
         # First delete succeeds, second fails
         mock_storage.delete_slot.side_effect = [True, Exception("Delete failed")]
@@ -495,7 +500,7 @@ class TestMergeServiceExecute:
         mock_storage.read_memory.side_effect = [
             MockMemorySlot("slot1"),
             MockMemorySlot("slot2"),
-            MockMemorySlot("merged"),
+            None,  # target doesn't exist yet
         ]
 
         await merge_service.execute_merge(["slot1", "slot2"], "merged", similarity_threshold=0.5)

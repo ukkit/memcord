@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -114,8 +115,8 @@ class SemanticSummarizer(BaseSummarizer):
         target_count = max(1, round(len(sentences) * target_ratio))
         target_count = min(target_count, len(sentences))
 
-        model = self._load_model()
-        embeddings = model.encode(sentences, convert_to_numpy=True)
+        model = await asyncio.to_thread(self._load_model)
+        embeddings = await asyncio.to_thread(model.encode, sentences, convert_to_numpy=True)
 
         # MMR selection
         selected_indices = self._mmr_select(embeddings, target_count)
@@ -228,7 +229,7 @@ class TransformersSummarizer(BaseSummarizer):
         if target_ratio <= 0 or target_ratio > 1:
             raise ValueError("target_ratio must be between 0 and 1")
 
-        pipe = self._load_pipeline()
+        pipe = await asyncio.to_thread(self._load_pipeline)
 
         orig_len = len(text.split())
         min_len = max(10, int(orig_len * target_ratio * 0.5))
@@ -237,7 +238,7 @@ class TransformersSummarizer(BaseSummarizer):
         # Truncate input to model max (typically 1024 tokens ≈ 4096 chars)
         truncated = text[:4096] if len(text) > 4096 else text
 
-        result = pipe(truncated, min_length=min_len, max_length=max_len, do_sample=False)
+        result = await asyncio.to_thread(pipe, truncated, min_length=min_len, max_length=max_len, do_sample=False)
         if result and isinstance(result, list) and "summary_text" in result[0]:
             return str(result[0]["summary_text"]).strip()
 
