@@ -203,11 +203,11 @@ class WebURLHandler(ImportHandler):
                                     f"Redirect to blocked URL rejected: {err}"
                                 )
 
-                session = requests.Session()
-                session.hooks["response"].append(_check_redirect)
-                response = session.get(source, headers=headers, timeout=30)
-                response.raise_for_status()
-                return response
+                with requests.Session() as session:
+                    session.hooks["response"].append(_check_redirect)
+                    response = session.get(source, headers=headers, timeout=30)
+                    response.raise_for_status()
+                    return response
 
             response = await loop.run_in_executor(None, fetch_url)
 

@@ -10,9 +10,10 @@ This module implements:
 
 import asyncio
 import hashlib
+import itertools
 import json
 import time
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict, defaultdict, deque
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
@@ -499,12 +500,12 @@ class UsagePatternAnalyzer:
 
     def __init__(self, history_size: int = 10000):
         self.history_size = history_size
-        self._access_history: list[tuple[str, datetime]] = []
+        self._access_history: deque[tuple[str, datetime]] = deque(maxlen=history_size)
         self._access_patterns: dict[str, dict[str, Any]] = defaultdict(
             lambda: {
                 "frequency": 0,
                 "last_access": None,
-                "access_times": [],
+                "access_times": deque(maxlen=1000),  # cap per-key history at 1000
                 "co_accessed_with": defaultdict(int),
                 "temporal_patterns": defaultdict(int),  # hour of day -> count
             }
@@ -515,12 +516,8 @@ class UsagePatternAnalyzer:
         """Record an access event for pattern analysis."""
         now = datetime.now()
         async with self._lock:
-            # Record in history
+            # Record in history (deque auto-evicts oldest when maxlen is reached)
             self._access_history.append((key, now))
-
-            # Trim history if too large
-            if len(self._access_history) > self.history_size:
-                self._access_history = self._access_history[-self.history_size :]
 
             # Update patterns
             pattern = self._access_patterns[key]
@@ -532,9 +529,10 @@ class UsagePatternAnalyzer:
             pattern["temporal_patterns"][now.hour] += 1
 
             # Track co-access patterns (items accessed together)
+            # islice from the end since deque doesn't support slice syntax
             recent_keys = {
                 k
-                for k, t in self._access_history[-10:]
+                for k, t in itertools.islice(reversed(self._access_history), 10)
                 if (now - t).total_seconds() < 300  # Within 5 minutes
             }
             for other_key in recent_keys:

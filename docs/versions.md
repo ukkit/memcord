@@ -1,5 +1,30 @@
 # Version History
 
+## v3.3.0 - Zero Memory Leaks and Minimum Memory Footprint
+
+```text
+  - Bounded OperationQueue: completed/failed/cancelled ops evicted automatically
+    when count exceeds 200; no unbounded accumulation on long-running servers
+  - Tracked asyncio tasks: fire-and-forget create_task() calls in ProgressTracker
+    and ProgressAwareMixin now store references in a set with add_done_callback
+    cleanup — prevents silent GC destruction of in-flight callbacks
+  - O(1) LRU cache eviction: interned_strings, json_parse_cache, json_serialize_cache
+    switched from plain dict (full list copy on trim) to OrderedDict with
+    popitem(last=False) / move_to_end() — no more O(n) memory spikes at capacity
+  - Bounded access history: UsagePatternAnalyzer._access_history changed from list
+    with slice copy to deque(maxlen=history_size); per-key access_times capped at
+    deque(maxlen=1000) — zero-copy auto-eviction
+  - RateLimiter memory pruning: empty client/operation entries deleted after request
+    expiry — bounds growth from servers with many unique clients
+  - Undo stack as deque: _undo_stack changed from list with O(n) pop(0) to
+    deque(maxlen=50) — O(1) eviction, serialization uses list()
+  - URL session cleanup: requests.Session() in WebURLHandler now uses context manager
+    — connection pools always released, including on exception paths
+  - change_log hard cap: IncrementalSearchIndex caps change_log at 5000 entries
+    (trimmed to 1000) on every write, not just during 5-minute maintenance cycles
+  - All 1041 tests pass
+```
+
 ## v3.2.0 - Fix Event Loop Blocking in Async Summarizers
 
 ```text

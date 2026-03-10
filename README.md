@@ -1,6 +1,6 @@
 <div align="center">
   <img src="assets/image/memcord_1024.png" width="256">
-  <h3>MEMCORD v3.2.0 (mcp server)</h3>
+  <h3>MEMCORD v3.3.0 (mcp server)</h3>
   <p>This privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control.</p>
 </div>
 
@@ -18,7 +18,7 @@
 <h2 align="center">Never Lose Context Again</h2>
 <p align="center"><em>Transform your Claude conversations into a searchable, organized knowledge base that grows with you</em></p>
 
-> **[What's new in v3.2.0](docs/versions.md#v320---fix-event-loop-blocking-in-async-summarizers)** — Async summarizers (`SemanticSummarizer`, `TransformersSummarizer`) now offload model loading and inference to `asyncio.to_thread`, keeping the event loop responsive. Merge now preserves individual entries instead of flattening to a single blob.
+> **[What's new in v3.3.0](docs/versions.md#v330---zero-memory-leaks-and-minimum-memory-footprint)** — Eliminated memory leaks and reduced memory footprint across the server: bounded caches use O(1) LRU eviction, asyncio tasks are tracked to prevent silent GC, rate-limiter and operation-queue entries are pruned automatically, and resource handles are guaranteed to close.
 
 ## Table of Contents
 

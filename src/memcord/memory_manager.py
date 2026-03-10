@@ -7,7 +7,7 @@ import logging
 import threading
 import tracemalloc
 import weakref
-from collections import defaultdict, deque
+from collections import OrderedDict, defaultdict, deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -160,9 +160,9 @@ class MemoryOptimizer:
     def __init__(self):
         self.object_pools: dict[str, ObjectPool] = {}
         self.weak_references: set[Any] = set()  # Can contain ReferenceType or PlaceholderRef
-        self.interned_strings: dict[str, str] = {}
-        self.json_parse_cache: dict[str, Any] = {}
-        self.json_serialize_cache: dict[int, str] = {}  # hash -> json
+        self.interned_strings: OrderedDict[str, str] = OrderedDict()
+        self.json_parse_cache: OrderedDict[str, Any] = OrderedDict()
+        self.json_serialize_cache: OrderedDict[int, str] = OrderedDict()  # hash -> json
         self.cache_max_size = 1000
 
     def create_object_pool(
@@ -176,14 +176,12 @@ class MemoryOptimizer:
     def intern_string(self, s: str) -> str:
         """Intern frequently used strings to reduce memory usage."""
         if s in self.interned_strings:
+            self.interned_strings.move_to_end(s)
             return self.interned_strings[s]
 
-        # Limit size of intern pool - maintain strict maximum
+        # Evict the oldest entry in O(1) when at capacity
         if len(self.interned_strings) >= 5000:
-            # Clear oldest entries to make room for new one
-            items = list(self.interned_strings.items())
-            # Keep only the most recent entries, leaving room for the new one
-            self.interned_strings = dict(items[-(5000 - 1) :])
+            self.interned_strings.popitem(last=False)
 
         self.interned_strings[s] = s
         return s
@@ -237,14 +235,11 @@ class MemoryOptimizer:
     def cached_json_loads(self, json_str: str) -> Any:
         """Cache JSON parsing results for frequently parsed strings."""
         if json_str in self.json_parse_cache:
+            self.json_parse_cache.move_to_end(json_str)
             return self.json_parse_cache[json_str]
 
-        # Limit cache size before adding new entry
         if len(self.json_parse_cache) >= self.cache_max_size:
-            # Remove oldest entries to make room
-            items = list(self.json_parse_cache.items())
-            # Keep half the cache size to allow for growth
-            self.json_parse_cache = dict(items[-(self.cache_max_size // 2) :])
+            self.json_parse_cache.popitem(last=False)
 
         result = json.loads(json_str)
         self.json_parse_cache[json_str] = result
@@ -255,14 +250,11 @@ class MemoryOptimizer:
         obj_hash = hash(str(obj))  # Simple hash for caching
 
         if obj_hash in self.json_serialize_cache:
+            self.json_serialize_cache.move_to_end(obj_hash)
             return self.json_serialize_cache[obj_hash]
 
-        # Limit cache size before adding new entry
         if len(self.json_serialize_cache) >= self.cache_max_size:
-            # Remove oldest entries to make room
-            items = list(self.json_serialize_cache.items())
-            # Keep half the cache size to allow for growth
-            self.json_serialize_cache = dict(items[-(self.cache_max_size // 2) :])
+            self.json_serialize_cache.popitem(last=False)
 
         result = json.dumps(obj)
         self.json_serialize_cache[obj_hash] = result

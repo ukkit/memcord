@@ -4,4 +4,4 @@ A Model Context Protocol server for managing chat memory with automatic summariz
 and file sharing capabilities.
 """
 
-__version__ = "3.2.0"
+__version__ = "3.3.0"

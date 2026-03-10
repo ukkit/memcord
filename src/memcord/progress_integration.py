@@ -221,6 +221,7 @@ class ProgressAwareMixin:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._mixin_background_tasks: set[asyncio.Task] = set()
         if hasattr(self, "storage_dir"):
             self.progress_integration = MemcordProgressIntegration(self.storage_dir)
         else:
@@ -230,7 +231,12 @@ class ProgressAwareMixin:
     def _track_progress_if_available(self, progress_context, step: int, message: str = "", **details):
         """Helper method to update progress if context is available."""
         if hasattr(progress_context, "update"):
-            asyncio.create_task(progress_context.update(step, message, **details))
+            try:
+                task = asyncio.create_task(progress_context.update(step, message, **details))
+                self._mixin_background_tasks.add(task)
+                task.add_done_callback(self._mixin_background_tasks.discard)
+            except RuntimeError:
+                pass  # No running event loop
         elif progress_context:  # Fallback for simple progress tracking
             print(f"Progress: Step {step} - {message}")
 

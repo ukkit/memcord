@@ -59,10 +59,17 @@ class RateLimiter:
         return True, None
 
     def _cleanup_old_requests(self, client_id: str, operation: str, cutoff_time: float):
-        """Remove old request timestamps."""
+        """Remove old request timestamps and empty tracking entries."""
+        if client_id not in self.requests or operation not in self.requests[client_id]:
+            return
         client_requests = self.requests[client_id][operation]
         while client_requests and client_requests[0] < cutoff_time:
             client_requests.popleft()
+        # Prune empty entries to bound memory growth from unique client/operation pairs
+        if not client_requests:
+            del self.requests[client_id][operation]
+            if not self.requests[client_id]:
+                del self.requests[client_id]
 
     def get_rate_limit_info(self, client_id: str, operation: str) -> dict[str, int]:
         """Get current rate limit status."""

@@ -166,7 +166,7 @@ class IncrementalSearchIndex:
         self.slot_total_words[slot_name] = len(words)
         self.slot_content_hashes[slot_name] = content_hash
 
-        # Log the change
+        # Log the change, capping the log to avoid unbounded growth
         change = IndexChangeLog(
             slot_name=slot_name,
             operation=operation,
@@ -175,6 +175,8 @@ class IncrementalSearchIndex:
             previous_hash=previous_hash,
         )
         self.change_log.append(change)
+        if len(self.change_log) > 5000:
+            self.change_log = self.change_log[-1000:]
         self.dirty_slots.add(slot_name)
 
         return True
@@ -200,9 +202,11 @@ class IncrementalSearchIndex:
         """Remove slot from index and log change."""
         await self._remove_slot_from_index(slot_name)
 
-        # Log the change
+        # Log the change, capping the log to avoid unbounded growth
         change = IndexChangeLog(slot_name=slot_name, operation="delete", timestamp=datetime.now())
         self.change_log.append(change)
+        if len(self.change_log) > 5000:
+            self.change_log = self.change_log[-1000:]
         self.dirty_slots.discard(slot_name)
 
     async def _background_maintenance(self):

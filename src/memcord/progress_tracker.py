@@ -9,6 +9,7 @@ import asyncio
 import json
 import uuid
 from abc import ABC, abstractmethod
+from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -251,6 +252,9 @@ class TrackedOperation:
     error: Exception | None = None
 
 
+_MAX_TERMINAL_OPS = 200  # Max completed/failed/cancelled ops to retain in memory
+
+
 class OperationQueue:
     """Queue for managing multiple operations."""
 
@@ -295,6 +299,7 @@ class OperationQueue:
             self._operations[operation_id].status = OperationStatus.COMPLETED
             self._operations[operation_id].result = result
             self._running.discard(operation_id)
+            self._evict_terminal_if_needed()
 
     def fail_operation(self, operation_id: str, error: Exception):
         """Mark operation as failed."""
@@ -302,6 +307,7 @@ class OperationQueue:
             self._operations[operation_id].status = OperationStatus.FAILED
             self._operations[operation_id].error = error
             self._running.discard(operation_id)
+            self._evict_terminal_if_needed()
 
     def cancel_operation(self, operation_id: str):
         """Cancel an operation."""
@@ -310,6 +316,15 @@ class OperationQueue:
             if operation.status in [OperationStatus.PENDING, OperationStatus.RUNNING]:
                 operation.status = OperationStatus.CANCELLING
                 operation.cancellation_event.set()
+                self._evict_terminal_if_needed()
+
+    def _evict_terminal_if_needed(self):
+        """Evict oldest terminal operations when count exceeds the cap."""
+        terminal = {OperationStatus.COMPLETED, OperationStatus.FAILED, OperationStatus.CANCELLED}
+        terminal_ids = [op_id for op_id, op in self._operations.items() if op.status in terminal]
+        if len(terminal_ids) > _MAX_TERMINAL_OPS:
+            for op_id in terminal_ids[: len(terminal_ids) // 2]:
+                del self._operations[op_id]
 
 
 class ProgressTracker:
@@ -319,8 +334,9 @@ class ProgressTracker:
         self.storage_dir = storage_dir
         self.queue = OperationQueue()
         self._history_file = storage_dir / "operation_history.json"
-        self._undo_stack: list[dict[str, Any]] = []
+        self._undo_stack: deque[dict[str, Any]] = deque(maxlen=50)
         self._max_history = 1000
+        self._background_tasks: set[asyncio.Task] = set()
 
         # Ensure storage directory exists
         self.storage_dir.mkdir(parents=True, exist_ok=True)
@@ -351,6 +367,15 @@ class ProgressTracker:
         self.queue.add_operation(operation)
         return operation_id
 
+    def _fire_callback(self, coro) -> None:
+        """Schedule a callback coroutine and keep a reference to prevent GC."""
+        try:
+            task = asyncio.create_task(coro)
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
+        except RuntimeError:
+            pass  # No running event loop
+
     @contextmanager
     def track_operation(
         self,
@@ -369,7 +394,7 @@ class ProgressTracker:
             # Start operation
             operation.status = OperationStatus.RUNNING
             if operation.callback:
-                asyncio.create_task(operation.callback.on_start(operation_id, operation_type, total_steps, description))
+                self._fire_callback(operation.callback.on_start(operation_id, operation_type, total_steps, description))
 
             yield OperationProgressContext(self, operation_id)
 
@@ -423,11 +448,7 @@ class ProgressTracker:
 
         # Notify callback
         if operation.callback:
-            try:
-                asyncio.create_task(operation.callback.on_complete(operation_id, result, operation.time_estimate))
-            except RuntimeError:
-                # No event loop, callback will be called synchronously
-                pass
+            self._fire_callback(operation.callback.on_complete(operation_id, result, operation.time_estimate))
 
     def fail_operation(self, operation_id: str, error: Exception):
         """Fail an operation."""
@@ -439,11 +460,7 @@ class ProgressTracker:
 
         # Notify callback
         if operation.callback:
-            try:
-                asyncio.create_task(operation.callback.on_error(operation_id, error, operation.time_estimate))
-            except RuntimeError:
-                # No event loop, callback will be called synchronously
-                pass
+            self._fire_callback(operation.callback.on_error(operation_id, error, operation.time_estimate))
 
     def cancel_operation(self, operation_id: str) -> bool:
         """Cancel an operation."""
@@ -499,10 +516,7 @@ class ProgressTracker:
         self._undo_stack.append(
             {"timestamp": datetime.now().isoformat(), "operation_type": operation_type.value, "undo_data": undo_data}
         )
-
-        # Limit undo stack size
-        if len(self._undo_stack) > 50:
-            self._undo_stack.pop(0)
+        # deque(maxlen=50) automatically evicts the oldest entry when full
 
     def can_undo(self) -> bool:
         """Check if undo is available."""
@@ -522,17 +536,17 @@ class ProgressTracker:
             try:
                 with open(self._history_file) as f:
                     data = json.load(f)
-                    self._undo_stack = data.get("undo_stack", [])
+                    self._undo_stack = deque(data.get("undo_stack", []), maxlen=50)
             except Exception:
                 # If history is corrupted, start fresh
-                self._undo_stack = []
+                self._undo_stack = deque(maxlen=50)
 
     def _save_history(self):
         """Save operation history to disk."""
         try:
             with open(self._history_file, "w") as f:
                 json.dump(
-                    {"undo_stack": self._undo_stack[-50:]},  # Keep only last 50
+                    {"undo_stack": list(self._undo_stack)},  # deque already capped at maxlen=50
                     f,
                     indent=2,
                 )
