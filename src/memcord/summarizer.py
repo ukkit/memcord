@@ -162,7 +162,7 @@ class TextSummarizer:
             if stripped.startswith("```"):
                 first_line = stripped[3:].strip()  # Language hint or first code line
                 # Consume until closing ```
-                code_lines = []
+                code_lines: list[str] = []
                 i += 1
                 while i < len(lines) and not lines[i].strip().startswith("```"):
                     if not code_lines and lines[i].strip():
@@ -362,7 +362,7 @@ class TextSummarizer:
         summary_sentences = [original_sentences[i] for i in selected_indices]
 
         # Join sentences with space; only add period if sentence doesn't already end with punctuation
-        parts = []
+        parts: list[str] = []
         for s in summary_sentences:
             s = s.strip()
             if parts and not s[0:1].isupper():

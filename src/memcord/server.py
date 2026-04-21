@@ -25,7 +25,18 @@ from typing import Any, cast
 from urllib.parse import unquote, urlparse
 
 from mcp.server import Server
-from mcp.types import Resource, TextContent, Tool
+from mcp.types import (
+    Completion,
+    CompletionArgument,
+    CompletionContext,
+    PromptReference,
+    Resource,
+    ResourceTemplate,
+    ResourceTemplateReference,
+    TextContent,
+    Tool,
+    ToolAnnotations,
+)
 
 from .errors import (
     ErrorHandler,
@@ -385,7 +396,7 @@ class ChatMemoryServer:
         2. Currently active slot (via memcord_use/memcord_name)
         3. Project binding (.memcord file) — auto-activates the slot if found and it exists
         """
-        explicit = arguments.get(key)
+        explicit: str | None = arguments.get(key)
         if explicit:
             return explicit
 
@@ -427,17 +438,64 @@ class ChatMemoryServer:
 
         for slot_info in slots_info:
             slot_name = slot_info["name"]
+            entry_count = slot_info["entry_count"]
+            total_length = slot_info["total_length"]
+            summary = f"{entry_count} {'entry' if entry_count == 1 else 'entries'}, {total_length} chars"
+
             for fmt in ["md", "txt", "json"]:
                 resources.append(
                     Resource(
                         uri=f"memory://{slot_name}.{fmt}",  # type: ignore[arg-type]
                         name=f"{slot_name} ({fmt.upper()})",
-                        description=f"Memory slot {slot_name} in {fmt.upper()} format",
-                        mimeType=f"text/{fmt}" if fmt in ["txt", "md"] else f"application/{fmt}",
+                        mimeType=self._get_mime_type(fmt),
+                        description=f"{slot_name} — {summary}",
+                        size=total_length if fmt != "json" else None,
                     )
                 )
 
         return resources
+
+    async def list_resource_templates_direct(self) -> list[ResourceTemplate]:
+        """Direct resource templates listing for testing and internal use."""
+        formats = [
+            ("md", "text/markdown", "Markdown format"),
+            ("txt", "text/plain", "Plain text format"),
+            ("json", "application/json", "JSON format"),
+        ]
+        return [
+            ResourceTemplate(
+                uriTemplate=f"memory://{{slot_name}}.{fmt}",
+                name=f"Memory slot ({fmt.upper()})",
+                mimeType=mime,
+                description=f"Memory slot content in {desc}. slot_name is the slot identifier.",
+            )
+            for fmt, mime, desc in formats
+        ]
+
+    async def _handle_completion(
+        self,
+        ref: PromptReference | ResourceTemplateReference,
+        argument: CompletionArgument,
+        context: CompletionContext | None,
+    ) -> Completion | None:
+        """Handle completion/complete requests for resource template arguments.
+
+        Only completes slot_name arguments in memory:// resource template URIs.
+        Returns None for prompt references or unknown argument names.
+        """
+        if not isinstance(ref, ResourceTemplateReference):
+            return None
+
+        if argument.name != "slot_name":
+            return Completion(values=[], total=0, hasMore=False)
+
+        prefix = argument.value or ""
+        slots_info = await self.storage.list_memory_slots()
+        slot_names = [s["name"] for s in slots_info]
+        matches = [name for name in slot_names if name.startswith(prefix)]
+        matches.sort()
+
+        return Completion(values=matches[:100], total=len(matches), hasMore=len(matches) > 100)
 
     async def read_resource_direct(self, uri: str) -> str:
         """Direct resource reading method for testing purposes."""
@@ -470,9 +528,92 @@ class ChatMemoryServer:
         else:
             raise ValueError(f"Unsupported format: {format_ext}")
 
+    # Tool annotation map — defines MCP spec hints for every tool.
+    # readOnlyHint=True  → does not modify state
+    # destructiveHint=True → may overwrite or delete data
+    # idempotentHint=True  → same args always produce same state
+    # openWorldHint=True  → may interact with external systems (URLs, files outside memory_slots)
+    _TOOL_ANNOTATIONS: dict[str, ToolAnnotations] = {
+        # Read-only, closed world
+        "memcord_read":        ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
+        "memcord_list":        ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
+        "memcord_list_tags":   ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
+        "memcord_ping":        ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
+        "memcord_query":       ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
+        "memcord_search":      ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
+        "memcord_status":      ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
+        "memcord_metrics":     ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
+        "memcord_logs":        ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
+        "memcord_diagnostics": ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
+        "memcord_select_entry":ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
+        "memcord_export":      ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
+        # Idempotent state-switches (no data destroyed, same input = same state)
+        "memcord_name": ToolAnnotations(
+            readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False
+        ),
+        "memcord_use": ToolAnnotations(
+            readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False
+        ),
+        "memcord_zero": ToolAnnotations(
+            readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False
+        ),
+        "memcord_close": ToolAnnotations(
+            readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False
+        ),
+        "memcord_init": ToolAnnotations(
+            readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False
+        ),
+        # Additive writes (append / no existing data destroyed)
+        "memcord_save_progress": ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False),
+        "memcord_share":         ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False),
+        # Destructive writes (overwrite existing content or delete entries/files)
+        "memcord_save":     ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
+        "memcord_configure":ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
+        "memcord_tag":      ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
+        "memcord_group":    ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
+        "memcord_merge":    ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
+        "memcord_archive":  ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
+        "memcord_unbind":   ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
+        "memcord_compress": ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
+        # Open world (may fetch external URLs/files)
+        "memcord_import": ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=True),
+    }
+
+    # Anthropic-specific tool extensions (extra fields in tools/list response).
+    # "anthropic/maxResultSizeChars" raises the per-tool result truncation cap
+    # (default 25K) up to the hard ceiling of 500K characters.
+    _ANTHROPIC_TOOL_EXTENSIONS: dict[str, dict[str, object]] = {
+        "memcord_read":  {"anthropic/maxResultSizeChars": 500_000},
+        "memcord_query": {"anthropic/maxResultSizeChars": 500_000},
+    }
+
+    @staticmethod
+    def _annotate_tools(tools: list[Tool]) -> list[Tool]:
+        """Apply ToolAnnotations and Anthropic extensions to each tool.
+
+        Uses model_dump + model_validate round-trip so all existing Tool fields
+        are preserved. Anthropic extension keys (e.g. "anthropic/maxResultSizeChars")
+        are injected as extra fields via model_validate with extra="allow".
+        """
+        result = []
+        for tool in tools:
+            annotation = ChatMemoryServer._TOOL_ANNOTATIONS.get(tool.name)
+            anthropic_extras = ChatMemoryServer._ANTHROPIC_TOOL_EXTENSIONS.get(tool.name, {})
+
+            if annotation is None and not anthropic_extras:
+                result.append(tool)
+                continue
+
+            data = tool.model_dump(exclude_none=True)
+            if annotation is not None:
+                data["annotations"] = annotation
+            data.update(anthropic_extras)  # inject "anthropic/maxResultSizeChars" etc.
+            result.append(Tool.model_validate(data))
+        return result
+
     def _get_basic_tools(self) -> list[Tool]:
         """Get the list of basic tools (always available)."""
-        return [
+        tools = [
             # Core Tools
             Tool(
                 name="memcord_name",
@@ -855,10 +996,11 @@ class ChatMemoryServer:
                 },
             ),
         ]
+        return self._annotate_tools(tools)
 
     def _get_advanced_tools(self) -> list[Tool]:
         """Get the list of advanced tools (optional)."""
-        return [
+        tools = [
             # Organization Tools
             Tool(
                 name="memcord_tag",
@@ -1037,6 +1179,7 @@ class ChatMemoryServer:
                 },
             ),
         ]
+        return self._annotate_tools(tools)
 
     def _setup_handlers(self):
         """Set up MCP server handlers."""
@@ -1097,17 +1240,32 @@ class ChatMemoryServer:
 
             for slot_info in slots_info:
                 slot_name = slot_info["name"]
+                entry_count = slot_info["entry_count"]
+                total_length = slot_info["total_length"]
+                summary = f"{entry_count} {'entry' if entry_count == 1 else 'entries'}, {total_length} chars"
+
                 for fmt in ["md", "txt", "json"]:
                     resources.append(
                         Resource(
                             uri=f"memory://{slot_name}.{fmt}",  # type: ignore[arg-type]
                             name=f"{slot_name} ({fmt.upper()})",
                             mimeType=self._get_mime_type(fmt),
-                            description=f"Memory slot '{slot_name}' in {fmt.upper()} format",
+                            description=f"{slot_name} — {summary}",
+                            size=total_length if fmt != "json" else None,
                         )
                     )
 
             return resources
+
+        @self.app.list_resource_templates()
+        async def list_resource_templates():
+            """List resource templates enabling slot-name argument completion."""
+            return await self.list_resource_templates_direct()
+
+        @self.app.completion()
+        async def handle_completion(ref, argument, context=None):
+            """Provide slot-name completions for memory:// resource template URIs."""
+            return await self._handle_completion(ref, argument, context)
 
         @self.app.read_resource()
         async def read_resource(uri: str) -> str:
@@ -1295,6 +1453,29 @@ class ChatMemoryServer:
             TextContent(type="text", text=f"Memory slot '{slot_name}' ({len(slot.entries)} entries):\n\n{full_content}")
         ]
 
+    async def _emit_progress(
+        self,
+        progress: float,
+        total: float,
+        message: str,
+    ) -> None:
+        """Emit a progress notification if the current request provided a progressToken.
+
+        Safe to call from any tool handler — swallows LookupError (no active request
+        context) and skips silently when the client did not request progress updates.
+        """
+        try:
+            ctx = self.app.request_context
+            if ctx.meta and ctx.meta.progressToken is not None:
+                await ctx.session.send_progress_notification(
+                    ctx.meta.progressToken,
+                    progress=progress,
+                    total=total,
+                    message=message,
+                )
+        except LookupError:
+            pass
+
     @handle_errors(default_error_message="Save progress failed")
     async def _handle_saveprogress(self, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle saveprogress tool call."""
@@ -1320,14 +1501,20 @@ class ChatMemoryServer:
         # Build summarizer for this call (no global state — config changes take effect immediately)
         summarizer = build_summarizer(config)
 
+        await self._emit_progress(0.1, 1.0, "Summarizing conversation...")
+
         # Generate summary
         summary = await summarizer.summarize(chat_text.strip(), compression_ratio)
+
+        await self._emit_progress(0.8, 1.0, "Saving summary to memory slot...")
 
         # Build metadata for the entry
         llm_meta = self._extract_summarizer_metadata(summarizer, config)
 
         # Save summary to slot
         entry = await self.storage.add_summary_entry(slot_name, chat_text.strip(), summary, metadata=llm_meta)
+
+        await self._emit_progress(1.0, 1.0, "Summary saved.")
 
         # Get statistics
         stats = summarizer.get_summary_stats(chat_text, summary)
@@ -1840,7 +2027,12 @@ class ChatMemoryServer:
         tags = arguments.get("tags", [])
         group_path = arguments.get("group_path")
 
+        await self._emit_progress(0.1, 1.0, f"Importing content from {source!r}...")
+
         result = await self.import_service.import_content(source, slot_name, description, tags, group_path)
+
+        await self._emit_progress(1.0, 1.0, "Import complete.")
+
         return self._format_import_result(result)
 
     def _format_import_result(self, result) -> list[TextContent]:
@@ -1891,9 +2083,11 @@ class ChatMemoryServer:
             result = await self.merge_service.preview_merge(source_slots, target_slot, similarity_threshold)
             return self._format_merge_preview(result)
         elif action == "merge":
+            await self._emit_progress(0.1, 1.0, f"Merging {len(source_slots)} slots into {target_slot!r}...")
             result = await self.merge_service.execute_merge(
                 source_slots, target_slot, similarity_threshold, delete_sources
             )
+            await self._emit_progress(1.0, 1.0, "Merge complete.")
             return self._format_merge_result(result)
         else:
             return [TextContent(type="text", text=f"Error: Unknown action '{action}'. Use 'preview' or 'merge'.")]

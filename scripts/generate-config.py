@@ -320,7 +320,7 @@ def generate_configs(
 
         if template_path.exists():
             template = load_template(template_path)
-            config = replace_placeholders(template, path_str, use_backslashes=is_windows)
+            config = replace_placeholders(template, path_str, use_backslashes=False)
 
             output_path = memcord_path / ".mcp.json"
             if save_config(config, output_path, dry_run):

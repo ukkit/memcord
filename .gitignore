@@ -14,6 +14,12 @@ TODO.md
 .claude/agents/
 .claude/utils/
 .claude/skills/
+.claude/settings.json
+.claude/settings.local.json
+.claude-plugin/
+commands/
+docs/superpowers/
+hooks/
 tmpclaude-*
 
 # Python

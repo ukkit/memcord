@@ -38,10 +38,16 @@ class TestVSCodeConfiguration:
 
         assert "mcpServers" in config
         assert "memcord" in config["mcpServers"]
+        assert "memcord-advanced" in config["mcpServers"]
 
         memcord_config = config["mcpServers"]["memcord"]
         assert "PYTHONPATH" in memcord_config["env"]
-        assert "MEMCORD_ENABLE_ADVANCED" in memcord_config["env"]
+        assert "UV_PROJECT_ENVIRONMENT" in memcord_config["env"]
+        assert "MEMCORD_ENABLE_ADVANCED" not in memcord_config["env"]
+
+        advanced_config = config["mcpServers"]["memcord-advanced"]
+        assert advanced_config["env"]["MEMCORD_ENABLE_ADVANCED"] == "true"
+        assert "UV_PROJECT_ENVIRONMENT" in advanced_config["env"]
 
     def test_vscode_extensions_config_valid(self):
         """Test that .vscode/extensions.json format is valid."""

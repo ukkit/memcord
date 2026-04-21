@@ -1,5 +1,28 @@
 # Version History
 
+## v3.4.0 - MCP Protocol Compliance (spec 2025-03-26 / 2025-11-25)
+
+```text
+  - SDK bump: mcp>=1.27.0 for spec 2025-11-25 compliance
+  - Tool annotations on all 28 tools: readOnlyHint, destructiveHint, idempotentHint,
+    and openWorldHint — enables MCP clients to make smarter tool-use decisions
+  - Centralized _TOOL_ANNOTATIONS map + _annotate_tools() post-processor using
+    model_dump round-trip — zero per-tool boilerplate, forward-safe for SDK updates
+  - Anthropic extension anthropic/maxResultSizeChars: 500K on memcord_read and
+    memcord_query — raises Anthropic Claude's per-tool result truncation cap from 25K
+  - Resource metadata enrichment: description (slot name + entry count + char count)
+    and size fields on every Resource object in list_resources
+  - ResourceTemplate registration for memory://{slot_name}.{md,txt,json} — enables
+    slot-name argument autocompletion in supporting clients
+  - Completions handler (_handle_completion): returns live slot-name suggestions
+    filtered by prefix when clients send completion/complete requests
+  - Progress notifications with message field: _emit_progress() helper emits
+    ProgressNotification with human-readable status in _handle_saveprogress,
+    _handle_importmem, and _handle_mergemem — requires client to provide progressToken
+  - 23 new tests in tests/test_mcp_protocol_compliance.py covering all new features
+  - All 1064 tests pass
+```
+
 ## v3.3.0 - Zero Memory Leaks and Minimum Memory Footprint
 
 ```text

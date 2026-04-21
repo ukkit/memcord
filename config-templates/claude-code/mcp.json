@@ -11,7 +11,7 @@
       ],
       "env": {
         "PYTHONPATH": "{{MEMCORD_PATH}}/src",
-        "MEMCORD_ENABLE_ADVANCED": "false"
+        "UV_PROJECT_ENVIRONMENT": "{{MEMCORD_PATH}}/.venv"
       }
     },
     "memcord-advanced": {
@@ -25,6 +25,7 @@
       ],
       "env": {
         "PYTHONPATH": "{{MEMCORD_PATH}}/src",
+        "UV_PROJECT_ENVIRONMENT": "{{MEMCORD_PATH}}/.venv",
         "MEMCORD_ENABLE_ADVANCED": "true"
       }
     }

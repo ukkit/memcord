@@ -1524,3 +1524,85 @@ class TestServerAdvancedErrorPathsAndRecovery:
         # Most should succeed
         successful_results = [r for r in rapid_results if not isinstance(r, Exception)]
         assert len(successful_results) > 15  # Allow some failures under load
+
+
+class TestToolAnnotations:
+    """Tests for MCP tool annotations (spec 2025-03-26)."""
+
+    async def test_read_only_tools_have_readonly_hint(self, test_server):
+        tools = await test_server.list_tools_direct()
+        readonly_tool_names = {
+            "memcord_read", "memcord_list", "memcord_ping", "memcord_query",
+            "memcord_search", "memcord_status", "memcord_metrics", "memcord_logs",
+            "memcord_diagnostics", "memcord_select_entry",
+        }
+        for tool in tools:
+            if tool.name in readonly_tool_names:
+                assert tool.annotations is not None, f"{tool.name} missing annotations"
+                assert tool.annotations.readOnlyHint is True, f"{tool.name} should have readOnlyHint=True"
+
+    async def test_destructive_tools_have_destructive_hint(self, test_server):
+        tools = await test_server.list_tools_direct()
+        destructive_tool_names = {
+            "memcord_save", "memcord_merge", "memcord_archive",
+            "memcord_unbind", "memcord_compress",
+        }
+        for tool in tools:
+            if tool.name in destructive_tool_names:
+                assert tool.annotations is not None, f"{tool.name} missing annotations"
+                assert tool.annotations.destructiveHint is True, f"{tool.name} should have destructiveHint=True"
+
+    async def test_idempotent_tools_have_idempotent_hint(self, test_server):
+        tools = await test_server.list_tools_direct()
+        idempotent_tool_names = {"memcord_name", "memcord_use", "memcord_zero", "memcord_close", "memcord_init"}
+        for tool in tools:
+            if tool.name in idempotent_tool_names:
+                assert tool.annotations is not None, f"{tool.name} missing annotations"
+                assert tool.annotations.idempotentHint is True, f"{tool.name} should have idempotentHint=True"
+
+    async def test_readonly_tools_have_closed_world_hint(self, test_server):
+        """Local memory tools should not have openWorldHint (closed world)."""
+        tools = await test_server.list_tools_direct()
+        for tool in tools:
+            if tool.name != "memcord_import":  # import can fetch URLs (open world)
+                if tool.annotations is not None:
+                    assert tool.annotations.openWorldHint is not True, (
+                        f"{tool.name} should not have openWorldHint=True (only memcord_import interacts with external world)"
+                    )
+
+    async def test_import_tool_has_open_world_hint(self, test_server):
+        tools = await test_server.list_tools_direct()
+        import_tool = next(t for t in tools if t.name == "memcord_import")
+        assert import_tool.annotations is not None
+        assert import_tool.annotations.openWorldHint is True
+
+    async def test_all_tools_have_annotations(self, test_server):
+        """Every tool must have an annotations object — no tool should be unannotated."""
+        tools = await test_server.list_tools_direct()
+        for tool in tools:
+            assert tool.annotations is not None, f"{tool.name} has no annotations"
+
+    async def test_read_tool_has_max_result_size(self, test_server):
+        tools = await test_server.list_tools_direct()
+        read_tool = next(t for t in tools if t.name == "memcord_read")
+        # Extra fields are stored in __pydantic_extra__
+        assert read_tool.__pydantic_extra__ is not None
+        assert "anthropic/maxResultSizeChars" in read_tool.__pydantic_extra__
+        assert read_tool.__pydantic_extra__["anthropic/maxResultSizeChars"] == 500_000
+
+    async def test_query_tool_has_max_result_size(self, test_server):
+        tools = await test_server.list_tools_direct()
+        query_tool = next(t for t in tools if t.name == "memcord_query")
+        assert query_tool.__pydantic_extra__ is not None
+        assert "anthropic/maxResultSizeChars" in query_tool.__pydantic_extra__
+        assert query_tool.__pydantic_extra__["anthropic/maxResultSizeChars"] == 500_000
+
+    async def test_other_tools_do_not_have_max_result_size(self, test_server):
+        """Only read/query need the size override; others should not have it."""
+        tools = await test_server.list_tools_direct()
+        for tool in tools:
+            if tool.name not in ("memcord_read", "memcord_query"):
+                extra = tool.__pydantic_extra__ or {}
+                assert "anthropic/maxResultSizeChars" not in extra, (
+                    f"{tool.name} should not have anthropic/maxResultSizeChars"
+                )
