@@ -14,44 +14,30 @@ from mcp.types import TextContent
 from .errors import ErrorHandler, MemcordError
 
 
+class ErrorResult(list):
+    """Marker subclass for tool execution errors (MCP spec: isError=true).
+
+    Behaves exactly like a list[TextContent] so existing code that indexes
+    result[0].text continues to work.  The MCP call_tool boundary checks
+    isinstance(result, ErrorResult) and wraps it in CallToolResult(isError=True)
+    so the client can enable LLM self-correction per spec §tools/error-handling.
+    """
+
+
 class ResponseBuilder:
     """Builder for consistent MCP responses."""
 
     @staticmethod
     def success(message: str) -> list[TextContent]:
-        """Create a success response.
-
-        Args:
-            message: Success message text
-
-        Returns:
-            List containing TextContent with the message
-        """
         return [TextContent(type="text", text=message)]
 
     @staticmethod
-    def error(error: MemcordError) -> list[TextContent]:
-        """Create an error response from a MemcordError.
-
-        Args:
-            error: MemcordError instance
-
-        Returns:
-            List containing TextContent with formatted error message
-        """
-        return [TextContent(type="text", text=error.get_user_message())]
+    def error(error: MemcordError) -> ErrorResult:
+        return ErrorResult([TextContent(type="text", text=error.get_user_message())])
 
     @staticmethod
-    def error_message(message: str) -> list[TextContent]:
-        """Create a simple error response.
-
-        Args:
-            message: Error message text
-
-        Returns:
-            List containing TextContent with error prefix
-        """
-        return [TextContent(type="text", text=f"Error: {message}")]
+    def error_message(message: str) -> ErrorResult:
+        return ErrorResult([TextContent(type="text", text=f"Error: {message}")])
 
     @staticmethod
     def from_lines(lines: list[str]) -> list[TextContent]:
@@ -81,32 +67,20 @@ def handle_errors(
 ):
     """Decorator to standardize error handling in handlers.
 
-    This decorator catches exceptions and converts them to appropriate
-    MCP responses using the MemcordError system.
-
-    Args:
-        error_handler: Optional ErrorHandler instance for enhanced error handling
-        default_error_message: Default message for unhandled exceptions
-
-    Usage:
-        @handle_errors()
-        async def _handle_something(self, arguments):
-            # Handler code that may raise exceptions
-            ...
+    Catches exceptions and returns ErrorResult so the MCP boundary can set
+    isError=True per spec §tools/error-handling.
     """
 
     def decorator(
         func: Callable[..., Awaitable[Sequence[TextContent]]],
-    ) -> Callable[..., Awaitable[Sequence[TextContent]]]:
+    ) -> Callable[..., Awaitable[Sequence[TextContent] | ErrorResult]]:
         @functools.wraps(func)
-        async def wrapper(self, arguments: dict[str, Any]) -> Sequence[TextContent]:
+        async def wrapper(self, arguments: dict[str, Any]) -> Sequence[TextContent] | ErrorResult:
             try:
                 return await func(self, arguments)
             except MemcordError as e:
-                # Known memcord errors - use their formatted message
                 return ResponseBuilder.error(e)
             except Exception as e:
-                # Unknown errors - wrap in MemcordError if handler available
                 handler = error_handler or getattr(self, "error_handler", None)
                 if handler:
                     wrapped_error = handler.handle_error(e, func.__name__, {"arguments": arguments})
@@ -120,22 +94,13 @@ def handle_errors(
 
 
 def validate_required_args(*required_args: str):
-    """Decorator to validate required arguments.
-
-    Args:
-        required_args: Names of required arguments
-
-    Usage:
-        @validate_required_args("slot_name", "content")
-        async def _handle_something(self, arguments):
-            ...
-    """
+    """Decorator to validate required arguments, returning ErrorResult on failure."""
 
     def decorator(
         func: Callable[..., Awaitable[Sequence[TextContent]]],
-    ) -> Callable[..., Awaitable[Sequence[TextContent]]]:
+    ) -> Callable[..., Awaitable[Sequence[TextContent] | ErrorResult]]:
         @functools.wraps(func)
-        async def wrapper(self, arguments: dict[str, Any]) -> Sequence[TextContent]:
+        async def wrapper(self, arguments: dict[str, Any]) -> Sequence[TextContent] | ErrorResult:
             missing = [arg for arg in required_args if not arguments.get(arg)]
             if missing:
                 return ResponseBuilder.error_message(f"Missing required arguments: {', '.join(missing)}")
@@ -150,26 +115,13 @@ def validate_slot_selected(
     slot_arg: str = "slot_name",
     error_message: str = "No memory slot selected. Use 'memname' first.",
 ):
-    """Decorator to validate that a slot is selected.
-
-    Uses _resolve_slot if available on the handler's class.
-
-    Args:
-        slot_arg: Name of the slot argument
-        error_message: Error message if no slot is selected
-
-    Usage:
-        @validate_slot_selected()
-        async def _handle_something(self, arguments):
-            ...
-    """
+    """Decorator to validate that a slot is selected, returning ErrorResult on failure."""
 
     def decorator(
         func: Callable[..., Awaitable[Sequence[TextContent]]],
-    ) -> Callable[..., Awaitable[Sequence[TextContent]]]:
+    ) -> Callable[..., Awaitable[Sequence[TextContent] | ErrorResult]]:
         @functools.wraps(func)
-        async def wrapper(self, arguments: dict[str, Any]) -> Sequence[TextContent]:
-            # Try to resolve slot using the class method if available
+        async def wrapper(self, arguments: dict[str, Any]) -> Sequence[TextContent] | ErrorResult:
             if hasattr(self, "_resolve_slot"):
                 if inspect.iscoroutinefunction(self._resolve_slot):
                     slot_name = await self._resolve_slot(arguments, slot_arg)
@@ -181,7 +133,6 @@ def validate_slot_selected(
             if not slot_name:
                 return ResponseBuilder.error_message(error_message)
 
-            # Add resolved slot to arguments for the handler
             arguments[f"_resolved_{slot_arg}"] = slot_name
             return await func(self, arguments)
 

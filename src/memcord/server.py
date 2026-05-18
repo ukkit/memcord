@@ -26,6 +26,7 @@ from urllib.parse import unquote, urlparse
 
 from mcp.server import Server
 from mcp.types import (
+    CallToolResult,
     Completion,
     CompletionArgument,
     CompletionContext,
@@ -44,7 +45,7 @@ from .errors import (
     OperationTimeoutError,
 )
 from .models import SearchQuery
-from .response_builder import handle_errors
+from .response_builder import ErrorResult, handle_errors
 from .security import SecurityMiddleware
 from .status_monitoring import StatusMonitoringSystem
 from .storage import StorageManager
@@ -191,25 +192,21 @@ class ChatMemoryServer:
             "memcord_compress": (self._handle_compressmem, True),
         }
 
-    async def _dispatch_handler(self, name: str, arguments: dict[str, Any]) -> Sequence[TextContent]:
+    async def _dispatch_handler(self, name: str, arguments: dict[str, Any]) -> Sequence[TextContent] | ErrorResult:
         """Dispatch to handler using O(1) lookup.
 
-        Args:
-            name: Tool name
-            arguments: Tool arguments
-
-        Returns:
-            Handler result or error message
+        Returns ErrorResult (isError=True at MCP boundary) on tool errors,
+        or Sequence[TextContent] on success.
         """
         handler_entry = self._handler_map.get(name)
 
         if handler_entry is None:
-            return [TextContent(type="text", text=f"Error: Unknown tool: {name}")]
+            return ErrorResult([TextContent(type="text", text=f"Error: Unknown tool: {name}")])
 
         handler, requires_advanced = handler_entry
 
         if requires_advanced and not self.enable_advanced_tools:
-            return [
+            return ErrorResult([
                 TextContent(
                     type="text",
                     text=(
@@ -217,9 +214,9 @@ class ChatMemoryServer:
                         "Set MEMCORD_ENABLE_ADVANCED=true to enable advanced features."
                     ),
                 )
-            ]
+            ])
 
-        return cast(Sequence[TextContent], await handler(arguments))
+        return cast(Sequence[TextContent] | ErrorResult, await handler(arguments))
 
     @property
     def summarizer(self):
@@ -727,7 +724,7 @@ class ChatMemoryServer:
             Tool(
                 name="memcord_list",
                 description="List all available memory slots with metadata",
-                inputSchema={"type": "object", "properties": {}},
+                inputSchema={"type": "object", "additionalProperties": False},
             ),
             Tool(
                 name="memcord_ping",
@@ -735,7 +732,7 @@ class ChatMemoryServer:
                     "Lightweight health check for server warm-up. "
                     "Returns minimal response to confirm server is running."
                 ),
-                inputSchema={"type": "object", "properties": {}},
+                inputSchema={"type": "object", "additionalProperties": False},
             ),
             # Search & Intelligence Tools
             Tool(
@@ -797,7 +794,7 @@ class ChatMemoryServer:
             Tool(
                 name="memcord_zero",
                 description="Activate zero mode - no memory will be saved until switched to another slot",
-                inputSchema={"type": "object", "properties": {}},
+                inputSchema={"type": "object", "additionalProperties": False},
             ),
             Tool(
                 name="memcord_close",
@@ -805,7 +802,7 @@ class ChatMemoryServer:
                     "Deactivate the current memory slot. "
                     "Use before ending a session to prevent cross-project contamination."
                 ),
-                inputSchema={"type": "object", "properties": {}, "required": []},
+                inputSchema={"type": "object", "additionalProperties": False},
             ),
             Tool(
                 name="memcord_select_entry",
@@ -1030,7 +1027,7 @@ class ChatMemoryServer:
             Tool(
                 name="memcord_list_tags",
                 description="List all tags used across memory slots",
-                inputSchema={"type": "object", "properties": {}},
+                inputSchema={"type": "object", "additionalProperties": False},
             ),
             Tool(
                 name="memcord_group",
@@ -1202,7 +1199,7 @@ class ChatMemoryServer:
             return self._tool_cache
 
         @self.app.call_tool()
-        async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextContent]:
+        async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextContent] | CallToolResult:
             """Handle tool calls with security validation."""
             operation_id = secrets.token_hex(8)
             client_id = "default"  # In future versions, extract from request context
@@ -1211,26 +1208,36 @@ class ChatMemoryServer:
                 # Security validation
                 allowed, error_msg = self.security.validate_request(client_id, name, arguments)
                 if not allowed:
-                    return [TextContent(type="text", text=f"🚫 Security check failed: {error_msg}")]
+                    return CallToolResult(
+                        content=[TextContent(type="text", text=f"🚫 Security check failed: {error_msg}")],
+                        isError=True,
+                    )
 
                 # Start operation timeout tracking
                 self.security.timeout_manager.start_operation(operation_id, name)
 
                 try:
-                    # O(1) dispatch using handler map
-                    return await self._dispatch_handler(name, arguments)
+                    result = await self._dispatch_handler(name, arguments)
+                    # MCP spec §tools/error-handling: input validation and execution
+                    # errors SHOULD use isError=True so models can self-correct.
+                    if isinstance(result, ErrorResult):
+                        return CallToolResult(content=list(result), isError=True)
+                    return result
 
                 finally:
-                    # Clean up operation tracking
                     self.security.timeout_manager.finish_operation(operation_id)
 
             except MemcordError as e:
-                # Handle known memcord errors with proper formatting
-                return [TextContent(type="text", text=e.get_user_message())]
+                return CallToolResult(
+                    content=[TextContent(type="text", text=e.get_user_message())],
+                    isError=True,
+                )
             except Exception as e:
-                # Handle unexpected errors
                 handled_error = self.error_handler.handle_error(e, name, {"operation_id": operation_id})
-                return [TextContent(type="text", text=handled_error.get_user_message())]
+                return CallToolResult(
+                    content=[TextContent(type="text", text=handled_error.get_user_message())],
+                    isError=True,
+                )
 
         @self.app.list_resources()
         async def list_resources() -> list[Resource]:
@@ -1533,7 +1540,6 @@ class ChatMemoryServer:
     def _extract_summarizer_metadata(summarizer: Any, config: Any) -> dict[str, Any]:
         """Build a metadata dict describing which summarizer produced the summary."""
         from .llm_summarizer import SemanticSummarizer, SumySummarizer, TransformersSummarizer
-        from .summarizer import NLTKSummarizer
 
         meta: dict[str, Any] = {"summarizer": config.summarizer_backend}
 

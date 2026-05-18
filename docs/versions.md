@@ -1,5 +1,20 @@
 # Version History
 
+## v3.4.1 - MCP Protocol Compliance Fixes
+
+```text
+  - isError=true on all tool execution errors: ErrorResult marker class propagates
+    isError=True through CallToolResult at the MCP boundary — enables LLM self-correction
+    per spec §tools/error-handling (2025-11-25). Zero breaking changes: ErrorResult
+    subclasses list so all internal and test code using result[0].text is unaffected.
+  - SDK bump: mcp>=1.27.1 (from 1.27.0) — latest 1.x patch release
+  - Tightened inputSchema for no-parameter tools: memcord_list, memcord_ping,
+    memcord_zero, memcord_close, memcord_list_tags now use
+    {"type": "object", "additionalProperties": false} per spec recommendation
+    instead of {"type": "object", "properties": {}}
+  - All 1063 tests pass
+```
+
 ## v3.4.0 - MCP Protocol Compliance (spec 2025-03-26 / 2025-11-25)
 
 ```text

@@ -10,9 +10,10 @@ import time
 from collections.abc import Sequence
 from typing import Any, cast
 
-from mcp.types import Resource, TextContent, Tool
+from mcp.types import CallToolResult, Resource, TextContent, Tool
 
 from .optimized_schemas import OptimizedSchemas
+from .response_builder import ErrorResult
 from .response_optimizer import ResponseOptimizer
 from .server import ChatMemoryServer
 
@@ -75,7 +76,7 @@ class OptimizedChatMemoryServer(ChatMemoryServer):
             return tools
 
         @self.app.call_tool()
-        async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextContent]:
+        async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextContent] | CallToolResult:
             """Handle tool calls with security validation and response optimization."""
             operation_id = secrets.token_hex(8)
             client_id = "default"
@@ -84,30 +85,34 @@ class OptimizedChatMemoryServer(ChatMemoryServer):
                 # Security validation
                 allowed, error_msg = self.security.validate_request(client_id, name, arguments)
                 if not allowed:
-                    return self._optimize_response(f"🚫 Security check failed: {error_msg}")
+                    return CallToolResult(
+                        content=[TextContent(type="text", text=f"🚫 Security check failed: {error_msg}")],
+                        isError=True,
+                    )
 
                 # Start operation timeout tracking
                 self.security.timeout_manager.start_operation(operation_id, name)
 
                 try:
-                    # Get response from parent implementation
                     result = await parent_call_tool_direct(self, name, arguments)
 
-                    # Optimize the response if enabled
                     if result and len(result) > 0:
-                        original_text = result[0].text
-                        return self._optimize_response(original_text)
+                        optimized = self._optimize_response(result[0].text)
+                        if isinstance(result, ErrorResult):
+                            return CallToolResult(content=optimized, isError=True)
+                        return optimized
                     else:
                         return cast(Sequence[TextContent], result)
 
                 finally:
-                    # Clean up operation tracking
                     self.security.timeout_manager.finish_operation(operation_id)
 
             except Exception as e:
-                # Handle errors with optimization
                 handled_error = self.error_handler.handle_error(e, name, {"operation_id": operation_id})
-                return self._optimize_response(handled_error.get_user_message())
+                return CallToolResult(
+                    content=self._optimize_response(handled_error.get_user_message()),
+                    isError=True,
+                )
 
         @self.app.list_resources()
         async def list_resources() -> list[Resource]:
