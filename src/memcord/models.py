@@ -22,7 +22,9 @@ class MemoryEntry(BaseModel):
     """Single entry in a memory slot."""
 
     type: str = Field(
-        ..., pattern=r"^(manual_save|auto_summary)$", description="Type of entry: 'manual_save' or 'auto_summary'"
+        ...,
+        pattern=r"^(manual_save|auto_summary|rolled_summary)$",
+        description="Type of entry: 'manual_save', 'auto_summary', or 'rolled_summary'",
     )
     content: str = Field(
         ...,
@@ -420,6 +422,11 @@ class SlotConfig(BaseModel):
         ge=0.05,
         le=0.5,
         description="Default target compression ratio for save_progress",
+    )
+    max_auto_summaries: int = Field(
+        5,
+        ge=0,
+        description="Max combined auto_summary+rolled_summary entries before consolidation (0 = disabled)",
     )
 
 

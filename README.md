@@ -1,6 +1,6 @@
 <div align="center">
   <img src="assets/image/memcord_1024.png" width="256">
-  <h3>MEMCORD v3.4.1 (mcp server)</h3>
+  <h3>MEMCORD v3.4.2 (mcp server)</h3>
   <p>This privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control.</p>
 </div>
 
@@ -18,7 +18,7 @@
 <h2 align="center">Never Lose Context Again</h2>
 <p align="center"><em>Transform your Claude conversations into a searchable, organized knowledge base that grows with you</em></p>
 
-> **[What's new in v3.4.1](docs/versions.md#v341---mcp-protocol-compliance-fixes)** — MCP spec 2025-11-25 compliance fixes: `isError=true` on all tool execution errors for LLM self-correction, SDK bump to mcp 1.27.1, and tightened `inputSchema` for no-parameter tools.
+> **[What's new in v3.4.2](docs/versions.md#v342---automatic-summary-consolidation)** — Automatic rolling consolidation of `auto_summary` entries at save time: oldest entries are merged into a single `rolled_summary` when the configurable cap (`max_auto_summaries`, default 5) is exceeded, keeping context size bounded across long sessions.
 
 ## Table of Contents
 

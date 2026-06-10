@@ -446,9 +446,37 @@ class StorageManager:
             )
 
             slot.add_entry(entry)
+
+            config = await self.load_slot_config(slot_name)
+            if config.max_auto_summaries > 0:
+                self._consolidate_old_summaries(slot, config.max_auto_summaries)
+
             await self._save_slot(slot)
             self._search_engine.add_slot(slot)  # Update search index
             return entry
+
+    def _consolidate_old_summaries(self, slot: MemorySlot, max_entries: int) -> None:
+        """Merge the oldest summary entries when total count exceeds max_entries."""
+        summary_types = {"auto_summary", "rolled_summary"}
+        indexed = [(i, e) for i, e in enumerate(slot.entries) if e.type in summary_types]
+        if len(indexed) <= max_entries:
+            return
+
+        n_merge = len(indexed) - max_entries + 1
+        to_merge = indexed[:n_merge]
+        sections = [f"[{e.timestamp.strftime('%Y-%m-%d %H:%M')}]\n{e.content}" for _, e in to_merge]
+        rolled = MemoryEntry(
+            type="rolled_summary",
+            content="\n\n---\n\n".join(sections),
+            timestamp=to_merge[-1][1].timestamp,
+            metadata={
+                "consolidated_from": n_merge,
+                "oldest_timestamp": to_merge[0][1].timestamp.isoformat(),
+                "newest_timestamp": to_merge[-1][1].timestamp.isoformat(),
+            },
+        )
+        remove_indices = {i for i, _ in to_merge}
+        slot.entries = [rolled] + [e for i, e in enumerate(slot.entries) if i not in remove_indices]
 
     def _slot_config_path(self, slot_name: str) -> Path:
         """Return the path to the sidecar config file for a slot, rejecting path-traversal attempts."""

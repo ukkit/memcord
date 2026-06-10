@@ -1,5 +1,22 @@
 # Version History
 
+## v3.4.2 - Automatic Summary Consolidation
+
+```text
+  - Auto-pruning of auto_summary entries at save time: when the combined
+    auto_summary + rolled_summary entry count exceeds max_auto_summaries
+    (default 5), the oldest entries are merged into a single rolled_summary
+    entry before the slot is written to disk — keeps context size bounded
+    across long sessions without any manual cleanup.
+  - New SlotConfig field: max_auto_summaries (int, default 5, 0 = disabled).
+    Configurable per-slot via:
+      memcord_configure action="set" key="max_auto_summaries" value="N"
+  - New MemoryEntry type: rolled_summary — marks consolidated entries so
+    they count toward the cap on subsequent saves.
+  - manual_save entries are never touched by consolidation.
+  - 26 new tests in tests/test_auto_consolidation.py; all 1090 tests pass.
+```
+
 ## v3.4.1 - MCP Protocol Compliance Fixes
 
 ```text
