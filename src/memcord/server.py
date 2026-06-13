@@ -162,6 +162,7 @@ class ChatMemoryServer:
             "memcord_name": (self._handle_memname, False),
             "memcord_use": (self._handle_memuse, False),
             "memcord_save": (self._handle_savemem, False),
+            "memcord_auto_save": (self._handle_auto_save, False),
             "memcord_read": (self._handle_readmem, False),
             "memcord_save_progress": (self._handle_saveprogress, False),
             "memcord_configure": (self._handle_configure, False),
@@ -376,14 +377,21 @@ class ChatMemoryServer:
         return None
 
     async def _resolve_slot(self, arguments: dict[str, Any], key: str = "slot_name") -> str | None:
-        """Resolve slot name from arguments, current slot, or project binding.
+        """Resolve slot name from arguments, current slot, project binding, or default slot env var.
 
         Priority order:
         1. Explicit slot_name in arguments
         2. Currently active slot (via memcord_use/memcord_name)
         3. Project binding (.memcord file in client project directories)
+        4. MEMCORD_DEFAULT_SLOT environment variable
         """
-        return arguments.get(key) or self.storage.get_current_slot() or await self._detect_project_slot()
+        return (
+            arguments.get(key)
+            or self.storage.get_current_slot()
+            or await self._detect_project_slot()
+            or os.getenv("MEMCORD_DEFAULT_SLOT", "").strip()
+            or None
+        )
 
     async def _resolve_slot_for_write(self, arguments: dict[str, Any], key: str = "slot_name") -> str | None:
         """Resolve slot for write operations.
@@ -564,6 +572,7 @@ class ChatMemoryServer:
         "memcord_save_progress": ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False),
         "memcord_share":         ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False),
         # Destructive writes (overwrite existing content or delete entries/files)
+        "memcord_auto_save":ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
         "memcord_save":     ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
         "memcord_configure":ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
         "memcord_tag":      ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
@@ -649,6 +658,23 @@ class ChatMemoryServer:
                         },
                     },
                     "required": ["chat_text"],
+                },
+            ),
+            Tool(
+                name="memcord_auto_save",
+                description=(
+                    "Save chat text to memory without requiring prior slot setup. "
+                    "Auto-creates the default slot on first use. "
+                    "Ideal for gateway integrations (e.g. OpenClaw). "
+                    "Target slot is set via MEMCORD_DEFAULT_SLOT env var (default: 'default')."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "chat_text": {"type": "string", "description": "Chat text to save"},
+                    },
+                    "required": ["chat_text"],
+                    "additionalProperties": False,
                 },
             ),
             Tool(
@@ -1407,6 +1433,35 @@ class ChatMemoryServer:
 
         if not chat_text.strip():
             return [TextContent(type="text", text=self.ERROR_EMPTY_CHAT_TEXT)]
+
+        entry = await self.storage.save_memory(slot_name, chat_text.strip())
+
+        return [
+            TextContent(
+                type="text",
+                text=(
+                    f"Saved {len(chat_text)} characters to memory slot '{slot_name}' "
+                    f"at {entry.timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
+                ),
+            )
+        ]
+
+    @handle_errors(default_error_message="Auto-save failed")
+    async def _handle_auto_save(self, arguments: dict[str, Any]) -> list[TextContent]:
+        """Handle auto_save — saves to default slot, creating it if necessary."""
+        chat_text = arguments["chat_text"]
+
+        if not chat_text.strip():
+            return [TextContent(type="text", text=self.ERROR_EMPTY_CHAT_TEXT)]
+
+        if self.storage._state.is_zero_mode():
+            return [TextContent(type="text", text=self.WARNING_ZERO_MODE)]
+
+        slot_name = os.getenv("MEMCORD_DEFAULT_SLOT", "default").strip() or "default"
+
+        existing = await self.storage._load_slot(slot_name)
+        if not existing:
+            await self.storage.create_or_get_slot(slot_name)
 
         entry = await self.storage.save_memory(slot_name, chat_text.strip())
 

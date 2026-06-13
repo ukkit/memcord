@@ -1,5 +1,25 @@
 # Version History
 
+## v4.0.0 - OpenClaw / ClaWHub Compatibility
+
+```text
+  - New tool: memcord_auto_save — saves chat text to a default slot without
+    requiring prior memcord_name / memcord_use / memcord_init setup. Designed
+    for gateway integrations (OpenClaw, etc.) where slot management calls are
+    not part of the conversation flow. Slot name is controlled by
+    MEMCORD_DEFAULT_SLOT env var (default: "default"). Auto-creates the slot
+    on first use.
+  - _resolve_slot now accepts MEMCORD_DEFAULT_SLOT as a 4th fallback (after
+    explicit arg, active slot, .memcord binding), so memcord_read with no
+    slot_name argument also reads from the default slot when the env var is set.
+  - SKILL.md added to repo root — ClaWHub skill manifest with uv install spec,
+    OpenClaw gateway config snippet (toolFilter to expose only
+    memcord_auto_save + memcord_read), and AI usage instructions.
+  - .clawhubignore added — excludes tests, docs, memory_slots, bytecode, etc.
+    from the published ClaWHub bundle.
+  - 17 new tests in tests/test_auto_save.py; all 1107 tests pass.
+```
+
 ## v3.4.2 - Automatic Summary Consolidation
 
 ```text

@@ -1,0 +1,37 @@
+# Python bytecode and caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Development environment
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Runtime data (never publish user memory)
+memory_slots/
+shared_memories/
+
+# Development files
+tests/
+docs/
+scripts/
+config-templates/
+.github/
+
+# Node / npm
+node_modules/
+
+# IDE and OS
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+
+# Logs
+*.log

@@ -1,6 +1,6 @@
 {
   "name": "memcord",
-  "version": "3.4.2",
+  "version": "4.0.0",
   "description": "Privacy-first, self-hosted MCP server for organizing chat history, summarizing messages, and searching across past conversations with AI",
   "main": "src/memcord/server.py",
   "keywords": [

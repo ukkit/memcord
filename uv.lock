@@ -1031,7 +1031,7 @@ wheels = [
 
 [[package]]
 name = "memcord"
-version = "3.4.1"
+version = "4.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },

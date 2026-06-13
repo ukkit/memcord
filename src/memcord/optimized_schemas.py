@@ -44,6 +44,16 @@ class OptimizedSchemas:
                 },
             ),
             Tool(
+                name="memcord_auto_save",
+                description="Save text to default slot (no setup needed)",
+                inputSchema={
+                    "type": "object",
+                    "properties": {"chat_text": {"type": "string"}},
+                    "required": ["chat_text"],
+                    "additionalProperties": False,
+                },
+            ),
+            Tool(
                 name="memcord_read",
                 description="Read content",
                 inputSchema={"type": "object", "properties": {"slot_name": {"type": "string"}}},
