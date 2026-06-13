@@ -1,7 +1,7 @@
 ---
 name: memcord
 description: Privacy-first, self-hosted chat memory for OpenClaw — save and recall conversation history across sessions without any cloud dependency.
-version: 4.0.0
+version: 4.0.2
 metadata:
   openclaw:
     requires:
@@ -9,44 +9,55 @@ metadata:
     install:
       - kind: uv
         package: memcord
-        bins: [memcord]
 ---
 
 # Memcord — Persistent Chat Memory
 
 Memcord is a self-hosted MCP server that gives you persistent, searchable memory across conversations. All data is stored as plain JSON files on your own machine — nothing leaves your device.
 
-## Adding Memcord to Your OpenClaw Gateway
+## Adding Memcord to Your OpenClaw Config
 
-Add the following block to your gateway configuration under `mcp.servers`. Only two tools are exposed by default: `memcord_auto_save` (write) and `memcord_read` (read).
+After installing, manually add the following to your `~/.openclaw/openclaw.json` under the `"mcp"` key. Only two tools are exposed: `memcord_auto_save` (write) and `memcord_read` (read).
 
-```json5
-mcp: {
-  servers: {
-    memcord: {
-      command: "memcord",
-      toolFilter: {
-        include: ["memcord_auto_save", "memcord_read"]
+```json
+{
+  "mcp": {
+    "servers": {
+      "memcord": {
+        "command": "uvx",
+        "args": ["memcord"],
+        "toolFilter": {
+          "include": ["memcord_auto_save", "memcord_read"]
+        }
       }
     }
   }
 }
 ```
 
-To use a custom slot name instead of the default `"default"` slot, set the environment variable:
+To use a custom slot name instead of the default `"default"` slot, add the `"env"` field:
 
-```json5
-mcp: {
-  servers: {
-    memcord: {
-      command: "memcord",
-      env: { "MEMCORD_DEFAULT_SLOT": "main" },
-      toolFilter: {
-        include: ["memcord_auto_save", "memcord_read"]
+```json
+{
+  "mcp": {
+    "servers": {
+      "memcord": {
+        "command": "uvx",
+        "args": ["memcord"],
+        "env": { "MEMCORD_DEFAULT_SLOT": "main" },
+        "toolFilter": {
+          "include": ["memcord_auto_save", "memcord_read"]
+        }
       }
     }
   }
 }
+```
+
+Verify the server is registered with:
+
+```
+openclaw mcp list
 ```
 
 ## How to Use This Skill

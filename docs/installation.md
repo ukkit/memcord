@@ -53,6 +53,59 @@ memcord_configure action="set" key="summarizer_backend" value="transformers"
 
 ## Configuration
 
+### OpenClaw
+
+**Step 1 — Install the skill from ClawHub:**
+
+```bash
+openclaw skills install memcord --force
+```
+
+**Step 2 — Add the MCP server config manually** to `~/.openclaw/openclaw.json`:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "memcord": {
+        "command": "uvx",
+        "args": ["memcord"],
+        "toolFilter": {
+          "include": ["memcord_auto_save", "memcord_read"]
+        }
+      }
+    }
+  }
+}
+```
+
+To use a named slot instead of the default `"default"` slot, add an `"env"` field:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "memcord": {
+        "command": "uvx",
+        "args": ["memcord"],
+        "env": { "MEMCORD_DEFAULT_SLOT": "main" },
+        "toolFilter": {
+          "include": ["memcord_auto_save", "memcord_read"]
+        }
+      }
+    }
+  }
+}
+```
+
+**Step 3 — Verify:**
+
+```bash
+openclaw mcp list
+```
+
+Memcord exposes two tools in OpenClaw: `memcord_auto_save` (write) and `memcord_read` (read). The `uvx memcord` command downloads memcord from PyPI on first run — no separate installation required.
+
 ### Claude Code CLI (Recommended) ⭐
 
 MemCord includes a `.mcp.json` configuration file for seamless Claude Code integration. This enables project-level configuration and team sharing via version control.

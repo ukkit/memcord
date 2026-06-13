@@ -1,5 +1,18 @@
 # Version History
 
+## v4.0.2 - OpenClaw Installation Docs Fix
+
+```text
+  - Fix SKILL.md OpenClaw config snippet: use standard JSON (quoted keys)
+    instead of JSON5 — openclaw.json requires valid JSON, not JSON5.
+  - Add explicit note that the MCP server config must be added manually
+    to ~/.openclaw/openclaw.json after running `openclaw skills install`.
+  - Add openclaw mcp list as the verification step in SKILL.md.
+  - Add full OpenClaw installation section to docs/installation.md covering
+    the two-step install (skills install + manual mcp config) with examples
+    for default and named slots.
+```
+
 ## v4.0.0 - OpenClaw / ClaWHub Compatibility
 
 ```text

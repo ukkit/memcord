@@ -1,6 +1,6 @@
 <div align="center">
   <img src="assets/image/memcord_1024.png" width="256">
-  <h3>MEMCORD v4.0.0 (mcp server)</h3>
+  <h3>MEMCORD v4.0.2 (mcp server)</h3>
   <p>This privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control.</p>
 </div>
 
@@ -18,7 +18,7 @@
 <h2 align="center">Never Lose Context Again</h2>
 <p align="center"><em>Transform your Claude conversations into a searchable, organized knowledge base that grows with you</em></p>
 
-> **[What's new in v4.0.0](docs/versions.md#v400---openclaw--clawhub-compatibility)** — OpenClaw / ClaWHub compatibility: new `memcord_auto_save` tool for zero-setup gateway integrations, `MEMCORD_DEFAULT_SLOT` env var fallback in slot resolution, and `SKILL.md` for ClaWHub discovery.
+> **[What's new in v4.0.2](docs/versions.md#v402---openclaw-installation-docs-fix)** — Fix OpenClaw installation docs: use standard JSON (quoted keys) in config snippet and document the manual MCP config step.
 
 ## Table of Contents
 

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "memcord"
-version = "4.0.0"
+version = "4.0.2"
 description = "privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control."
 authors = [
     {name = "MemCord", email = "memcord@ultrafastidio.us"}
@@ -50,6 +50,11 @@ dev = [
     "mypy>=1.0.0",
     "bandit>=1.7.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/ukkit/memcord"
+Repository = "https://github.com/ukkit/memcord"
+"Bug Tracker" = "https://github.com/ukkit/memcord/issues"
 
 [project.scripts]
 memcord = "memcord.server:main"
