@@ -199,9 +199,7 @@ class WebURLHandler(ImportHandler):
                         if location:
                             valid, err = InputValidator.validate_url(location)
                             if not valid:
-                                raise requests.exceptions.InvalidURL(
-                                    f"Redirect to blocked URL rejected: {err}"
-                                )
+                                raise requests.exceptions.InvalidURL(f"Redirect to blocked URL rejected: {err}")
 
                 with requests.Session() as session:
                     session.hooks["response"].append(_check_redirect)

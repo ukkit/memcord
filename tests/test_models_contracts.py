@@ -189,8 +189,8 @@ class TestMemorySlotContracts:
         """
         # Names containing shell-dangerous characters must be REJECTED
         rejected_cases = [
-            "test'; DROP TABLE slots; --",   # Contains ' and ;
-            "test; DELETE FROM slots",       # Contains ;
+            "test'; DROP TABLE slots; --",  # Contains ' and ;
+            "test; DELETE FROM slots",  # Contains ;
         ]
 
         for case in rejected_cases:

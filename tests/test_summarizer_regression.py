@@ -77,9 +77,7 @@ class TestRegressionRealData:
             # Passthrough case — text is too short to summarize, or few sentences
             preprocessed = summarizer._preprocess_chat_text(content)
             sentences = summarizer._split_into_sentences(preprocessed)
-            assert len(sentences) <= 5, (
-                f"Unexpected high ratio {ratio:.2f} with {len(sentences)} sentences"
-            )
+            assert len(sentences) <= 5, f"Unexpected high ratio {ratio:.2f} with {len(sentences)} sentences"
         else:
             assert 0.01 < ratio < 0.9, f"Ratio {ratio:.2f} out of expected range"
 
@@ -110,14 +108,19 @@ class TestRegressionVariedFormats:
     """Test with synthetic data in varied formats that mimic real usage."""
 
     def test_chat_transcript(self, summarizer):
-        text = """User: How should we handle authentication?
-Assistant: I recommend using JWT tokens with refresh token rotation. This provides stateless authentication while maintaining security.
-
-User: What about session storage?
-Assistant: With JWT you don't need server-side session storage. The token itself contains the claims. However, you should maintain a blacklist for revoked tokens.
-
-User: Should we use a library?
-Assistant: Yes, use PyJWT for Python. It's well-maintained and supports all standard algorithms. For the middleware, integrate it with FastAPI's dependency injection."""
+        text = (
+            "User: How should we handle authentication?\n"
+            "Assistant: I recommend using JWT tokens with refresh token rotation. This provides stateless "
+            "authentication while maintaining security.\n"
+            "\n"
+            "User: What about session storage?\n"
+            "Assistant: With JWT you don't need server-side session storage. The token itself contains "
+            "the claims. However, you should maintain a blacklist for revoked tokens.\n"
+            "\n"
+            "User: Should we use a library?\n"
+            "Assistant: Yes, use PyJWT for Python. It's well-maintained and supports all standard "
+            "algorithms. For the middleware, integrate it with FastAPI's dependency injection."
+        )
         result = summarizer.summarize(text, target_ratio=0.3)
         assert isinstance(result, str)
         assert len(result) > 0
@@ -191,7 +194,8 @@ Pending items:
 - Security audit
 - Load testing
 
-The team deployed version 2.1 to staging. QA testing revealed no critical issues. We agreed to proceed with production deployment next week."""
+The team deployed version 2.1 to staging. QA testing revealed no critical issues. We agreed to proceed \
+with production deployment next week."""
         result = summarizer.summarize(text, target_ratio=0.3)
         assert isinstance(result, str)
         assert len(result) > 0

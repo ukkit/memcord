@@ -10,7 +10,7 @@ import time
 from collections.abc import Sequence
 from typing import Any, cast
 
-from mcp.types import CallToolResult, Resource, TextContent, Tool
+from mcp.types import CallToolResult, ContentBlock, Resource, TextContent, Tool
 
 from .optimized_schemas import OptimizedSchemas
 from .response_builder import ErrorResult
@@ -99,7 +99,7 @@ class OptimizedChatMemoryServer(ChatMemoryServer):
                     if result and len(result) > 0:
                         optimized = self._optimize_response(result[0].text)
                         if isinstance(result, ErrorResult):
-                            return CallToolResult(content=optimized, isError=True)
+                            return CallToolResult(content=cast(list[ContentBlock], optimized), isError=True)
                         return optimized
                     else:
                         return cast(Sequence[TextContent], result)
@@ -110,7 +110,7 @@ class OptimizedChatMemoryServer(ChatMemoryServer):
             except Exception as e:
                 handled_error = self.error_handler.handle_error(e, name, {"operation_id": operation_id})
                 return CallToolResult(
-                    content=self._optimize_response(handled_error.get_user_message()),
+                    content=cast(list[ContentBlock], self._optimize_response(handled_error.get_user_message())),
                     isError=True,
                 )
 

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "memcord"
-version = "4.0.2"
+version = "4.1.0"
 description = "privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control."
 authors = [
     {name = "MemCord", email = "memcord@ultrafastidio.us"}
@@ -97,9 +97,9 @@ style = [
 typing = "mypy {args:src/memcord}"
 security = "bandit -r {args:src/memcord}"
 checks = [
-    "style {args:.}",
-    "typing {args:src/memcord}",
-    "security {args:src/memcord}",
+    "style",
+    "typing",
+    "security",
 ]
 
 [tool.black]
@@ -218,4 +218,5 @@ dev = [
     "types-psutil>=6.0.0",
     "types-requests>=2.31.0",
     "pandas-stubs>=2.0.0",
+    "pre-commit>=3.8.0",
 ]

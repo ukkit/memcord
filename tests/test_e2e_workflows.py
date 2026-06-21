@@ -555,6 +555,7 @@ Run them as a pre-deployment step with proper health checks.
 This ensures database schema is always in sync with application code."""
 
         from memcord.summarizer import TextSummarizer
+
         summarizer = TextSummarizer()
         summary = summarizer.summarize(chat_text.strip(), 0.15)
 
@@ -585,6 +586,7 @@ The critical outcome is improved response times by 300ms on average.
 Next step is to deploy the caching layer to the staging environment."""
 
         from memcord.summarizer import TextSummarizer
+
         summarizer = TextSummarizer()
         summary = summarizer.summarize(chat_text.strip(), 0.3)
 

@@ -382,7 +382,9 @@ class TestClientRootsDetection:
 
         with tempfile.TemporaryDirectory() as dir1, tempfile.TemporaryDirectory() as dir2:
             mock_ctx = mock_roots([Path(dir1), Path(dir2)])
-            with patch.object(type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)):
+            with patch.object(
+                type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)
+            ):
                 result = await server._get_client_roots()
 
             assert len(result) == 2
@@ -397,7 +399,9 @@ class TestClientRootsDetection:
         with tempfile.TemporaryDirectory() as real_dir:
             fake_dir = Path(real_dir) / "nonexistent"
             mock_ctx = mock_roots([Path(real_dir), fake_dir])
-            with patch.object(type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)):
+            with patch.object(
+                type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)
+            ):
                 result = await server._get_client_roots()
 
             assert len(result) == 1
@@ -459,7 +463,9 @@ class TestClientRootsDetection:
             (Path(dir2) / ".memcord").write_text("second-slot")
 
             mock_ctx = mock_roots([Path(dir1), Path(dir2)])
-            with patch.object(type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)):
+            with patch.object(
+                type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)
+            ):
                 result = await server._detect_project_slot()
 
             assert result == "first-slot"
@@ -487,7 +493,9 @@ class TestClientRootsDetection:
             (Path(project_dir) / ".memcord").write_text("root-resolved-slot")
 
             mock_ctx = mock_roots([Path(project_dir)])
-            with patch.object(type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)):
+            with patch.object(
+                type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)
+            ):
                 result = await server._resolve_slot({})
 
             assert result == "root-resolved-slot"
@@ -557,7 +565,9 @@ class TestClientRootsEdgeCases:
             roots = [Root(uri=Path(real_dir).as_uri(), name="valid")]
             mock_ctx.session.list_roots = AsyncMock(return_value=ListRootsResult(roots=roots))
 
-            with patch.object(type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)):
+            with patch.object(
+                type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)
+            ):
                 result = await server._get_client_roots()
 
             assert len(result) == 1
@@ -633,7 +643,9 @@ class TestClientRootsEdgeCases:
             roots = [Root(uri=uri, name="test")]
             mock_ctx.session.list_roots = AsyncMock(return_value=ListRootsResult(roots=roots))
 
-            with patch.object(type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)):
+            with patch.object(
+                type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)
+            ):
                 result = await server._get_client_roots()
 
             assert len(result) == 1
@@ -661,7 +673,9 @@ class TestMemcordUseWithProjectBinding:
             memcord_file.write_text(slot_name)
 
             mock_ctx = mock_roots([Path(project_dir)])
-            with patch.object(type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)):
+            with patch.object(
+                type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)
+            ):
                 result = await server.call_tool_direct("memcord_use", {})
 
             assert "active" in result[0].text.lower()
@@ -691,7 +705,9 @@ class TestMemcordUseWithProjectBinding:
             server.storage._state.set_current_slot(None)
 
             mock_ctx = mock_roots([Path(project_dir)])
-            with patch.object(type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)):
+            with patch.object(
+                type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)
+            ):
                 use_result = await server.call_tool_direct("memcord_use", {})
 
             assert "active" in use_result[0].text.lower()
@@ -761,7 +777,9 @@ class TestMemcordUseWithProjectBinding:
             (Path(project_dir) / ".memcord").write_text(slot_name)
 
             mock_ctx = mock_roots([Path(project_dir)])
-            with patch.object(type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)):
+            with patch.object(
+                type(server.app), "request_context", new_callable=lambda: property(lambda self: mock_ctx)
+            ):
                 result = await server.call_tool_direct("memcord_read", {})
 
             assert "Hello from roots test" in result[0].text
@@ -1420,12 +1438,12 @@ class TestSlotNameSQLInjection:
         # These all contain chars from the dangerous_chars list
         rejected_names = [
             "slot; DROP TABLE users",  # semicolon
-            "name'with'quotes",        # single quote
-            'name"with"quotes',        # double quote
-            "pipe|name",               # pipe
-            "amp&name",                # ampersand
-            "backtick`name",           # backtick
-            "dollar$name",             # dollar sign
+            "name'with'quotes",  # single quote
+            'name"with"quotes',  # double quote
+            "pipe|name",  # pipe
+            "amp&name",  # ampersand
+            "backtick`name",  # backtick
+            "dollar$name",  # dollar sign
         ]
 
         for name in rejected_names:
@@ -1469,7 +1487,7 @@ class TestSlotNameSQLInjection:
 
         rejected_names = [
             "slot/*comment*/name",  # forward slash
-            "/*",                   # forward slash
+            "/*",  # forward slash
         ]
 
         for name in rejected_names:
@@ -1605,11 +1623,8 @@ class TestSlotNamePathTraversal:
             result = await server.call_tool_direct("memcord_name", {"slot_name": name})
             text_lower = result[0].text.lower()
             assert (
-                "error" in text_lower
-                or "traversal" in text_lower
-                or "invalid" in text_lower
-                or "path" in text_lower
-            ), (f"Expected path traversal rejection for: {name}, got: {result[0].text}")
+                "error" in text_lower or "traversal" in text_lower or "invalid" in text_lower or "path" in text_lower
+            ), f"Expected path traversal rejection for: {name}, got: {result[0].text}"
 
     @pytest.mark.asyncio
     async def test_path_traversal_windows_style_rejected(self, test_server):
@@ -1626,11 +1641,8 @@ class TestSlotNamePathTraversal:
             result = await server.call_tool_direct("memcord_name", {"slot_name": name})
             text_lower = result[0].text.lower()
             assert (
-                "error" in text_lower
-                or "traversal" in text_lower
-                or "invalid" in text_lower
-                or "path" in text_lower
-            ), (f"Expected path traversal rejection for: {name}, got: {result[0].text}")
+                "error" in text_lower or "traversal" in text_lower or "invalid" in text_lower or "path" in text_lower
+            ), f"Expected path traversal rejection for: {name}, got: {result[0].text}"
 
     @pytest.mark.asyncio
     async def test_single_dot_allowed(self, test_server):

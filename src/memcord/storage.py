@@ -8,8 +8,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger(__name__)
-
 import aiofiles
 import aiofiles.os
 
@@ -40,6 +38,8 @@ from .storage_efficiency import (
     StorageStats,
     StreamingOperations,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class StorageManager:
@@ -155,17 +155,55 @@ class StorageManager:
             await self._memory_manager.stop_monitoring()
 
     def _iter_slot_files(self):
-        """Yield .json files in memory_dir, excluding *_config.json sidecars."""
+        """Yield slot .json files, including those relocated to a custom_storage_path.
+
+        Default-location files are discovered by globbing memory_dir directly.
+        Slots whose primary file was migrated entirely outside memory_dir leave
+        no .json there, so they are discovered via their *_config.json sidecar.
+        """
+        seen_names: set[str] = set()
         for p in self.memory_dir.glob("*.json"):
             if not p.name.endswith("_config.json"):
+                seen_names.add(p.stem)
                 yield p
 
+        for cfg in self.memory_dir.glob("*_config.json"):
+            slot_name = cfg.name[: -len("_config.json")]
+            if slot_name in seen_names:
+                continue
+            try:
+                data = json.loads(cfg.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            custom = data.get("custom_storage_path")
+            if not custom:
+                continue
+            candidate = Path(custom).expanduser().absolute() / f"{slot_name}.json"
+            if candidate.exists():
+                yield candidate
+
     async def _get_slot_path(self, slot_name: str) -> Path:
-        """Get the file path for a memory slot, rejecting path-traversal attempts."""
+        """Get the file path for a memory slot, rejecting path-traversal attempts.
+
+        Honors a per-slot custom_storage_path from the config sidecar (always
+        read directly here rather than via load_slot_config, to avoid that
+        method's auto-create write side effect on what should be a pure read).
+        """
         if "/" in slot_name or "\\" in slot_name:
             raise ValueError(f"Invalid slot name: '{slot_name}' contains path separators")
-        candidate = self.memory_dir / f"{slot_name}.json"
-        if not candidate.resolve().is_relative_to(self.memory_dir.resolve()):
+        base_dir = self.memory_dir
+        config_path = self._slot_config_path(slot_name)
+        if config_path.exists():
+            try:
+                async with aiofiles.open(config_path, encoding="utf-8") as f:
+                    raw = json.loads(await f.read())
+                custom = raw.get("custom_storage_path")
+                if custom:
+                    base_dir = Path(custom).expanduser().absolute()
+            except Exception:
+                pass  # corrupt sidecar -> fall back to default dir
+        candidate = base_dir / f"{slot_name}.json"
+        if not candidate.resolve().is_relative_to(base_dir.resolve()):
             raise ValueError(f"Invalid slot name: '{slot_name}' would escape memory directory")
         return candidate
 
@@ -231,6 +269,7 @@ class StorageManager:
         await self._ensure_efficiency_initialized()
 
         slot_path = await self._get_slot_path(slot.slot_name)
+        slot_path.parent.mkdir(parents=True, exist_ok=True)
         old_slot = None
 
         # Load existing slot for delta compression
@@ -517,6 +556,84 @@ class StorageManager:
         self.memory_dir.mkdir(exist_ok=True)
         async with aiofiles.open(config_path, "w", encoding="utf-8") as f:
             await f.write(config.model_dump_json(indent=2))
+
+    async def set_custom_storage_path(self, slot_name: str, new_path: str | None) -> str:
+        """Point a slot's primary file at a custom directory (or back to the default).
+
+        Validates the target directory, migrates the existing primary file
+        (and its .bak, if present) when one exists locally, and persists the
+        redirect in the slot's config sidecar. Migration happens before the
+        sidecar is updated, so a failure never leaves the redirect pointing
+        somewhere the data isn't.
+        """
+        if "/" in slot_name or "\\" in slot_name:
+            raise ValueError(f"Invalid slot name: '{slot_name}' contains path separators")
+
+        async with self._lock:
+            from .security import PathValidator
+
+            config = await self.load_slot_config(slot_name)
+            old_dir = (
+                Path(config.custom_storage_path).expanduser().absolute()
+                if config.custom_storage_path
+                else self.memory_dir
+            )
+            old_primary = old_dir / f"{slot_name}.json"
+            old_bak = old_dir / f"{slot_name}.json.bak"
+
+            if new_path is None:
+                new_dir = self.memory_dir
+            else:
+                ok, reason = PathValidator.validate_custom_storage_dir(new_path)
+                if not ok:
+                    raise ValueError(reason)
+                new_dir = Path(new_path).expanduser().absolute()
+
+            if new_dir.resolve() == old_dir.resolve():
+                config.custom_storage_path = new_path
+                await self.save_slot_config(slot_name, config)
+                return f"Slot '{slot_name}' is already linked to that location; no change made."
+
+            new_primary = new_dir / f"{slot_name}.json"
+            local_exists = old_primary.exists()
+            remote_exists = new_primary.exists()
+
+            if local_exists and remote_exists:
+                raise ValueError(
+                    f"Target already has data for slot '{slot_name}'; resolve manually before linking this slot."
+                )
+
+            status: str
+            if local_exists:
+                try:
+                    new_dir.mkdir(parents=True, exist_ok=True)
+                    await aiofiles.os.rename(str(old_primary), str(new_primary))
+                    if old_bak.exists():
+                        await aiofiles.os.rename(str(old_bak), str(new_dir / f"{slot_name}.json.bak"))
+                except OSError as exc:
+                    raise ValueError(f"Migration failed for slot '{slot_name}': {exc}") from exc
+                status = (
+                    f"Migrated slot '{slot_name}' to default storage."
+                    if new_path is None
+                    else f"Migrated slot '{slot_name}' to '{new_path}'."
+                )
+            elif remote_exists:
+                status = f"Linked slot '{slot_name}' to existing data at '{new_path}'."
+            else:
+                status = (
+                    f"Cleared custom storage path for slot '{slot_name}' (no data to move)."
+                    if new_path is None
+                    else f"Set custom storage path for slot '{slot_name}' to '{new_path}' (no data to move yet)."
+                )
+
+            config.custom_storage_path = new_path
+            await self.save_slot_config(slot_name, config)
+
+            if self._cache_manager:
+                cache_key = generate_slot_cache_key(slot_name)
+                await self._cache_manager.remove(cache_key)
+
+            return status
 
     def get_current_slot(self) -> str | None:
         """Get the currently active slot name."""

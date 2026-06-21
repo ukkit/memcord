@@ -16,7 +16,6 @@ from pydantic import ValidationError
 from memcord.models import MemoryEntry, MemorySlot, SlotConfig
 from memcord.storage import StorageManager
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

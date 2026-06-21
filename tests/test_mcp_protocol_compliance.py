@@ -93,10 +93,12 @@ class TestProgressNotifications:
 
         token = request_ctx.set(mock_ctx)
         try:
-            await server_with_slots._handle_saveprogress({
-                "chat_text": "Hello world " * 50,
-                "slot_name": "prog-test",
-            })
+            await server_with_slots._handle_saveprogress(
+                {
+                    "chat_text": "Hello world " * 50,
+                    "slot_name": "prog-test",
+                }
+            )
         finally:
             request_ctx.reset(token)
 
@@ -104,10 +106,7 @@ class TestProgressNotifications:
             "_handle_saveprogress should call send_progress_notification"
         )
         call_kwargs = mock_session.send_progress_notification.call_args
-        message = (
-            call_kwargs.kwargs.get("message")
-            or (call_kwargs.args[3] if len(call_kwargs.args) > 3 else None)
-        )
+        message = call_kwargs.kwargs.get("message") or (call_kwargs.args[3] if len(call_kwargs.args) > 3 else None)
         assert message is not None and len(message) > 0, "Progress notification must include a message"
 
     async def test_progress_skipped_without_progress_token(self, server_with_slots):
@@ -127,10 +126,12 @@ class TestProgressNotifications:
 
         token = request_ctx.set(mock_ctx)
         try:
-            await server_with_slots._handle_saveprogress({
-                "chat_text": "Hello world " * 50,
-                "slot_name": "no-token-test",
-            })
+            await server_with_slots._handle_saveprogress(
+                {
+                    "chat_text": "Hello world " * 50,
+                    "slot_name": "no-token-test",
+                }
+            )
         finally:
             request_ctx.reset(token)
 
@@ -140,10 +141,12 @@ class TestProgressNotifications:
         """Calling handler outside MCP context (LookupError on request_context) must not raise."""
         await server_with_slots.storage.create_or_get_slot("ctx-test")
         # No patching — request_context will raise LookupError in test environment
-        result = await server_with_slots._handle_saveprogress({
-            "chat_text": "Hello world " * 50,
-            "slot_name": "ctx-test",
-        })
+        result = await server_with_slots._handle_saveprogress(
+            {
+                "chat_text": "Hello world " * 50,
+                "slot_name": "ctx-test",
+            }
+        )
         # Should return a result normally, not raise
         assert result is not None
         assert len(result) > 0
@@ -154,6 +157,7 @@ class TestCompletions:
 
     async def test_server_advertises_completions_capability(self, server_with_slots):
         from mcp.server.lowlevel.server import NotificationOptions
+
         caps = server_with_slots.app.get_capabilities(
             notification_options=NotificationOptions(),
             experimental_capabilities={},
@@ -166,6 +170,7 @@ class TestCompletions:
             CompletionArgument,
             ResourceTemplateReference,
         )
+
         ref = ResourceTemplateReference(type="ref/resource", uri="memory://{slot_name}.md")
         arg = CompletionArgument(name="slot_name", value="")
         result = await server_with_slots._handle_completion(ref, arg, None)
@@ -180,6 +185,7 @@ class TestCompletions:
             CompletionArgument,
             ResourceTemplateReference,
         )
+
         ref = ResourceTemplateReference(type="ref/resource", uri="memory://{slot_name}.md")
         arg = CompletionArgument(name="slot_name", value="al")
         result = await server_with_slots._handle_completion(ref, arg, None)
@@ -192,6 +198,7 @@ class TestCompletions:
             CompletionArgument,
             ResourceTemplateReference,
         )
+
         ref = ResourceTemplateReference(type="ref/resource", uri="memory://{slot_name}.md")
         arg = CompletionArgument(name="format", value="")
         result = await server_with_slots._handle_completion(ref, arg, None)
@@ -199,6 +206,7 @@ class TestCompletions:
 
     async def test_prompt_reference_returns_none(self, server_with_slots):
         from mcp.types import CompletionArgument, PromptReference
+
         ref = PromptReference(type="ref/prompt", name="unknown_prompt")
         arg = CompletionArgument(name="slot_name", value="")
         result = await server_with_slots._handle_completion(ref, arg, None)

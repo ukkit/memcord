@@ -33,10 +33,7 @@ class SumySummarizer(BaseSummarizer):
         try:
             import sumy  # noqa: F401
         except ImportError as exc:
-            raise ImportError(
-                "sumy is required for SumySummarizer. "
-                "Install it with: pip install sumy"
-            ) from exc
+            raise ImportError("sumy is required for SumySummarizer. Install it with: pip install sumy") from exc
 
     async def summarize(self, text: str, target_ratio: float = 0.15) -> str:
         from sumy.nlp.tokenizers import Tokenizer
@@ -68,7 +65,7 @@ class SumySummarizer(BaseSummarizer):
 
         selected = summarizer(parser.document, target_sentences)
         summary = " ".join(str(s) for s in selected)
-        return summary if summary.strip() else text[:max(50, int(len(text) * target_ratio))]
+        return summary if summary.strip() else text[: max(50, int(len(text) * target_ratio))]
 
 
 class SemanticSummarizer(BaseSummarizer):
@@ -100,8 +97,6 @@ class SemanticSummarizer(BaseSummarizer):
         return self._model
 
     async def summarize(self, text: str, target_ratio: float = 0.15) -> str:
-        import numpy as np
-
         if not text or not text.strip():
             raise ValueError("Text cannot be empty")
         if target_ratio <= 0 or target_ratio > 1:
@@ -122,7 +117,7 @@ class SemanticSummarizer(BaseSummarizer):
         selected_indices = self._mmr_select(embeddings, target_count)
         selected_indices.sort()
         summary = " ".join(sentences[i] for i in selected_indices)
-        return summary if summary.strip() else text[:max(50, int(len(text) * target_ratio))]
+        return summary if summary.strip() else text[: max(50, int(len(text) * target_ratio))]
 
     @staticmethod
     def _split_sentences(text: str) -> list[str]:
@@ -242,4 +237,4 @@ class TransformersSummarizer(BaseSummarizer):
         if result and isinstance(result, list) and "summary_text" in result[0]:
             return str(result[0]["summary_text"]).strip()
 
-        return text[:max(50, int(len(text) * target_ratio))]
+        return text[: max(50, int(len(text) * target_ratio))]

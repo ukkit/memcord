@@ -4,14 +4,12 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
-
 # Add scripts directory to path so we can import generate-config
 scripts_dir = Path(__file__).parent.parent / "scripts"
 sys.path.insert(0, str(scripts_dir))
 
 # Import with hyphen workaround
-import importlib.util
+import importlib.util  # noqa: E402
 
 spec = importlib.util.spec_from_file_location("generate_config", scripts_dir / "generate-config.py")
 generate_config = importlib.util.module_from_spec(spec)
@@ -56,7 +54,9 @@ class TestHooksTemplate:
                     assert hook.get("type") == "agent", f"{event_key} hook should be agent type"
                     assert "description" in hook, f"{event_key} hook must have description"
                     assert "prompt" in hook, f"{event_key} hook must have prompt"
-                    assert hook["description"].startswith("memcord:"), f"{event_key} description should start with 'memcord:'"
+                    assert hook["description"].startswith("memcord:"), (
+                        f"{event_key} description should start with 'memcord:'"
+                    )
 
 
 class TestMergeHooks:
@@ -180,11 +180,7 @@ class TestMergeHooks:
 
     def test_preserves_existing_hook_events_not_in_new(self):
         existing = {
-            "hooks": {
-                "SomeOtherEvent": [
-                    {"type": "command", "description": "custom hook", "command": "echo hi"}
-                ]
-            }
+            "hooks": {"SomeOtherEvent": [{"type": "command", "description": "custom hook", "command": "echo hi"}]}
         }
         new_hooks = self._sample_hooks()
 

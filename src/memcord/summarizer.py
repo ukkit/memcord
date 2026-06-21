@@ -66,8 +66,22 @@ class TextSummarizer:
 
     # Known abbreviations that should not trigger sentence splits
     _ABBREVIATIONS = {
-        "dr", "mr", "mrs", "ms", "prof", "sr", "jr", "st", "vs",
-        "etc", "inc", "ltd", "corp", "dept", "univ", "approx",
+        "dr",
+        "mr",
+        "mrs",
+        "ms",
+        "prof",
+        "sr",
+        "jr",
+        "st",
+        "vs",
+        "etc",
+        "inc",
+        "ltd",
+        "corp",
+        "dept",
+        "univ",
+        "approx",
     }
     # Two-letter abbreviations like "e.g", "i.e" handled separately
     _ABBREV_PAIRS = {"e.g", "i.e", "u.s", "u.k"}
@@ -80,6 +94,7 @@ class TextSummarizer:
 
         # Protect fenced code blocks with placeholders
         code_blocks: list[str] = []
+
         def _replace_code_block(m: re.Match) -> str:
             code_blocks.append(m.group(0))
             return f"\x00CODEBLOCK{len(code_blocks) - 1}\x00"
@@ -183,7 +198,7 @@ class TextSummarizer:
             # Strip speaker turn prefixes
             speaker_match = self._SPEAKER_PATTERN.match(stripped)
             if speaker_match:
-                stripped = stripped[speaker_match.end():]
+                stripped = stripped[speaker_match.end() :]
 
             # Consolidate short list items with preceding context
             list_match = re.match(r"^[-*]\s+(.+)$|^(\d+)[.)]\s+(.+)$", stripped)
@@ -254,7 +269,7 @@ class TextSummarizer:
     def _calculate_length_score(self, sentence: str) -> float:
         """Score based on sentence length using Gaussian curve centered at 15 words."""
         length = len(sentence.split())
-        return math.exp(-((length - 15) ** 2) / (2 * 10 ** 2))
+        return math.exp(-((length - 15) ** 2) / (2 * 10**2))
 
     def _calculate_position_score(self, index: int, total: int) -> float:
         """U-shaped position score: boost beginning and end, with asymmetry favoring beginnings."""
@@ -273,14 +288,30 @@ class TextSummarizer:
 
     # Cue phrase categories for scoring
     _CUE_PHRASES = {
-        "decided", "concluded", "agreed", "resolved",
-        "important", "critical", "essential", "key",
-        "result", "outcome",
-        "todo", "follow",
-        "fixed", "implemented", "deployed", "merged", "committed",
+        "decided",
+        "concluded",
+        "agreed",
+        "resolved",
+        "important",
+        "critical",
+        "essential",
+        "key",
+        "result",
+        "outcome",
+        "todo",
+        "follow",
+        "fixed",
+        "implemented",
+        "deployed",
+        "merged",
+        "committed",
     }
     _CUE_MULTI_PHRASES = [
-        "in conclusion", "in summary", "next step", "follow up", "need to",
+        "in conclusion",
+        "in summary",
+        "next step",
+        "follow up",
+        "need to",
     ]
 
     def _calculate_cue_score(self, sentence: str) -> float:

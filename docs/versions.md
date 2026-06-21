@@ -1,5 +1,30 @@
 # Version History
 
+## v4.1.0 - Custom Storage Path
+
+```text
+  - New per-slot config key: custom_storage_path, settable via memcord_configure
+    action="set" key="custom_storage_path" value="<absolute dir>". Lets a slot's
+    primary data file live in any directory — e.g. a Dropbox/OneDrive-synced
+    folder — so the same memory can be read and updated from multiple devices.
+  - Setting the path on a slot that already has data automatically migrates the
+    .json (and .bak) file to the new location; clearing it (empty string or
+    "none") migrates back to the default memory_slots/ directory.
+  - New PathValidator.validate_custom_storage_dir() in security.py validates
+    absolute target directories (rejecting traversal, dangerous characters, and
+    reserved Windows device names per path component) and verifies the
+    directory is creatable and writable before linking a slot to it.
+  - Collision protection: if data already exists at both the old and new
+    locations, the set call is refused rather than silently overwriting either.
+  - Search index, cache, and archives remain local per machine and are rebuilt
+    lazily; only the slot's primary data file is shared — each device sets its
+    own local redirect once, pointing at wherever it mounts the shared folder.
+  - list_memory_slots now discovers slots whose primary file lives entirely
+    outside memory_dir, via their config sidecar.
+  - 26 new tests across tests/test_custom_storage_path.py and
+    tests/test_configure_tool.py; full suite (1133+) passes.
+```
+
 ## v4.0.2 - OpenClaw Installation Docs Fix
 
 ```text

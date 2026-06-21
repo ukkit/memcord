@@ -1,7 +1,5 @@
 """Unit tests for TextSummarizer."""
 
-import math
-
 import pytest
 
 from memcord.summarizer import TextSummarizer
@@ -307,15 +305,11 @@ class TestScoring:
         assert score_with_cue > score_without
 
     def test_cue_phrase_multiple(self, summarizer):
-        score = summarizer._calculate_cue_score(
-            "We decided it is critical and agreed on the outcome"
-        )
+        score = summarizer._calculate_cue_score("We decided it is critical and agreed on the outcome")
         assert score > 0.5
 
     def test_cue_phrase_capped_at_one(self, summarizer):
-        score = summarizer._calculate_cue_score(
-            "decided concluded agreed resolved important critical essential key"
-        )
+        score = summarizer._calculate_cue_score("decided concluded agreed resolved important critical essential key")
         assert score <= 1.0
 
     def test_cue_multi_word_phrases(self, summarizer):
@@ -418,11 +412,7 @@ class TestCharacterBudget:
         assert 0.05 < ratio < 0.8
 
     def test_minimum_one_sentence(self, summarizer):
-        text = (
-            "First sentence about the project. "
-            "Second sentence with details. "
-            "Third sentence with more information."
-        )
+        text = "First sentence about the project. Second sentence with details. Third sentence with more information."
         result = summarizer.summarize(text, target_ratio=0.01)
         assert len(result) > 0
 
@@ -489,7 +479,7 @@ class TestChatPreprocessing:
         text = "Steps:\n- First we need to design the complete database schema carefully\n- Then implement"
         result = summarizer._preprocess_chat_text(text)
         # Long list items (>= 8 words) should NOT be consolidated
-        lines = [l for l in result.split("\n") if l.strip()]
+        lines = [line for line in result.split("\n") if line.strip()]
         assert len(lines) >= 2
 
     def test_empty_text(self, summarizer):

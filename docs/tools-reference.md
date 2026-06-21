@@ -96,7 +96,7 @@ Generates a summary and appends it to memory slot with timestamp.
 - "Save progress with 10% compression"
 
 ### 6. `memcord_configure`
-Get or set the per-slot summarizer configuration.
+Get or set per-slot configuration — summarizer backend, consolidation limits, and custom storage location.
 
 **Parameters:**
 - `action`: `get` (show config), `set` (update a key), or `reset` (restore defaults)
@@ -107,6 +107,8 @@ Get or set the per-slot summarizer configuration.
   - `transformers_model` — HuggingFace model name (default: `"philschmid/bart-large-cnn-samsum"`)
   - `hf_device` — `"auto"` | `"cpu"` | `"cuda"` | `"mps"`
   - `default_compression_ratio` — float between 0.05 and 0.5
+  - `max_auto_summaries` — int ≥ 0; max combined `auto_summary`/`rolled_summary` entries before consolidation (`0` disables)
+  - `custom_storage_path` — absolute directory where this slot's data file lives (e.g. a synced Dropbox/OneDrive folder); empty string or `"none"` reverts to the default location
 - `value` (required for `set`): New value for the key
 - `slot_name` (optional): Target slot. Uses current slot if not specified
 
@@ -118,10 +120,18 @@ Get or set the per-slot summarizer configuration.
 - New slot (no `.json` file yet) → `summarizer_backend = "sumy"` (smarter default)
 - Existing slot (`.json` file present) → `summarizer_backend = "nltk"` (preserves prior behavior)
 
+**`custom_storage_path` behavior:**
+- Setting it on a slot that already has data **automatically migrates** the slot's `.json` (and `.bak`) file to the new directory — nothing is left behind.
+- Setting it on a slot with no data yet just records the redirect; the next save writes straight to the custom location.
+- If data already exists at *both* the old and new locations, the call is refused (no overwrite) so you can resolve the conflict manually.
+- The redirect itself is **local to this machine** — each device pointing at a shared folder (e.g. Dropbox) needs to run its own `set` once, using whatever path that folder resolves to locally. Derived data (search index, cache, archives) stays local and is rebuilt lazily; only the primary `.json` file is shared.
+
 **Examples:**
 - `memcord_configure action="get"` — Show current slot config
 - `memcord_configure action="set" key="summarizer_backend" value="transformers"` — Switch to abstractive BART
 - `memcord_configure action="set" key="default_compression_ratio" value="0.25"` — Set compression to 25%
+- `memcord_configure action="set" key="custom_storage_path" value="D:\Dropbox\shared"` — Move/link this slot to a synced folder
+- `memcord_configure action="set" key="custom_storage_path" value=""` — Revert to the default storage location
 - `memcord_configure action="reset"` — Restore defaults for current slot
 
 **Env var override:** `MEMCORD_SUMMARIZER=nltk` overrides per-slot config for all slots (useful for Docker/CI).

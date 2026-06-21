@@ -1,6 +1,6 @@
 <div align="center">
   <img src="assets/image/memcord_1024.png" width="256">
-  <h3>MEMCORD v4.0.2 (mcp server)</h3>
+  <h3>MEMCORD v4.1.0 (mcp server)</h3>
   <p>This privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control.</p>
 </div>
 
@@ -18,19 +18,18 @@
 <h2 align="center">Never Lose Context Again</h2>
 <p align="center"><em>Transform your Claude conversations into a searchable, organized knowledge base that grows with you</em></p>
 
-> **[What's new in v4.0.2](docs/versions.md#v402---openclaw-installation-docs-fix)** — Fix OpenClaw installation docs: use standard JSON (quoted keys) in config snippet and document the manual MCP config step.
+> **[What's new in v4.1.0](docs/versions.md#v410---custom-storage-path)** — Share a memory slot across devices: point any slot at a custom directory (e.g. a synced Dropbox/OneDrive folder) via `memcord_configure`, with automatic migration of existing data.
 
 ## Table of Contents
 
 - [Core Benefits](#core-benefits)
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
-- [Demo](#demo)
-- [IDE Configuration](#ide-configuration)
 - [Keeping Memcord Updated](#keeping-memcord-updated)
-- [Using Memcord in a Project](#using-memcord-in-a-project)
-- [Basic Usage](#basic-usage)
+- [Using Memcord](#using-memcord)
+- [Custom Storage Path](#custom-storage-path)
 - [Summarizer Backends](#summarizer-backends)
+- [IDE Configuration](#ide-configuration)
 - [Documentation](#documentation)
 
 ## Core Benefits
@@ -77,9 +76,106 @@ This will:
 - ✅ Generate platform-specific MCP configuration files
 - ✅ Configure Claude Desktop, Claude Code, VSCode, and Antigravity IDE
 
-## Demo
+## Keeping Memcord Updated
 
-_A demo GIF or terminal recording will be added here. Contributions welcome!_
+```bash
+cd /path/to/memcord
+git pull
+uv pip install -e .
+uv run python scripts/generate-config.py  # Regenerate configs
+
+# Optional: Enable auto-save hooks (new in v2.5.0)
+uv run python scripts/generate-config.py --install-hooks
+```
+
+The `--install-hooks` flag is idempotent — it merges into existing `.claude/settings.json` without overwriting other settings or hooks.
+
+## Using Memcord
+
+### First-Time Setup (New Project)
+
+```bash
+# 1. Once you are in claude code, initialize the project with a memory slot (one-time setup)
+memcord_init "." "my-project-name"
+# OR
+memcord_init "my_project_name"
+# Creates .memcord file containing "my-project-name"
+
+# 2. Start saving your conversations
+/memcord-save-progress  # Auto-detects slot from .memcord file
+```
+
+### Subsequent Sessions (Returning to Project)
+
+```bash
+# Just use slash commands - no slot name needed!
+/memcord-read           # Reads from bound slot
+/memcord-save           # Saves to bound slot
+/memcord-save-progress  # Summarizes and saves
+```
+
+### Saving, Searching & Querying (Direct Tool Calls)
+
+```bash
+memcord_name "project_meeting"          # Create or select a slot (outside a bound project)
+memcord_save "Our discussion about..."  # Save exact text
+memcord_save_progress                   # Save a compressed summary
+memcord_read                            # Read the slot
+
+memcord_select_entry "2 hours ago"    # Jump to a point in the timeline
+memcord_list                          # List all slots
+memcord_search "API design"           # Full-text search
+memcord_query "What did we decide?"   # Natural language query
+
+memcord_zero                          # Privacy mode — nothing gets saved
+```
+
+See **[Complete Tools Reference](docs/tools-reference.md)** for all 23 tools with full parameters and examples.
+
+### Enable Auto-Save (Optional)
+
+```bash
+uv run python scripts/generate-config.py --install-hooks
+```
+
+Automatically saves conversation progress before context compaction and on session end. See [config-templates/README.md](config-templates/README.md#auto-save-hooks-optional) for details.
+
+### How Auto-Detection Works
+
+All read **and write** operations follow the same slot resolution priority:
+
+1. Explicit `slot_name` argument (always wins)
+2. Currently active slot (set by `memcord_use` or `memcord_name`)
+3. `.memcord` binding file in the current working directory
+
+When the `.memcord` binding is used and the slot already exists, it is also **auto-activated** for the rest of the session — so subsequent operations skip re-detection automatically.
+
+This means after `memcord_init`, a fresh session (no `memcord_use` call needed) will correctly route `memcord_save`, `memcord_save_progress`, `memcord_configure`, and `memcord_read` to the bound slot.
+
+## Custom Storage Path
+
+Point a slot's data file at any directory — e.g. a Dropbox/OneDrive folder — to share it across devices, via `memcord_configure`.
+
+**New memory in an external path:**
+```bash
+memcord_name "shared_slot"
+memcord_configure action="set" key="custom_storage_path" value="D:\Dropbox\shared"
+memcord_save "..."   # writes directly to the external path
+```
+
+**Migrate an existing memory:**
+```bash
+memcord_configure action="set" key="custom_storage_path" value="D:\Dropbox\shared"
+# Existing data is moved automatically — memcord_read/memcord_list keep working
+```
+
+Each device needs to run the `set` command once with its own local path to the shared folder. See **[Tools Reference — memcord_configure](docs/tools-reference.md#6-memcord_configure)** for migration/collision details.
+
+## Summarizer Backends
+
+Memcord supports four pluggable summarizer backends (`nltk`, `sumy`, `semantic`, `transformers`), switchable per slot via `memcord_configure action="set" key="summarizer_backend" value="..."` — no restart required. New slots default to **sumy** (no downloads); existing slots keep **nltk** for backward compatibility.
+
+See **[Tools Reference — memcord_configure](docs/tools-reference.md#6-memcord_configure)** and **[Features Guide](docs/features-guide.md#auto-summarization)** for the full backend comparison, install instructions, and the `MEMCORD_SUMMARIZER` env var override.
 
 ## IDE Configuration
 
@@ -103,136 +199,6 @@ uv run python scripts/generate-config.py
 ```
 
 See the **[Complete Installation Guide](docs/installation.md)** for updating, advanced options, and custom commands.
-
-## Keeping Memcord Updated
-
-```bash
-cd /path/to/memcord
-git pull
-uv pip install -e .
-uv run python scripts/generate-config.py  # Regenerate configs
-
-# Optional: Enable auto-save hooks (new in v2.5.0)
-uv run python scripts/generate-config.py --install-hooks
-```
-
-The `--install-hooks` flag is idempotent — it merges into existing `.claude/settings.json` without overwriting other settings or hooks.
-
-<a id="using-memcord-in-a-project"></a>
-
-## Using Memcord in a Project
-
-### First-Time Setup (New Project)
-
-```bash
-# 1. Once you are in claude code, initialize the project with a memory slot (one-time setup)
-memcord_init "." "my-project-name"
-# OR
-memcord_init "my_project_name"
-# Creates .memcord file containing "my-project-name"
-
-# 2. Start saving your conversations
-/memcord-save-progress  # Auto-detects slot from .memcord file
-```
-
-### Subsequent Sessions (Returning to Project)
-
-```bash
-# Just use slash commands - no slot name needed!
-/memcord-read           # Reads from bound slot automatically
-
-/memcord-save           # Saves to bound slot automatically
-/memcord-save-progress  # Summarizes and saves automatically
-```
-
-### Enable Auto-Save (Optional)
-
-```bash
-uv run python scripts/generate-config.py --install-hooks
-```
-
-Automatically saves conversation progress before context compaction and on session end. See [config-templates/README.md](config-templates/README.md#auto-save-hooks-optional) for details.
-
-### How Auto-Detection Works
-
-All read **and write** operations follow the same slot resolution priority:
-
-1. Explicit `slot_name` argument (always wins)
-2. Currently active slot (set by `memcord_use` or `memcord_name`)
-3. `.memcord` binding file in the current working directory
-
-When the `.memcord` binding is used and the slot already exists, it is also **auto-activated** for the rest of the session — so subsequent operations skip re-detection automatically.
-
-This means after `memcord_init`, a fresh session (no `memcord_use` call needed) will correctly route `memcord_save`, `memcord_save_progress`, `memcord_configure`, and `memcord_read` to the bound slot.
-
-## Basic Usage
-
-### Saving & Retrieving
-
-```bash
-memcord_name "project_meeting"          # Create or select a slot
-memcord_save "Our discussion about..."  # Save exact text
-memcord_save_progress                   # Save a compressed summary
-memcord_read                            # Read the slot
-```
-
-### Navigating & Searching
-
-```bash
-memcord_select_entry "2 hours ago"    # Jump to a point in the timeline
-memcord_list                          # List all slots
-memcord_search "API design"           # Full-text search
-memcord_query "What did we decide?"   # Natural language query
-```
-
-### Project & Privacy
-
-```bash
-memcord_init "." "my-project"  # Bind a memory slot to this directory
-memcord_zero                   # Privacy mode — nothing gets saved
-```
-
-See **[Complete Tools Reference](docs/tools-reference.md)** for all 23 tools with full parameters and examples.
-
-## Summarizer Backends
-
-Memcord supports four summarizer backends. New slots default to **sumy** (graph-based, no downloads required). Existing slots keep **nltk** to preserve prior behavior.
-
-| Backend | Type | Speed | Quality | Extra install |
-|---|---|---|---|---|
-| `nltk` | Extractive | Fast | Good | None (built-in) |
-| `sumy` | Extractive (graph) | Fast | Better | None (built-in) |
-| `semantic` | Extractive (embeddings) | Medium | Best extractive | `uv pip install "memcord[semantic]"` (~80 MB) |
-| `transformers` | Abstractive (BART) | Slow | Best overall | `uv pip install "memcord[transformers]"` (~400 MB) |
-
-### Switching Backends
-
-Use `memcord_configure` to change the backend for any slot — no restart required:
-
-```bash
-# Check current config
-memcord_configure action="get"
-
-# Switch to the BART abstractive summarizer (best for conversations)
-memcord_configure action="set" key="summarizer_backend" value="transformers"
-
-# Switch to embedding-based semantic summarizer
-memcord_configure action="set" key="summarizer_backend" value="semantic"
-
-# Switch sumy algorithm (lexrank / lsa / edmundson)
-memcord_configure action="set" key="sumy_algorithm" value="lsa"
-
-# Reset to defaults
-memcord_configure action="reset"
-```
-
-To apply one backend to **all slots** (e.g. in Docker or CI), set the environment variable:
-
-```bash
-export MEMCORD_SUMMARIZER=transformers
-```
-
-See **[Tools Reference — memcord_configure](docs/tools-reference.md)** for the full parameter list.
 
 ## Documentation
 

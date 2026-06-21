@@ -1,7 +1,7 @@
 ---
 name: memcord
 description: Privacy-first, self-hosted chat memory for OpenClaw — save and recall conversation history across sessions without any cloud dependency.
-version: 4.0.2
+version: 4.1.0
 metadata:
   openclaw:
     requires:

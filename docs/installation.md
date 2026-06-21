@@ -190,6 +190,17 @@ claude mcp configure memcord -e MEMCORD_SUMMARIZER=transformers
 
 When not set, each slot uses its own backend as configured via `memcord_configure`.
 
+#### Storage Directory (Optional)
+
+Set `MEMCORD_MEMORY_DIR` to change where memory slots are stored, e.g. to point at a synced Dropbox/OneDrive folder instead of the default `memory_slots/` next to the project. `MEMCORD_SHARED_DIR` does the same for shared memory exports:
+
+```bash
+claude mcp configure memcord -e MEMCORD_MEMORY_DIR=/Users/me/Dropbox/memcord-data
+claude mcp configure memcord -e MEMCORD_SHARED_DIR=/Users/me/Dropbox/memcord-shared
+```
+
+When not set, memcord uses `memory_slots/` and `shared_memories/` relative to the working directory the MCP client launches it from.
+
 #### Auto-Save Hooks (Optional)
 
 Memcord can automatically save conversation progress when Claude Code compacts context:

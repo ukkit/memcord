@@ -207,15 +207,17 @@ class ChatMemoryServer:
         handler, requires_advanced = handler_entry
 
         if requires_advanced and not self.enable_advanced_tools:
-            return ErrorResult([
-                TextContent(
-                    type="text",
-                    text=(
-                        f"Error: Advanced tool '{name}' is not enabled. "
-                        "Set MEMCORD_ENABLE_ADVANCED=true to enable advanced features."
-                    ),
-                )
-            ])
+            return ErrorResult(
+                [
+                    TextContent(
+                        type="text",
+                        text=(
+                            f"Error: Advanced tool '{name}' is not enabled. "
+                            "Set MEMCORD_ENABLE_ADVANCED=true to enable advanced features."
+                        ),
+                    )
+                ]
+            )
 
         return cast(Sequence[TextContent] | ErrorResult, await handler(arguments))
 
@@ -366,7 +368,9 @@ class ChatMemoryServer:
             if memcord_file.exists():
                 try:
                     # Read only the first line, normalize spaces
-                    content = memcord_file.read_text().splitlines()[0].strip() if memcord_file.stat().st_size > 0 else ""
+                    content = (
+                        memcord_file.read_text().splitlines()[0].strip() if memcord_file.stat().st_size > 0 else ""
+                    )
                     slot_name = content.replace(" ", "_")
                     if slot_name and VALID_SLOT_NAME_PATTERN.match(slot_name):
                         return slot_name
@@ -540,18 +544,18 @@ class ChatMemoryServer:
     # openWorldHint=True  → may interact with external systems (URLs, files outside memory_slots)
     _TOOL_ANNOTATIONS: dict[str, ToolAnnotations] = {
         # Read-only, closed world
-        "memcord_read":        ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
-        "memcord_list":        ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
-        "memcord_list_tags":   ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
-        "memcord_ping":        ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
-        "memcord_query":       ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
-        "memcord_search":      ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
-        "memcord_status":      ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
-        "memcord_metrics":     ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
-        "memcord_logs":        ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
-        "memcord_diagnostics": ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
-        "memcord_select_entry":ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
-        "memcord_export":      ToolAnnotations(readOnlyHint=True,  openWorldHint=False),
+        "memcord_read": ToolAnnotations(readOnlyHint=True, openWorldHint=False),
+        "memcord_list": ToolAnnotations(readOnlyHint=True, openWorldHint=False),
+        "memcord_list_tags": ToolAnnotations(readOnlyHint=True, openWorldHint=False),
+        "memcord_ping": ToolAnnotations(readOnlyHint=True, openWorldHint=False),
+        "memcord_query": ToolAnnotations(readOnlyHint=True, openWorldHint=False),
+        "memcord_search": ToolAnnotations(readOnlyHint=True, openWorldHint=False),
+        "memcord_status": ToolAnnotations(readOnlyHint=True, openWorldHint=False),
+        "memcord_metrics": ToolAnnotations(readOnlyHint=True, openWorldHint=False),
+        "memcord_logs": ToolAnnotations(readOnlyHint=True, openWorldHint=False),
+        "memcord_diagnostics": ToolAnnotations(readOnlyHint=True, openWorldHint=False),
+        "memcord_select_entry": ToolAnnotations(readOnlyHint=True, openWorldHint=False),
+        "memcord_export": ToolAnnotations(readOnlyHint=True, openWorldHint=False),
         # Idempotent state-switches (no data destroyed, same input = same state)
         "memcord_name": ToolAnnotations(
             readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False
@@ -570,16 +574,16 @@ class ChatMemoryServer:
         ),
         # Additive writes (append / no existing data destroyed)
         "memcord_save_progress": ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False),
-        "memcord_share":         ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False),
+        "memcord_share": ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False),
         # Destructive writes (overwrite existing content or delete entries/files)
-        "memcord_auto_save":ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
-        "memcord_save":     ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
-        "memcord_configure":ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
-        "memcord_tag":      ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
-        "memcord_group":    ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
-        "memcord_merge":    ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
-        "memcord_archive":  ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
-        "memcord_unbind":   ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
+        "memcord_auto_save": ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
+        "memcord_save": ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
+        "memcord_configure": ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
+        "memcord_tag": ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
+        "memcord_group": ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
+        "memcord_merge": ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
+        "memcord_archive": ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
+        "memcord_unbind": ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
         "memcord_compress": ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False),
         # Open world (may fetch external URLs/files)
         "memcord_import": ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=True),
@@ -589,7 +593,7 @@ class ChatMemoryServer:
     # "anthropic/maxResultSizeChars" raises the per-tool result truncation cap
     # (default 25K) up to the hard ceiling of 500K characters.
     _ANTHROPIC_TOOL_EXTENSIONS: dict[str, dict[str, object]] = {
-        "memcord_read":  {"anthropic/maxResultSizeChars": 500_000},
+        "memcord_read": {"anthropic/maxResultSizeChars": 500_000},
         "memcord_query": {"anthropic/maxResultSizeChars": 500_000},
     }
 
@@ -640,7 +644,8 @@ class ChatMemoryServer:
                     "properties": {
                         "slot_name": {
                             "type": "string",
-                            "description": "Name of the existing memory slot to activate (optional, reads from .memcord file if not specified)",
+                            "description": "Name of the existing memory slot to activate "
+                            "(optional, reads from .memcord file if not specified)",
                         }
                     },
                 },
@@ -1630,6 +1635,13 @@ class ChatMemoryServer:
             value = arguments.get("value", "").strip()
             if not key:
                 return [TextContent(type="text", text="Error: 'key' is required for action='set'")]
+            if key == "custom_storage_path":
+                new_path = None if value == "" or value.lower() in ("none", "null") else value
+                try:
+                    status = await self.storage.set_custom_storage_path(slot_name, new_path)
+                except ValueError as exc:
+                    return [TextContent(type="text", text=f"Error: {exc}")]
+                return [TextContent(type="text", text=status)]
             if not hasattr(config, key):
                 valid = list(config.model_dump().keys())
                 return [
@@ -1685,6 +1697,9 @@ class ChatMemoryServer:
 
         if action == "reset":
             from .models import SlotConfig
+
+            if config.custom_storage_path:
+                await self.storage.set_custom_storage_path(slot_name, None)
 
             slot_exists = (self.storage.memory_dir / f"{slot_name}.json").exists()
             default_backend = "nltk" if slot_exists else "sumy"
@@ -2845,7 +2860,9 @@ def main():
 
     configure_logging()
 
-    server = ChatMemoryServer()
+    memory_dir = os.getenv("MEMCORD_MEMORY_DIR", "").strip() or "memory_slots"
+    shared_dir = os.getenv("MEMCORD_SHARED_DIR", "").strip() or "shared_memories"
+    server = ChatMemoryServer(memory_dir=memory_dir, shared_dir=shared_dir)
     asyncio.run(server.run())
 
 

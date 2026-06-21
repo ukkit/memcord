@@ -788,7 +788,7 @@ class WorkflowTemplateManager:
                 applicable_actions.append(action)
 
         # Sort by usage count and success rate
-        applicable_actions.sort(key=lambda x: (x.usage_count * x.success_rate), reverse=True)
+        applicable_actions.sort(key=lambda x: x.usage_count * x.success_rate, reverse=True)
 
         return applicable_actions[:5]  # Top 5 actions
 

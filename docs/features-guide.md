@@ -224,6 +224,22 @@ Long-term storage for inactive memories:
 - **Metadata preservation** maintains all original information
 - **Easy restoration** when archived content is needed
 
+#### Custom Storage Path (Multi-Device Sync)
+Point an individual slot's data file at any directory — e.g. a Dropbox, OneDrive, or network-shared folder — so the same memory can be read and updated from multiple machines:
+
+```
+memcord_configure action="set" key="custom_storage_path" value="D:\Dropbox\shared"
+memcord_configure action="get"                                  # confirm the redirect
+memcord_configure action="set" key="custom_storage_path" value="" # revert to default
+```
+
+- Setting the path on a slot with existing data **migrates it automatically** (no manual file moves).
+- The redirect is configured **once per device** — each machine points at wherever it mounts the shared folder locally.
+- Search index, cache, and archives stay local per machine and are rebuilt lazily; only the slot's primary data file is shared.
+- Concurrent writes from two devices are last-write-wins — fine for the common "one active editor at a time" case, but not a substitute for real-time collaborative editing.
+
+See [Tools Reference — memcord_configure](tools-reference.md#6-memcord_configure) for the full parameter list.
+
 ### 6. Organization & Categorization
 
 #### Tag System

@@ -4,8 +4,14 @@ import os
 import re
 import secrets
 import time
+import uuid
 from collections import defaultdict, deque
+from pathlib import Path
 from urllib.parse import urlparse
+
+_RESERVED_WINDOWS_NAMES = (
+    ["CON", "PRN", "AUX", "NUL"] + [f"COM{i}" for i in range(1, 10)] + [f"LPT{i}" for i in range(1, 10)]
+)
 
 
 class RateLimiter:
@@ -158,6 +164,54 @@ class PathValidator:
             sanitized = f"file_{secrets.token_hex(4)}"
 
         return sanitized.strip()
+
+    @staticmethod
+    def validate_custom_storage_dir(path_str: str) -> tuple[bool, str | None]:
+        """Validate an absolute directory for use as a slot's custom storage location.
+
+        Unlike is_safe_path (designed for relative paths under an app-controlled
+        root), this validates a user-supplied absolute root directory, so the
+        drive-letter colon in paths like 'D:\\Dropbox\\shared' must be allowed.
+        Dangerous-character and reserved-name checks are applied per path
+        component instead of to the whole string. Has filesystem side effects:
+        it creates the directory (mkdir -p) as part of validating it.
+        """
+        if not path_str or not path_str.strip():
+            return False, "Empty path not allowed"
+
+        try:
+            p = Path(path_str).expanduser()
+        except (OSError, ValueError) as e:
+            return False, f"Invalid path: {e}"
+
+        if not p.is_absolute():
+            return False, f"Path must be absolute: '{path_str}'"
+
+        dangerous_chars = ["<", ">", '"', "|", "?", "*"]
+        for part in p.parts:
+            if part == p.anchor:
+                continue
+            if part == "..":
+                return False, "Path traversal detected"
+            if any(char in part for char in dangerous_chars):
+                return False, f"Path component contains dangerous characters: '{part}'"
+            base_name = os.path.splitext(part)[0]
+            if part.upper() in _RESERVED_WINDOWS_NAMES or base_name.upper() in _RESERVED_WINDOWS_NAMES:
+                return False, f"Path contains reserved name: '{part}'"
+
+        try:
+            p.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            return False, f"Cannot create or access directory '{path_str}': {e}"
+
+        probe = p / f".memcord_write_probe_{uuid.uuid4().hex}"
+        try:
+            probe.write_text("", encoding="utf-8")
+            probe.unlink()
+        except OSError as e:
+            return False, f"Directory exists but is not writable: '{path_str}': {e}"
+
+        return True, None
 
 
 class InputValidator:

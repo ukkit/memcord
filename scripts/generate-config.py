@@ -158,20 +158,14 @@ def merge_hooks(existing: dict[str, Any], new_hooks: dict[str, Any]) -> dict[str
     # Remove memcord hooks from events no longer in the template (cleanup pass)
     for event_key in list(result["hooks"].keys()):
         if event_key not in template_events:
-            result["hooks"][event_key] = [
-                hook for hook in result["hooks"][event_key]
-                if not _is_memcord_hook(hook)
-            ]
+            result["hooks"][event_key] = [hook for hook in result["hooks"][event_key] if not _is_memcord_hook(hook)]
 
     for event_key, hook_entries in new_hooks["hooks"].items():
         if event_key not in result["hooks"]:
             result["hooks"][event_key] = []
 
         # Remove existing memcord hooks in either format (deduplication)
-        result["hooks"][event_key] = [
-            hook for hook in result["hooks"][event_key]
-            if not _is_memcord_hook(hook)
-        ]
+        result["hooks"][event_key] = [hook for hook in result["hooks"][event_key] if not _is_memcord_hook(hook)]
 
         # Add new memcord hooks
         result["hooks"][event_key].extend(hook_entries)
@@ -394,7 +388,9 @@ Examples:
     parser.add_argument("--no-claude-code", action="store_true", help="Skip Claude Code .mcp.json configuration")
 
     parser.add_argument(
-        "--install-hooks", action="store_true", help="Install Claude Code agent hooks for auto-save on compaction and session end"
+        "--install-hooks",
+        action="store_true",
+        help="Install Claude Code agent hooks for auto-save on compaction and session end",
     )
 
     args = parser.parse_args()

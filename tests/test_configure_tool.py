@@ -11,7 +11,6 @@ import pytest
 from memcord.models import SlotConfig
 from memcord.storage import StorageManager
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -389,9 +388,7 @@ class TestConfigureToolSet:
     @pytest.mark.asyncio
     async def test_set_summarizer_backend(self, server_with_temp_dir):
         server = server_with_temp_dir
-        result = await server._handle_configure(
-            {"action": "set", "key": "summarizer_backend", "value": "semantic"}
-        )
+        result = await server._handle_configure({"action": "set", "key": "summarizer_backend", "value": "semantic"})
         assert "semantic" in result[0].text
         # Verify persisted
         config = await server.storage.load_slot_config("testslot")
@@ -400,9 +397,7 @@ class TestConfigureToolSet:
     @pytest.mark.asyncio
     async def test_set_compression_ratio(self, server_with_temp_dir):
         server = server_with_temp_dir
-        result = await server._handle_configure(
-            {"action": "set", "key": "default_compression_ratio", "value": "0.25"}
-        )
+        result = await server._handle_configure({"action": "set", "key": "default_compression_ratio", "value": "0.25"})
         assert "0.25" in result[0].text
         config = await server.storage.load_slot_config("testslot")
         assert config.default_compression_ratio == pytest.approx(0.25)
@@ -410,9 +405,7 @@ class TestConfigureToolSet:
     @pytest.mark.asyncio
     async def test_set_unknown_key_returns_error(self, server_with_temp_dir):
         server = server_with_temp_dir
-        result = await server._handle_configure(
-            {"action": "set", "key": "nonexistent_key", "value": "foo"}
-        )
+        result = await server._handle_configure({"action": "set", "key": "nonexistent_key", "value": "foo"})
         assert "Error" in result[0].text
 
     @pytest.mark.asyncio
@@ -456,6 +449,61 @@ class TestConfigureToolInvalidAction:
         server = server_with_temp_dir
         result = await server._handle_configure({"action": "explode"})
         assert "Error" in result[0].text
+
+
+class TestConfigureToolCustomStoragePath:
+    @pytest.mark.asyncio
+    async def test_set_migrates_existing_data_and_get_shows_path(self, server_with_temp_dir, tmp_path):
+        server = server_with_temp_dir
+        external = tmp_path / "external"
+        await server.storage.save_memory("testslot", "hello")
+
+        set_result = await server._handle_configure(
+            {"action": "set", "key": "custom_storage_path", "value": str(external)}
+        )
+        assert "Error" not in set_result[0].text
+        assert (external / "testslot.json").exists()
+
+        get_result = await server._handle_configure({"action": "get"})
+        assert str(external) in get_result[0].text
+
+    @pytest.mark.asyncio
+    async def test_set_empty_value_reverts_and_migrates_back(self, server_with_temp_dir, tmp_path):
+        server = server_with_temp_dir
+        external = tmp_path / "external"
+        await server.storage.save_memory("testslot", "hello")
+        await server._handle_configure({"action": "set", "key": "custom_storage_path", "value": str(external)})
+
+        revert_result = await server._handle_configure({"action": "set", "key": "custom_storage_path", "value": ""})
+        assert "Error" not in revert_result[0].text
+        config = await server.storage.load_slot_config("testslot")
+        assert config.custom_storage_path is None
+
+    @pytest.mark.asyncio
+    async def test_set_invalid_path_returns_error_and_no_state_change(self, server_with_temp_dir):
+        server = server_with_temp_dir
+        await server.storage.save_memory("testslot", "hello")
+
+        result = await server._handle_configure(
+            {"action": "set", "key": "custom_storage_path", "value": "relative/dir"}
+        )
+
+        assert "Error" in result[0].text
+        config = await server.storage.load_slot_config("testslot")
+        assert config.custom_storage_path is None
+
+    @pytest.mark.asyncio
+    async def test_reset_migrates_back_when_custom_path_was_set(self, server_with_temp_dir, tmp_path):
+        server = server_with_temp_dir
+        external = tmp_path / "external"
+        await server.storage.save_memory("testslot", "hello")
+        await server._handle_configure({"action": "set", "key": "custom_storage_path", "value": str(external)})
+
+        await server._handle_configure({"action": "reset"})
+
+        assert (server.storage.memory_dir / "testslot.json").exists()
+        config = await server.storage.load_slot_config("testslot")
+        assert config.custom_storage_path is None
 
 
 # ---------------------------------------------------------------------------

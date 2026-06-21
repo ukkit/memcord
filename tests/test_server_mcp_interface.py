@@ -1532,9 +1532,16 @@ class TestToolAnnotations:
     async def test_read_only_tools_have_readonly_hint(self, test_server):
         tools = await test_server.list_tools_direct()
         readonly_tool_names = {
-            "memcord_read", "memcord_list", "memcord_ping", "memcord_query",
-            "memcord_search", "memcord_status", "memcord_metrics", "memcord_logs",
-            "memcord_diagnostics", "memcord_select_entry",
+            "memcord_read",
+            "memcord_list",
+            "memcord_ping",
+            "memcord_query",
+            "memcord_search",
+            "memcord_status",
+            "memcord_metrics",
+            "memcord_logs",
+            "memcord_diagnostics",
+            "memcord_select_entry",
         }
         for tool in tools:
             if tool.name in readonly_tool_names:
@@ -1544,8 +1551,11 @@ class TestToolAnnotations:
     async def test_destructive_tools_have_destructive_hint(self, test_server):
         tools = await test_server.list_tools_direct()
         destructive_tool_names = {
-            "memcord_save", "memcord_merge", "memcord_archive",
-            "memcord_unbind", "memcord_compress",
+            "memcord_save",
+            "memcord_merge",
+            "memcord_archive",
+            "memcord_unbind",
+            "memcord_compress",
         }
         for tool in tools:
             if tool.name in destructive_tool_names:
@@ -1567,7 +1577,8 @@ class TestToolAnnotations:
             if tool.name != "memcord_import":  # import can fetch URLs (open world)
                 if tool.annotations is not None:
                     assert tool.annotations.openWorldHint is not True, (
-                        f"{tool.name} should not have openWorldHint=True (only memcord_import interacts with external world)"
+                        f"{tool.name} should not have openWorldHint=True "
+                        "(only memcord_import interacts with external world)"
                     )
 
     async def test_import_tool_has_open_world_hint(self, test_server):

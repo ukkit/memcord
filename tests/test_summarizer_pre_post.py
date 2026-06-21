@@ -60,11 +60,11 @@ TEXT_BLOCKS: list[tuple[str, str]] = [
             "        self.config = config\n"
             "        self._cache = {}\n\n"
             "    async def process(self, items: list[str]) -> list[dict]:\n"
-            '        results = []\n'
-            '        for item in items:\n'
-            '            result = await self._transform(item)\n'
-            '            results.append(result)\n'
-            '        return results\n'
+            "        results = []\n"
+            "        for item in items:\n"
+            "            result = await self._transform(item)\n"
+            "            results.append(result)\n"
+            "        return results\n"
             "```\n\n"
             "## JavaScript Frontend\n"
             "```javascript\n"
@@ -182,7 +182,7 @@ TEXT_BLOCKS: list[tuple[str, str]] = [
     (
         "html_xml_fragments",
         (
-            '<!DOCTYPE html>\n'
+            "<!DOCTYPE html>\n"
             '<html lang="en">\n'
             "<head>\n"
             '    <meta charset="UTF-8">\n'
@@ -226,11 +226,11 @@ TEXT_BLOCKS: list[tuple[str, str]] = [
         "json_content",
         (
             "Here is the API response payload we received:\n\n"
-            '{\n'
+            "{\n"
             '  "status": "success",\n'
             '  "data": {\n'
             '    "users": [\n'
-            '      {\n'
+            "      {\n"
             '        "id": 1,\n'
             '        "name": "Alice O\'Brien",\n'
             '        "email": "alice@example.com",\n'
@@ -242,11 +242,11 @@ TEXT_BLOCKS: list[tuple[str, str]] = [
             '            "email": true,\n'
             '            "sms": false,\n'
             '            "push": true\n'
-            '          }\n'
-            '        },\n'
+            "          }\n"
+            "        },\n"
             '        "bio": "Loves coding & coffee ☕. Escaped \\"chars\\" here."\n'
-            '      },\n'
-            '      {\n'
+            "      },\n"
+            "      {\n"
             '        "id": 2,\n'
             '        "name": "Bob Smith",\n'
             '        "email": "bob@example.com",\n'
@@ -256,22 +256,22 @@ TEXT_BLOCKS: list[tuple[str, str]] = [
             '          "last_ip": "192.168.1.100",\n'
             '          "paths": ["C:\\\\Users\\\\bob", "/home/bob"],\n'
             '          "tags": ["new-user", "trial"]\n'
-            '        }\n'
-            '      }\n'
-            '    ],\n'
+            "        }\n"
+            "      }\n"
+            "    ],\n"
             '    "pagination": {\n'
             '      "page": 1,\n'
             '      "per_page": 20,\n'
             '      "total": 150,\n'
             '      "total_pages": 8\n'
-            '    }\n'
-            '  },\n'
+            "    }\n"
+            "  },\n"
             '  "meta": {\n'
             '    "request_id": "req_abc123xyz",\n'
             '    "timestamp": "2025-01-15T14:30:00Z",\n'
             '    "version": "2.1.0"\n'
-            '  }\n'
-            '}\n\n'
+            "  }\n"
+            "}\n\n"
             "The response contains user data with nested preferences and metadata. "
             "Note the special characters in bio fields and Windows paths in metadata."
         ),
@@ -561,7 +561,8 @@ TEXT_BLOCKS: list[tuple[str, str]] = [
         (
             "Special character stress test for the storage pipeline:\n\n"
             "Brackets and braces: { } [ ] ( ) < > « »\n"
-            "Quotes: \" ' ` ' ' " " ‹ ›\n"
+            "Quotes: \" ' ` ' ' "
+            " ‹ ›\n"
             "Math operators: + - × ÷ = ≠ ≈ ≤ ≥ ± ∞ √ ∑ ∏ ∫\n"
             "Logic: ∧ ∨ ¬ ⊕ ∀ ∃ ⊂ ⊃ ∈ ∉ ∪ ∩\n"
             "Arrows: → ← ↑ ↓ ↔ ⇒ ⇐ ⇑ ⇓ ⇔\n"
@@ -667,7 +668,7 @@ TEXT_BLOCKS: list[tuple[str, str]] = [
             "The above exception was the direct cause of the following exception:\n\n"
             "Traceback (most recent call last):\n"
             '  File "/app/src/handlers/order.py", line 70, in create_order\n'
-            "    raise OrderCreationError(f\"Inventory check failed: {e}\")\n"
+            '    raise OrderCreationError(f"Inventory check failed: {e}")\n'
             "services.exceptions.OrderCreationError: Inventory check failed: "
             "Cannot connect to host inventory-service:8080\n\n"
             "--- JavaScript Error (frontend) ---\n"
@@ -698,7 +699,7 @@ TEXT_BLOCKS: list[tuple[str, str]] = [
             "Note: the em-dash (—) is preferred over the en-dash (–) for "
             "parenthetical expressions; semicolons (;) join related clauses. "
             "Ellipsis (...) indicates trailing thoughts... or omissions.\n\n"
-            "Status update [2025-01-15]: \"All systems operational.\" "
+            'Status update [2025-01-15]: "All systems operational." '
             "(Source: https://status.example.com)\n\n"
             "TODO: review the {config} settings — specifically the [timeout] "
             "and (retry) parameters. Also check: "
