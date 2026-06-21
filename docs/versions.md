@@ -1,5 +1,16 @@
 # Version History
 
+## v4.1.1 - Cross-Drive Storage Migration Fix
+
+```text
+  - Fix custom_storage_path migration raising WinError 17 ("cannot move the
+    file to a different disk drive") when the target directory is on a
+    different drive than the slot's current location.
+  - set_custom_storage_path now uses shutil.move (copy+delete fallback)
+    instead of a bare os.rename, so migrations work across drives and
+    filesystems, not just within the same one.
+```
+
 ## v4.1.0 - Custom Storage Path
 
 ```text

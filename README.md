@@ -1,6 +1,6 @@
 <div align="center">
   <img src="assets/image/memcord_1024.png" width="256">
-  <h3>MEMCORD v4.1.0 (mcp server)</h3>
+  <h3>MEMCORD v4.1.1 (mcp server)</h3>
   <p>This privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control.</p>
 </div>
 
@@ -18,7 +18,7 @@
 <h2 align="center">Never Lose Context Again</h2>
 <p align="center"><em>Transform your Claude conversations into a searchable, organized knowledge base that grows with you</em></p>
 
-> **[What's new in v4.1.0](docs/versions.md#v410---custom-storage-path)** — Share a memory slot across devices: point any slot at a custom directory (e.g. a synced Dropbox/OneDrive folder) via `memcord_configure`, with automatic migration of existing data.
+> **[What's new in v4.1.1](docs/versions.md#v411---cross-drive-storage-migration-fix)** — Fixed `custom_storage_path` migration failing on Windows when the target directory is on a different drive.
 
 ## Table of Contents
 

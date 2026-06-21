@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import shutil
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -607,9 +608,9 @@ class StorageManager:
             if local_exists:
                 try:
                     new_dir.mkdir(parents=True, exist_ok=True)
-                    await aiofiles.os.rename(str(old_primary), str(new_primary))
+                    await asyncio.to_thread(shutil.move, str(old_primary), str(new_primary))
                     if old_bak.exists():
-                        await aiofiles.os.rename(str(old_bak), str(new_dir / f"{slot_name}.json.bak"))
+                        await asyncio.to_thread(shutil.move, str(old_bak), str(new_dir / f"{slot_name}.json.bak"))
                 except OSError as exc:
                     raise ValueError(f"Migration failed for slot '{slot_name}': {exc}") from exc
                 status = (
