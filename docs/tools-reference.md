@@ -108,23 +108,24 @@ Get or set per-slot configuration — summarizer backend, consolidation limits, 
   - `hf_device` — `"auto"` | `"cpu"` | `"cuda"` | `"mps"`
   - `default_compression_ratio` — float between 0.05 and 0.5
   - `max_auto_summaries` — int ≥ 0; max combined `auto_summary`/`rolled_summary` entries before consolidation (`0` disables)
-  - `custom_storage_path` — absolute directory where this slot's data file lives (e.g. a synced Dropbox/OneDrive folder); empty string or `"none"` reverts to the default location
+  - `custom_storage_path` — absolute directory where this slot's data and settings live (e.g. a synced Dropbox/OneDrive folder); empty string or `"none"` reverts to the default location
 - `value` (required for `set`): New value for the key
 - `slot_name` (optional): Target slot. Uses current slot if not specified
 
 **Slot resolution priority:** explicit `slot_name` → active slot → `.memcord` binding file in cwd.
 
-**Config is per-slot** and stored as a sidecar JSON file (`{slot}_config.json`). Changes take effect on the very next `memcord_save_progress` call — no restart required.
+**Config is per-slot** and stored as a sidecar JSON file (`{slot}_config.json`) that lives alongside the slot's data — in the default memory directory, or in the slot's custom storage directory once linked. Changes take effect on the very next `memcord_save_progress` call — no restart required.
 
 **Auto-creation rules:**
 - New slot (no `.json` file yet) → `summarizer_backend = "sumy"` (smarter default)
 - Existing slot (`.json` file present) → `summarizer_backend = "nltk"` (preserves prior behavior)
 
 **`custom_storage_path` behavior:**
-- Setting it on a slot that already has data **automatically migrates** the slot's `.json` (and `.bak`) file to the new directory — nothing is left behind.
+- Setting it on a slot that already has data **automatically migrates** the slot's `.json` (and `.bak`) file *and* its settings sidecar (`{slot}_config.json`, with its own `.bak`) to the new directory — nothing is left behind.
 - Setting it on a slot with no data yet just records the redirect; the next save writes straight to the custom location.
-- If data already exists at *both* the old and new locations, the call is refused (no overwrite) so you can resolve the conflict manually.
-- The redirect itself is **local to this machine** — each device pointing at a shared folder (e.g. Dropbox) needs to run its own `set` once, using whatever path that folder resolves to locally. Derived data (search index, cache, archives) stays local and is rebuilt lazily; only the primary `.json` file is shared.
+- If data already exists at *both* the old and new locations, the call is refused (no overwrite) so you can resolve the conflict manually. The same protection applies to the settings sidecar: an existing sidecar at the destination is never overwritten.
+- The redirect itself is **local to this machine**, recorded in a `_storage_links.json` registry file in the local memory directory — each device pointing at a shared folder (e.g. Dropbox) needs to run its own `set` once, using whatever path that folder resolves to locally.
+- Once linked, the settings sidecar lives at the custom location too, so `summarizer_backend`, `sumy_algorithm`, and the other config keys above are shared across every device pointing at that folder — not just the slot's content. Derived data (search index, cache, archives) stays local and is rebuilt lazily.
 
 **Examples:**
 - `memcord_configure action="get"` — Show current slot config

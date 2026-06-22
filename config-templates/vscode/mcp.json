@@ -10,7 +10,9 @@
       ],
       "env": {
         "PYTHONPATH": "${workspaceFolder}/src",
-        "MEMCORD_ENABLE_ADVANCED": "false"
+        "MEMCORD_ENABLE_ADVANCED": "false",
+        "MEMCORD_MEMORY_DIR": "",
+        "MEMCORD_SHARED_DIR": ""
       }
     },
     "memcord-advanced": {
@@ -23,7 +25,9 @@
       ],
       "env": {
         "PYTHONPATH": "${workspaceFolder}/src",
-        "MEMCORD_ENABLE_ADVANCED": "true"
+        "MEMCORD_ENABLE_ADVANCED": "true",
+        "MEMCORD_MEMORY_DIR": "",
+        "MEMCORD_SHARED_DIR": ""
       }
     }
   }

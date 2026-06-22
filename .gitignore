@@ -18,7 +18,6 @@ TODO.md
 .claude/settings.local.json
 .claude-plugin/
 commands/
-docs/superpowers/
 hooks/
 tmpclaude-*
 

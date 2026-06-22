@@ -476,8 +476,7 @@ class TestConfigureToolCustomStoragePath:
 
         revert_result = await server._handle_configure({"action": "set", "key": "custom_storage_path", "value": ""})
         assert "Error" not in revert_result[0].text
-        config = await server.storage.load_slot_config("testslot")
-        assert config.custom_storage_path is None
+        assert server.storage.get_custom_storage_path("testslot") is None
 
     @pytest.mark.asyncio
     async def test_set_invalid_path_returns_error_and_no_state_change(self, server_with_temp_dir):
@@ -489,8 +488,7 @@ class TestConfigureToolCustomStoragePath:
         )
 
         assert "Error" in result[0].text
-        config = await server.storage.load_slot_config("testslot")
-        assert config.custom_storage_path is None
+        assert server.storage.get_custom_storage_path("testslot") is None
 
     @pytest.mark.asyncio
     async def test_reset_migrates_back_when_custom_path_was_set(self, server_with_temp_dir, tmp_path):
@@ -502,8 +500,7 @@ class TestConfigureToolCustomStoragePath:
         await server._handle_configure({"action": "reset"})
 
         assert (server.storage.memory_dir / "testslot.json").exists()
-        config = await server.storage.load_slot_config("testslot")
-        assert config.custom_storage_path is None
+        assert server.storage.get_custom_storage_path("testslot") is None
 
 
 # ---------------------------------------------------------------------------

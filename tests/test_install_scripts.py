@@ -477,5 +477,38 @@ class TestConfigTemplates:
             )
 
 
+# =============================================================================
+# Test utilities/protect_data.py
+# =============================================================================
+
+
+class TestProtectDataDetection:
+    """Tests for detect_memory_data() slot-file filtering."""
+
+    def _load_protect_data(self):
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("protect_data", "utilities/protect_data.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_excludes_storage_links_registry_and_config_sidecars(self, tmp_path):
+        """_storage_links.json and *_config.json sidecars are not real slots."""
+        memory_dir = tmp_path / "memory_slots"
+        memory_dir.mkdir()
+        (memory_dir / "myslot.json").write_text("{}")
+        (memory_dir / "myslot_config.json").write_text("{}")
+        (memory_dir / "_storage_links.json").write_text("{}")
+        (memory_dir / "backup_metadata.json").write_text("{}")
+
+        protect_data = self._load_protect_data()
+        data_exists, slot_count, _total_size, slot_names = protect_data.detect_memory_data(str(memory_dir))
+
+        assert data_exists is True
+        assert slot_count == 1
+        assert slot_names == ["myslot"]
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

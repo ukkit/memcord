@@ -427,11 +427,6 @@ class SlotConfig(BaseModel):
         ge=0,
         description="Max combined auto_summary+rolled_summary entries before consolidation (0 = disabled)",
     )
-    custom_storage_path: str | None = Field(
-        None,
-        description="Absolute directory where this slot's primary .json file is stored "
-        "(e.g. a synced Dropbox/OneDrive folder). None = default memory_dir.",
-    )
 
 
 class ExportConfig(BaseModel):

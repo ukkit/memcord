@@ -1628,6 +1628,7 @@ class ChatMemoryServer:
             lines = [f"Config for slot '{slot_name}':"]
             for field_name, value in config.model_dump().items():
                 lines.append(f"  {field_name}: {value}")
+            lines.append(f"  custom_storage_path: {self.storage.get_custom_storage_path(slot_name)}")
             return [TextContent(type="text", text="\n".join(lines))]
 
         if action == "set":
@@ -1698,7 +1699,7 @@ class ChatMemoryServer:
         if action == "reset":
             from .models import SlotConfig
 
-            if config.custom_storage_path:
+            if self.storage.get_custom_storage_path(slot_name):
                 await self.storage.set_custom_storage_path(slot_name, None)
 
             slot_exists = (self.storage.memory_dir / f"{slot_name}.json").exists()

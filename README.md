@@ -1,6 +1,6 @@
 <div align="center">
   <img src="assets/image/memcord_1024.png" width="256">
-  <h3>MEMCORD v4.1.1 (mcp server)</h3>
+  <h3>MEMCORD v4.2.0 (mcp server)</h3>
   <p>This privacy-first, self-hosted MCP server helps you organize chat history, summarize messages, search across past chats with AI — and keeps everything secure and fully under your control.</p>
 </div>
 
@@ -18,7 +18,7 @@
 <h2 align="center">Never Lose Context Again</h2>
 <p align="center"><em>Transform your Claude conversations into a searchable, organized knowledge base that grows with you</em></p>
 
-> **[What's new in v4.1.1](docs/versions.md#v411---cross-drive-storage-migration-fix)** — Fixed `custom_storage_path` migration failing on Windows when the target directory is on a different drive.
+> **[What's new in v4.2.0](docs/versions.md#v420---storage-links-registry)** — Per-slot `custom_storage_path` now shares the slot's full settings (not just data) across devices via a local storage-links registry.
 
 ## Table of Contents
 
@@ -154,7 +154,7 @@ This means after `memcord_init`, a fresh session (no `memcord_use` call needed) 
 
 ## Custom Storage Path
 
-Point a slot's data file at any directory — e.g. a Dropbox/OneDrive folder — to share it across devices, via `memcord_configure`.
+Point a slot's data file at any directory — e.g. a Dropbox/OneDrive folder — to share it across devices, via `memcord_configure`. Once linked, the slot's settings (summarizer backend, etc.) travel with the data too, so every device sharing the folder sees the same configuration.
 
 **New memory in an external path:**
 ```bash

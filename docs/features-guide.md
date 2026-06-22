@@ -233,9 +233,10 @@ memcord_configure action="get"                                  # confirm the re
 memcord_configure action="set" key="custom_storage_path" value="" # revert to default
 ```
 
-- Setting the path on a slot with existing data **migrates it automatically** (no manual file moves).
-- The redirect is configured **once per device** — each machine points at wherever it mounts the shared folder locally.
-- Search index, cache, and archives stay local per machine and are rebuilt lazily; only the slot's primary data file is shared.
+- Setting the path on a slot with existing data **migrates it automatically** (no manual file moves) — both the data file and its settings sidecar move together.
+- The redirect itself is configured **once per device** — each machine points at wherever it mounts the shared folder locally. This redirect is recorded in a small local-only file (`_storage_links.json`) that never leaves the machine.
+- Once linked, the slot's settings (summarizer backend, sumy algorithm, etc.) live in the shared folder too, so every device pointing at it sees and edits the same settings — not just the same content.
+- Search index, cache, and archives stay local per machine and are rebuilt lazily; only the slot's primary data file and its settings sidecar are shared.
 - Concurrent writes from two devices are last-write-wins — fine for the common "one active editor at a time" case, but not a substitute for real-time collaborative editing.
 
 See [Tools Reference — memcord_configure](tools-reference.md#6-memcord_configure) for the full parameter list.

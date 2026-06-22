@@ -30,8 +30,12 @@ def detect_memory_data(memory_dir: str = "memory_slots") -> tuple[bool, int, int
         return False, 0, 0, []
 
     slot_files = list(memory_path.glob("*.json"))
-    # Exclude backup metadata file from slot count
-    slot_files = [f for f in slot_files if f.name != "backup_metadata.json"]
+    # Exclude backup metadata, slot config sidecars, and the storage-links registry from slot count
+    slot_files = [
+        f
+        for f in slot_files
+        if f.name not in ("backup_metadata.json", "_storage_links.json") and not f.name.endswith("_config.json")
+    ]
     slot_names = [f.stem for f in slot_files]
 
     total_size = 0

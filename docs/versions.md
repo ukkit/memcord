@@ -1,5 +1,30 @@
 # Version History
 
+## v4.2.0 - Storage Links Registry
+
+```text
+  - custom_storage_path now redirects a slot's full settings, not just its
+    data file: the slot's _config.json sidecar (tags, group, max_auto_summaries,
+    etc.) moves with it to the custom directory, so two devices sharing a slot
+    via a synced folder (e.g. Dropbox) no longer drift apart on settings.
+  - New local-only registry file, memory_dir/_storage_links.json, maps
+    slot_name -> absolute custom path. The registry itself is never synced —
+    each device keeps its own local redirect, pointing at wherever it mounts
+    the shared folder.
+  - Legacy slots configured under the old (pre-registry) scheme are migrated
+    automatically on first read: the sidecar is relocated to join the data and
+    the registry is updated, with the registry commit deferred until after the
+    file relocation succeeds so a failed migration can't leave a slot stranded.
+  - memcord_configure reads custom_storage_path from the registry instead of
+    the sidecar.
+  - utilities/protect_data.py no longer misreports _storage_links.json or
+    *_config.json sidecars as memory slots during the pre-install data
+    protection check.
+  - config-templates/* now include empty MEMCORD_MEMORY_DIR and
+    MEMCORD_SHARED_DIR placeholders in the generated MCP client configs, so
+    users discover these env vars without hand-editing the file.
+```
+
 ## v4.1.1 - Cross-Drive Storage Migration Fix
 
 ```text

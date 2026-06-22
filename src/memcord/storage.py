@@ -42,6 +42,8 @@ from .storage_efficiency import (
 
 logger = logging.getLogger(__name__)
 
+_STORAGE_LINKS_FILENAME = "_storage_links.json"
+
 
 class StorageManager:
     """Manages file-based storage for memory slots."""
@@ -156,53 +158,43 @@ class StorageManager:
             await self._memory_manager.stop_monitoring()
 
     def _iter_slot_files(self):
-        """Yield slot .json files, including those relocated to a custom_storage_path.
+        """Yield slot .json files, including those relocated to a custom directory.
 
         Default-location files are discovered by globbing memory_dir directly.
         Slots whose primary file was migrated entirely outside memory_dir leave
-        no .json there, so they are discovered via their *_config.json sidecar.
+        no .json there, so they are discovered via the _storage_links.json registry.
         """
         seen_names: set[str] = set()
         for p in self.memory_dir.glob("*.json"):
-            if not p.name.endswith("_config.json"):
+            if not p.name.endswith("_config.json") and p.name != _STORAGE_LINKS_FILENAME:
                 seen_names.add(p.stem)
                 yield p
 
-        for cfg in self.memory_dir.glob("*_config.json"):
-            slot_name = cfg.name[: -len("_config.json")]
+        for slot_name, custom_path in self._load_storage_links().items():
             if slot_name in seen_names:
                 continue
-            try:
-                data = json.loads(cfg.read_text(encoding="utf-8"))
-            except Exception:
-                continue
-            custom = data.get("custom_storage_path")
-            if not custom:
-                continue
-            candidate = Path(custom).expanduser().absolute() / f"{slot_name}.json"
+            candidate = Path(custom_path).expanduser().absolute() / f"{slot_name}.json"
             if candidate.exists():
                 yield candidate
+
+    def _resolve_base_dir(self, slot_name: str) -> Path:
+        """Return the directory a slot's files live in.
+
+        Its custom directory if linked in the local _storage_links.json
+        registry, else memory_dir.
+        """
+        custom = self._load_storage_links().get(slot_name)
+        return Path(custom).expanduser().absolute() if custom else self.memory_dir
 
     async def _get_slot_path(self, slot_name: str) -> Path:
         """Get the file path for a memory slot, rejecting path-traversal attempts.
 
-        Honors a per-slot custom_storage_path from the config sidecar (always
-        read directly here rather than via load_slot_config, to avoid that
-        method's auto-create write side effect on what should be a pure read).
+        Honors a per-slot custom directory redirect from the local
+        _storage_links.json registry.
         """
         if "/" in slot_name or "\\" in slot_name:
             raise ValueError(f"Invalid slot name: '{slot_name}' contains path separators")
-        base_dir = self.memory_dir
-        config_path = self._slot_config_path(slot_name)
-        if config_path.exists():
-            try:
-                async with aiofiles.open(config_path, encoding="utf-8") as f:
-                    raw = json.loads(await f.read())
-                custom = raw.get("custom_storage_path")
-                if custom:
-                    base_dir = Path(custom).expanduser().absolute()
-            except Exception:
-                pass  # corrupt sidecar -> fall back to default dir
+        base_dir = self._resolve_base_dir(slot_name)
         candidate = base_dir / f"{slot_name}.json"
         if not candidate.resolve().is_relative_to(base_dir.resolve()):
             raise ValueError(f"Invalid slot name: '{slot_name}' would escape memory directory")
@@ -518,12 +510,49 @@ class StorageManager:
         remove_indices = {i for i, _ in to_merge}
         slot.entries = [rolled] + [e for i, e in enumerate(slot.entries) if i not in remove_indices]
 
+    def _storage_links_path(self) -> Path:
+        """Return the path to the local registry of per-slot custom storage redirects."""
+        return self.memory_dir / _STORAGE_LINKS_FILENAME
+
+    def _load_storage_links(self) -> dict[str, str]:
+        """Load the slot_name -> custom directory redirect registry.
+
+        Always local to this device's memory_dir; never itself relocated.
+        """
+        path = self._storage_links_path()
+        if not path.exists():
+            return {}
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+        except Exception:
+            return {}
+
+    def _save_storage_links(self, links: dict[str, str]) -> None:
+        """Persist the redirect registry, removing the file entirely once empty."""
+        path = self._storage_links_path()
+        if not links:
+            if path.exists():
+                path.unlink()
+            return
+        self.memory_dir.mkdir(exist_ok=True)
+        path.write_text(json.dumps(links, indent=2), encoding="utf-8")
+
+    def get_custom_storage_path(self, slot_name: str) -> str | None:
+        """Return the custom directory a slot is redirected to, or None if unlinked."""
+        return self._load_storage_links().get(slot_name)
+
     def _slot_config_path(self, slot_name: str) -> Path:
-        """Return the path to the sidecar config file for a slot, rejecting path-traversal attempts."""
+        """Return the path to the settings sidecar for a slot, rejecting path-traversal attempts.
+
+        Lives wherever the slot's data lives: its custom directory if linked
+        in the _storage_links.json registry, else memory_dir.
+        """
         if "/" in slot_name or "\\" in slot_name:
             raise ValueError(f"Invalid slot name: '{slot_name}' contains path separators")
-        candidate = self.memory_dir / f"{slot_name}_config.json"
-        if not candidate.resolve().is_relative_to(self.memory_dir.resolve()):
+        base_dir = self._resolve_base_dir(slot_name)
+        candidate = base_dir / f"{slot_name}_config.json"
+        if not candidate.resolve().is_relative_to(base_dir.resolve()):
             raise ValueError(f"Invalid slot name: '{slot_name}' would escape memory directory")
         return candidate
 
@@ -533,6 +562,10 @@ class StorageManager:
         Auto-creation rules:
         - Existing slot ({slot_name}.json exists) → nltk backend (preserve behavior)
         - New slot ({slot_name}.json absent)      → sumy backend (smarter default)
+
+        Also migrates a legacy inline `custom_storage_path` field (from
+        v4.1.0/v4.1.1, before the _storage_links.json registry existed) into
+        the registry on first read, relocating the sidecar to join the data.
         """
         config_path = self._slot_config_path(slot_name)
 
@@ -540,9 +573,33 @@ class StorageManager:
             try:
                 async with aiofiles.open(config_path, encoding="utf-8") as f:
                     data = json.loads(await f.read())
-                return SlotConfig(**data)
+                legacy_path = data.pop("custom_storage_path", None)
+                config = SlotConfig(**data)
             except Exception as exc:
                 logger.warning("Corrupt slot config for '%s', resetting: %s", slot_name, exc)
+            else:
+                if legacy_path:
+                    links = self._load_storage_links()
+                    if slot_name not in links:
+                        new_dir = Path(legacy_path).expanduser().absolute()
+                        new_config_path = new_dir / f"{slot_name}_config.json"
+                        if new_config_path != config_path:
+                            try:
+                                new_config_path.parent.mkdir(parents=True, exist_ok=True)
+                                async with aiofiles.open(new_config_path, "w", encoding="utf-8") as f:
+                                    await f.write(config.model_dump_json(indent=2))
+                            except Exception as exc:
+                                logger.warning(
+                                    "Failed to relocate slot config for '%s' to '%s', will retry later: %s",
+                                    slot_name,
+                                    legacy_path,
+                                    exc,
+                                )
+                                return config
+                            links[slot_name] = legacy_path
+                            self._save_storage_links(links)
+                            await aiofiles.os.remove(str(config_path))
+                return config
 
         # Auto-create
         slot_exists = (self.memory_dir / f"{slot_name}.json").exists()
@@ -552,20 +609,20 @@ class StorageManager:
         return config
 
     async def save_slot_config(self, slot_name: str, config: SlotConfig) -> None:
-        """Persist per-slot config sidecar."""
+        """Persist the settings sidecar wherever the slot's data currently lives."""
         config_path = self._slot_config_path(slot_name)
-        self.memory_dir.mkdir(exist_ok=True)
+        config_path.parent.mkdir(parents=True, exist_ok=True)
         async with aiofiles.open(config_path, "w", encoding="utf-8") as f:
             await f.write(config.model_dump_json(indent=2))
 
     async def set_custom_storage_path(self, slot_name: str, new_path: str | None) -> str:
-        """Point a slot's primary file at a custom directory (or back to the default).
+        """Point a slot's primary file and settings sidecar at a custom directory, or back to the default.
 
         Validates the target directory, migrates the existing primary file
-        (and its .bak, if present) when one exists locally, and persists the
-        redirect in the slot's config sidecar. Migration happens before the
-        sidecar is updated, so a failure never leaves the redirect pointing
-        somewhere the data isn't.
+        and settings sidecar (each with their .bak, if present) when found
+        locally, and persists the redirect in the local _storage_links.json
+        registry. Migration happens before the registry is updated, so a
+        failure never leaves the redirect pointing somewhere the data isn't.
         """
         if "/" in slot_name or "\\" in slot_name:
             raise ValueError(f"Invalid slot name: '{slot_name}' contains path separators")
@@ -573,14 +630,13 @@ class StorageManager:
         async with self._lock:
             from .security import PathValidator
 
-            config = await self.load_slot_config(slot_name)
-            old_dir = (
-                Path(config.custom_storage_path).expanduser().absolute()
-                if config.custom_storage_path
-                else self.memory_dir
-            )
+            links = self._load_storage_links()
+            old_custom = links.get(slot_name)
+            old_dir = Path(old_custom).expanduser().absolute() if old_custom else self.memory_dir
             old_primary = old_dir / f"{slot_name}.json"
             old_bak = old_dir / f"{slot_name}.json.bak"
+            old_config = old_dir / f"{slot_name}_config.json"
+            old_config_bak = old_dir / f"{slot_name}_config.json.bak"
 
             if new_path is None:
                 new_dir = self.memory_dir
@@ -591,11 +647,11 @@ class StorageManager:
                 new_dir = Path(new_path).expanduser().absolute()
 
             if new_dir.resolve() == old_dir.resolve():
-                config.custom_storage_path = new_path
-                await self.save_slot_config(slot_name, config)
                 return f"Slot '{slot_name}' is already linked to that location; no change made."
 
             new_primary = new_dir / f"{slot_name}.json"
+            new_config = new_dir / f"{slot_name}_config.json"
+            new_config_bak = new_dir / f"{slot_name}_config.json.bak"
             local_exists = old_primary.exists()
             remote_exists = new_primary.exists()
 
@@ -604,15 +660,21 @@ class StorageManager:
                     f"Target already has data for slot '{slot_name}'; resolve manually before linking this slot."
                 )
 
-            status: str
-            if local_exists:
-                try:
+            try:
+                if local_exists or old_config.exists():
                     new_dir.mkdir(parents=True, exist_ok=True)
+                if local_exists:
                     await asyncio.to_thread(shutil.move, str(old_primary), str(new_primary))
                     if old_bak.exists():
                         await asyncio.to_thread(shutil.move, str(old_bak), str(new_dir / f"{slot_name}.json.bak"))
-                except OSError as exc:
-                    raise ValueError(f"Migration failed for slot '{slot_name}': {exc}") from exc
+                if old_config.exists() and not new_config.exists():
+                    await asyncio.to_thread(shutil.move, str(old_config), str(new_config))
+                    if old_config_bak.exists() and not new_config_bak.exists():
+                        await asyncio.to_thread(shutil.move, str(old_config_bak), str(new_config_bak))
+            except OSError as exc:
+                raise ValueError(f"Migration failed for slot '{slot_name}': {exc}") from exc
+
+            if local_exists:
                 status = (
                     f"Migrated slot '{slot_name}' to default storage."
                     if new_path is None
@@ -627,8 +689,11 @@ class StorageManager:
                     else f"Set custom storage path for slot '{slot_name}' to '{new_path}' (no data to move yet)."
                 )
 
-            config.custom_storage_path = new_path
-            await self.save_slot_config(slot_name, config)
+            if new_path is None:
+                links.pop(slot_name, None)
+            else:
+                links[slot_name] = new_path
+            self._save_storage_links(links)
 
             if self._cache_manager:
                 cache_key = generate_slot_cache_key(slot_name)
